@@ -56,13 +56,13 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto">
-      {/* Overlay qui couvre TOUT */}
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose}></div>
+      {/* Overlay bleu pour les quêtes */}
+      <div className="fixed inset-0 bg-indigo-500" onClick={onClose}></div>
       
       {/* Conteneur centré */}
       <div className="min-h-full flex items-center justify-center p-4">
         {/* Modal */}
-        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col border border-slate-200">
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[85vh] overflow-hidden flex flex-col border border-slate-200">
           <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
             <div>
               <h2 className="text-xl font-bold text-slate-900">
@@ -306,13 +306,13 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
 export const ChestOpenedModal = ({ chest, onClose }) => {
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto">
-      {/* Overlay qui couvre TOUT */}
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px]"></div>
+      {/* Overlay blanc pour les popups */}
+      <div className="fixed inset-0 bg-slate-100"></div>
       
       {/* Conteneur centré */}
       <div className="min-h-full flex items-center justify-center p-4">
         {/* Modal */}
-        <div className="relative bg-white rounded-3xl p-8 max-w-sm w-full text-center animate-fade-in shadow-2xl border border-slate-200">
+        <div className="relative bg-white rounded-3xl p-8 w-full max-w-lg h-[85vh] overflow-y-auto text-center shadow-2xl border border-slate-200 flex flex-col justify-center">
           <div className="text-6xl mb-4 animate-bounce">📦</div>
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Coffre {chest.type} ouvert !</h2>
           
@@ -365,8 +365,8 @@ export const TaskCompletedModal = ({ task, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-hidden">
-      {/* Overlay qui couvre TOUT */}
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px]"></div>
+      {/* Overlay bleu pour les quêtes */}
+      <div className="fixed inset-0 bg-indigo-500"></div>
       
       {/* Confettis animés */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -406,7 +406,7 @@ export const TaskCompletedModal = ({ task, onClose }) => {
 
       {/* Conteneur centré */}
       <div className="min-h-full flex items-center justify-center p-4 relative z-20">
-        <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center animate-bounce-in shadow-2xl border border-slate-200">
+        <div className="bg-white rounded-3xl p-8 w-full max-w-lg h-[85vh] overflow-y-auto flex flex-col justify-center text-center animate-bounce-in shadow-2xl border border-slate-200">
           <h2 className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-500 to-emerald-500 mb-2">
             Quête terminée !
           </h2>
@@ -658,13 +658,13 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto">
-      {/* Overlay qui couvre TOUT */}
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose}></div>
+      {/* Overlay blanc pour les popups */}
+      <div className="fixed inset-0 bg-slate-100" onClick={onClose}></div>
       
       {/* Conteneur centré */}
       <div className="min-h-full flex items-center justify-center p-4">
         {/* Modal */}
-        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col border border-slate-200">
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[85vh] overflow-hidden flex flex-col border border-slate-200">
           {/* Header */}
           <div className="p-5 flex justify-between items-center border-b border-slate-100 shrink-0">
             <h2 className="text-xl font-bold text-slate-900">Paramètres du compte</h2>
@@ -877,13 +877,13 @@ export const CreateMissionModal = ({ onClose, friends, user, onCreate }) => {
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto">
-      {/* Overlay qui couvre TOUT */}
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose}></div>
+      {/* Overlay violet pour les missions */}
+      <div className="fixed inset-0 bg-purple-500" onClick={onClose}></div>
       
       {/* Conteneur centré */}
       <div className="min-h-full flex items-center justify-center p-4">
         {/* Modal */}
-        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col border border-slate-200">
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[85vh] overflow-hidden flex flex-col border border-slate-200">
           <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
             <h2 className="text-xl font-bold text-slate-900">Nouvelle Mission</h2>
             <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">✕</button>
@@ -1250,13 +1250,13 @@ export const CreateMissionQuestModal = ({ mission, onClose, onCreate, getStatusC
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto">
-      {/* Overlay qui couvre TOUT */}
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose}></div>
+      {/* Overlay violet pour les missions */}
+      <div className="fixed inset-0 bg-purple-500" onClick={onClose}></div>
       
       {/* Conteneur centré */}
       <div className="min-h-full flex items-center justify-center p-4">
         {/* Modal */}
-        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col border border-slate-200">
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[85vh] overflow-hidden flex flex-col border border-slate-200">
           <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
             <div>
               <h2 className="text-xl font-bold text-slate-900">Nouvelle quête</h2>
@@ -1352,10 +1352,11 @@ export const BadgeUnlockedModal = ({ badge, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto" onClick={onClose}>
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px]"></div>
+      {/* Overlay blanc pour les popups */}
+      <div className="fixed inset-0 bg-slate-100"></div>
       
       <div className="min-h-full flex items-center justify-center p-4">
-        <div className="relative text-center animate-badge-enter" onClick={e => e.stopPropagation()}>
+        <div className="relative bg-white rounded-3xl w-full max-w-lg h-[85vh] overflow-y-auto flex flex-col justify-center text-center animate-badge-enter shadow-2xl border border-slate-200" onClick={e => e.stopPropagation()}>
           {/* Particules de célébration */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             {[...Array(12)].map((_, i) => (
