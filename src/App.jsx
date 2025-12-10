@@ -812,20 +812,19 @@ const QuestApp = () => {
             return { success: false, error: error.message };
           }
         }}
-        onDeleteAccount={async () => {
+       onDeleteAccount={async () => {
           try {
-            // Supprimer les données utilisateur
-            if (supabaseUser) {
-              await supabase.from('tasks').delete().eq('user_id', supabaseUser.id);
-              await supabase.from('chests').delete().eq('user_id', supabaseUser.id);
-              await supabase.from('profiles').delete().eq('id', supabaseUser.id);
-            }
+            // Appeler la fonction Supabase qui supprime tout
+            const { error } = await supabase.rpc('delete_user_account');
+            if (error) throw error;
+            
             // Déconnecter l'utilisateur
             await supabase.auth.signOut();
             setShowSettings(false);
             setIsLoggedIn(false);
             return { success: true };
           } catch (error) {
+            console.error('Erreur suppression:', error);
             return { success: false, error: error.message };
           }
         }}
