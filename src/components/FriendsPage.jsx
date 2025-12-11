@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { PageHelp } from './PageHelp';
 
 export const FriendsPage = ({ 
   user,
@@ -52,6 +53,12 @@ export const FriendsPage = ({
           + Nouvelle Mission
         </button>
       </div>
+
+      <PageHelp pageId="friends" color="purple">
+        <strong>🤝 Joue en équipe !</strong> Ajoute des amis et crée des <strong>missions collaboratives</strong>. 
+        Chaque participant gagne des <strong>Points de Quête (PQ)</strong> proportionnellement à sa contribution. 
+        Consulte le classement pour voir qui domine la saison !
+      </PageHelp>
 
       {/* Onglets */}
       <div className="flex gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
@@ -155,7 +162,7 @@ export const FriendsPage = ({
                       <span className={`text-xs px-2 py-1 rounded-lg font-medium ${
                         isCompleted ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
                       }`}>
-                        {completedQuests}/{totalQuests} quêtes
+                        {completedQuests}/{totalQuests} tâches
                       </span>
                     </div>
                     
@@ -211,9 +218,9 @@ export const FriendsPage = ({
                     </div>
                     <button
                       onClick={() => addFriend(result.pseudo)}
-                      className="bg-purple-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-purple-600"
+                      className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-90"
                     >
-                      + Ajouter
+                      Demander
                     </button>
                   </div>
                 ))}
@@ -277,33 +284,33 @@ export const FriendsPage = ({
       {/* Tab Demandes */}
       {activeTab === 'requests' && (
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-900 mb-4">Demandes d'amis</h2>
+          <h2 className="text-lg font-bold text-slate-900 mb-4">Demandes d'amis reçues</h2>
           
           {friendRequests.length > 0 ? (
             <div className="space-y-3">
               {friendRequests.map(request => (
-                <div key={request.pseudo} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                <div key={request.pseudo} className="flex items-center justify-between p-4 bg-purple-50 rounded-xl border border-purple-100">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl flex items-center justify-center text-2xl">
-                      {request.avatar}
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center text-2xl">
+                      <span className="emoji-display">{request.avatar}</span>
                     </div>
                     <div>
                       <div className="font-bold text-slate-900">{request.pseudo}</div>
-                      <div className="text-sm text-slate-500">Niv. {request.level} • {request.pqSeason} PQ</div>
+                      <div className="text-sm text-slate-500">Niv. {request.level} • {request.pqSeason || 0} PQ</div>
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => onAcceptRequest(request.pseudo)}
-                      className="bg-green-500 text-white px-3 py-2 rounded-lg font-semibold text-sm hover:bg-green-600"
+                      className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-90"
                     >
-                      ✓
+                      Accepter
                     </button>
                     <button
                       onClick={() => onDeclineRequest(request.pseudo)}
-                      className="bg-red-500 text-white px-3 py-2 rounded-lg font-semibold text-sm hover:bg-red-600"
+                      className="bg-slate-200 text-slate-600 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-slate-300"
                     >
-                      ✕
+                      Refuser
                     </button>
                   </div>
                 </div>
@@ -311,6 +318,7 @@ export const FriendsPage = ({
             </div>
           ) : (
             <div className="text-center py-10 bg-slate-50 rounded-xl">
+              <div className="text-4xl mb-2">📬</div>
               <p className="text-slate-500">Aucune demande en attente</p>
             </div>
           )}

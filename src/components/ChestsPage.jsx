@@ -1,4 +1,5 @@
 import React from 'react';
+import { PageHelp } from './PageHelp';
 
 export const ChestsPage = ({ chests, onFuseChests, onOpenChest, tasksCompleted }) => {
   const chestTypes = [
@@ -8,8 +9,6 @@ export const ChestsPage = ({ chests, onFuseChests, onOpenChest, tasksCompleted }
       emoji: '🎁', 
       bgColor: 'bg-gradient-to-br from-amber-500 to-amber-700',
       textColor: 'text-white',
-      buttonBg: 'bg-amber-100/90 text-amber-900 hover:bg-amber-100',
-      fusionBg: 'bg-amber-600/80 text-amber-100 hover:bg-amber-600',
       fusionText: '3 → 1 splendide',
       fusionRequired: 3,
       fusionTarget: 'silver'
@@ -20,8 +19,6 @@ export const ChestsPage = ({ chests, onFuseChests, onOpenChest, tasksCompleted }
       emoji: '🎀', 
       bgColor: 'bg-gradient-to-br from-slate-500 to-slate-700',
       textColor: 'text-white',
-      buttonBg: 'bg-slate-100/90 text-slate-900 hover:bg-slate-100',
-      fusionBg: 'bg-slate-600/80 text-slate-200 hover:bg-slate-600',
       fusionText: '5 → 1 diamant',
       fusionRequired: 5,
       fusionTarget: 'gold'
@@ -32,8 +29,6 @@ export const ChestsPage = ({ chests, onFuseChests, onOpenChest, tasksCompleted }
       emoji: '💎', 
       bgColor: 'bg-gradient-to-br from-cyan-400 to-blue-500',
       textColor: 'text-white',
-      buttonBg: 'bg-cyan-100/90 text-cyan-900 hover:bg-cyan-100',
-      fusionBg: 'bg-cyan-600/80 text-cyan-100 hover:bg-cyan-600',
       fusionText: '10 → 1 légendaire',
       fusionRequired: 10,
       fusionTarget: 'legendary'
@@ -44,15 +39,13 @@ export const ChestsPage = ({ chests, onFuseChests, onOpenChest, tasksCompleted }
       emoji: '👑', 
       bgColor: 'bg-gradient-to-br from-fuchsia-500 to-purple-600',
       textColor: 'text-white',
-      buttonBg: 'bg-fuchsia-100/90 text-fuchsia-900 hover:bg-fuchsia-100',
-      fusionBg: null,
       fusionText: null,
       fusionRequired: null,
       fusionTarget: null
     },
   ];
 
-  // Calcul du nombre de quêtes restantes avant le prochain coffre
+  // Calcul du nombre de tâches restantes avant le prochain coffre
   const tasksUntilNextChest = 8 - (tasksCompleted % 8);
 
   return (
@@ -61,12 +54,17 @@ export const ChestsPage = ({ chests, onFuseChests, onOpenChest, tasksCompleted }
         <h1 className="text-2xl font-black text-slate-900">Coffres</h1>
         <div className="text-right">
           <div className="text-2xl font-black text-amber-600">{tasksUntilNextChest}/8</div>
-          <div className="text-xs text-slate-500">Quêtes avant 🎁</div>
+          <div className="text-xs text-slate-500">Tâches avant 🎁</div>
         </div>
       </div>
+
+      <PageHelp pageId="chests" color="amber">
+        <strong>🎁 Gagne des coffres !</strong> Toutes les <strong>8 tâches</strong> complétées, tu reçois un coffre. 
+        Ouvre-les pour gagner des patates ! <strong>Fusionne</strong> plusieurs coffres pour en obtenir de meilleurs.
+      </PageHelp>
       
       {/* Grille des coffres */}
-      <div className="grid grid-cols-2 gap-2 flex-1">
+      <div className="grid grid-cols-2 gap-2 flex-1 mt-4">
         {chestTypes.map(chest => {
           const hasChest = chests[chest.type] > 0;
           
@@ -89,27 +87,27 @@ export const ChestsPage = ({ chests, onFuseChests, onOpenChest, tasksCompleted }
                   {chests[chest.type]}
                 </div>
                 
-                {/* Bouton Ouvrir - toujours visible mais grisé si pas dispo */}
+                {/* Bouton Ouvrir - style unifié */}
                 <button
                   onClick={() => hasChest && onOpenChest(chest.type)}
                   disabled={!hasChest}
-                  className={`w-full py-1.5 sm:py-2 rounded-xl font-bold text-xs sm:text-sm transition-all mb-1.5 ${
+                  className={`w-full py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all mb-1.5 ${
                     hasChest 
-                      ? chest.buttonBg 
+                      ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:opacity-90 shadow-md' 
                       : 'bg-black/20 text-white/50 cursor-not-allowed'
                   }`}
                 >
                   Ouvrir
                 </button>
                 
-                {/* Bouton Fusion */}
+                {/* Bouton Fusion - style unifié */}
                 {chest.fusionText && (
                   <button
                     onClick={() => onFuseChests(chest.type)}
                     disabled={chests[chest.type] < chest.fusionRequired}
                     className={`w-full py-1.5 sm:py-2 rounded-xl font-medium text-[10px] sm:text-xs transition-all ${
                       chests[chest.type] >= chest.fusionRequired
-                        ? chest.fusionBg
+                        ? 'bg-white/90 text-slate-700 hover:bg-white shadow-sm'
                         : 'bg-black/20 text-white/50 cursor-not-allowed'
                     }`}
                   >

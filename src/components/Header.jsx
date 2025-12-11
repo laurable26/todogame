@@ -149,7 +149,7 @@ export const Navigation = ({ currentPage, setCurrentPage, friendRequestsCount, c
     <nav className={`fixed bottom-0 left-0 right-0 ${navBg} backdrop-blur-xl border-t ${borderColor} z-30 shadow-lg`}>
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-around py-2 sm:py-3">
-          <NavButton label="Quêtes" active={currentPage === 'tasks'} onClick={() => setCurrentPage('tasks')} theme={theme} />
+          <NavButton label="Tâches" active={currentPage === 'tasks'} onClick={() => setCurrentPage('tasks')} theme={theme} />
           <NavButton label="Amis" active={currentPage === 'friends'} onClick={() => setCurrentPage('friends')} badge={friendRequestsCount} theme={theme} />
           <NavButton label="Coffres" active={currentPage === 'chests'} onClick={() => setCurrentPage('chests')} badge={chestsCount} theme={theme} />
           <NavButton label="Badges" active={currentPage === 'badges'} onClick={() => setCurrentPage('badges')} theme={theme} />

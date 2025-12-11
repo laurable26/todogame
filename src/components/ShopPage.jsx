@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
+import { PageHelp } from './PageHelp';
 
 export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippedItems, onEquipItem, user, activeBoosts = [], activeUpgrades = {}, onToggleUpgrade }) => {
-  const [activeTab, setActiveTab] = useState('boost');
+  const [activeTab, setActiveTab] = useState('avatar');
 
   const tabs = [
-    { id: 'boost', label: 'Boosts', emoji: '⚡' },
     { id: 'avatar', label: 'Avatars', emoji: '😀' },
     { id: 'fond', label: 'Fonds', emoji: '🎨' },
     { id: 'amelioration', label: 'Améliorations', emoji: '⚙️' },
+    { id: 'boost', label: 'Boosts', emoji: '⚡' },
   ];
 
   // Filtrer et trier par prix croissant
@@ -28,6 +29,11 @@ export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippe
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
       <h1 className="text-3xl font-black text-slate-900">Boutique</h1>
+
+      <PageHelp pageId="shop" color="amber">
+        <strong>🛒 Dépense tes patates !</strong> Achète des <strong>avatars</strong> et <strong>fonds</strong> pour personnaliser ton profil, 
+        des <strong>boosts</strong> temporaires pour progresser plus vite, et des <strong>améliorations</strong> permanentes pour débloquer de nouvelles fonctionnalités.
+      </PageHelp>
 
       {/* Onglets */}
       <div className="flex gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">

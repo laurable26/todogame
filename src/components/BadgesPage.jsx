@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { PageHelp } from './PageHelp';
 
 export const BadgesPage = ({ badges }) => {
   const [selectedBadge, setSelectedBadge] = useState(null);
@@ -30,6 +31,11 @@ export const BadgesPage = ({ badges }) => {
           <div className="text-xs text-slate-500">Badges débloqués</div>
         </div>
       </div>
+
+      <PageHelp pageId="badges" color="indigo">
+        <strong>🏅 Débloque des succès !</strong> Complète des objectifs pour gagner des badges <strong>bronze</strong>, <strong>argent</strong> et <strong>or</strong>. 
+        Chaque badge débloqué te rapporte des patates bonus !
+      </PageHelp>
 
       <div className="flex gap-2 overflow-x-auto pb-2">
         {[

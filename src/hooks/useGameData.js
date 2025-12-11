@@ -37,6 +37,7 @@ export const useGameData = (supabaseUser) => {
   });
 
   const [tasks, setTasks] = useState([]);
+  const [events, setEvents] = useState([]);
   const [missions, setMissions] = useState([]);
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
@@ -123,12 +124,14 @@ export const useGameData = (supabaseUser) => {
     // Améliorations - triées par prix
     { id: 71, name: 'Bordures Dorées', price: 500, type: 'amelioration', image: '✨', description: 'Bordure dorée sur ton avatar', isGoldenBorder: true },
     { id: 72, name: 'Notes Étendues', price: 300, type: 'amelioration', image: '📝', description: 'Notes plus longues sur les quêtes', isExtendedNotes: true },
+    { id: 85, name: 'Éditeur de Texte', price: 400, type: 'amelioration', image: '✏️', description: 'Gras, italique, listes dans les notes', isRichTextEditor: true },
+    { id: 86, name: 'Photos Notes', price: 600, type: 'amelioration', image: '📷', description: 'Ajouter des photos dans les notes', isPhotoNotes: true },
     { id: 73, name: 'Thème Rose', price: 400, type: 'amelioration', image: '💗', description: 'Change les couleurs en rose', themeColor: 'rose' },
     { id: 74, name: 'Thème Vert', price: 400, type: 'amelioration', image: '💚', description: 'Change les couleurs en vert', themeColor: 'vert' },
     { id: 75, name: 'Thème Bleu', price: 400, type: 'amelioration', image: '💙', description: 'Change les couleurs en bleu', themeColor: 'bleu' },
     { id: 76, name: 'Thème Violet', price: 400, type: 'amelioration', image: '💜', description: 'Change les couleurs en violet', themeColor: 'violet' },
     { id: 77, name: 'Tri Avancé', price: 600, type: 'amelioration', image: '🔀', description: 'Options de tri supplémentaires', isAdvancedSort: true },
-    { id: 84, name: 'Filtre de Quêtes', price: 800, type: 'amelioration', image: '🔍', description: 'Filtre par statut et durée', isQuestFilter: true },
+    { id: 84, name: 'Filtre de Tâches', price: 800, type: 'amelioration', image: '🔍', description: 'Filtre par statut et durée', isQuestFilter: true },
     { id: 78, name: 'Mode Sombre', price: 1000, type: 'amelioration', image: '🌙', description: 'Active le thème sombre', isDarkMode: true },
     { id: 79, name: 'Titre Personnalisé', price: 1500, type: 'amelioration', image: '🏷️', description: 'Affiche un titre sous ton pseudo', isCustomTitle: true },
     { id: 80, name: 'Animations +', price: 2000, type: 'amelioration', image: '💫', description: 'Animations améliorées', isAnimations: true },
@@ -221,9 +224,34 @@ export const useGameData = (supabaseUser) => {
           date: t.date ? new Date(t.date) : null,
           category: t.category,
           completed: t.completed,
-          tags: [],
-          recurrence: 'none',
-          notes: '',
+          tags: t.tags || [],
+          recurrence: t.recurrence || 'none',
+          recurrenceDays: t.recurrence_days || [],
+          notes: t.notes || '',
+          photos: t.photos || [],
+        })));
+      }
+
+      // Charger les événements
+      const { data: eventsData } = await supabase
+        .from('events')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: true });
+
+      if (eventsData) {
+        setEvents(eventsData.map(e => ({
+          id: e.id,
+          title: e.title,
+          description: e.description || '',
+          date: e.date ? new Date(e.date) : null,
+          time: e.time || '',
+          duration: e.duration || '1h-2h',
+          location: e.location || '',
+          participants: e.participants || [],
+          reminder: e.reminder || 'none',
+          completed: e.completed || false,
+          createdAt: e.created_at,
         })));
       }
 
@@ -404,6 +432,52 @@ export const useGameData = (supabaseUser) => {
       }
     } catch (error) {
       console.error('Erreur suppression mission:', error);
+    }
+  };
+
+  // Sauvegarder un événement
+  const saveEvent = async (event) => {
+    if (!supabaseUser) return;
+    
+    try {
+      const eventData = {
+        id: event.id,
+        user_id: supabaseUser.id,
+        title: event.title,
+        description: event.description || '',
+        date: event.date instanceof Date ? event.date.toISOString() : event.date,
+        time: event.time || '',
+        duration: event.duration || '1h-2h',
+        location: event.location || '',
+        participants: event.participants || [],
+        reminder: event.reminder || 'none',
+        completed: event.completed || false,
+        updated_at: new Date().toISOString(),
+      };
+      
+      const { error } = await supabase
+        .from('events')
+        .upsert(eventData, { onConflict: 'id' });
+      
+      if (error) {
+        console.error('Erreur Supabase saveEvent:', error);
+      }
+    } catch (error) {
+      console.error('Erreur sauvegarde événement:', error);
+    }
+  };
+
+  // Supprimer un événement
+  const deleteEvent = async (eventId) => {
+    if (!supabaseUser) return;
+    
+    try {
+      const { error } = await supabase.from('events').delete().eq('id', eventId);
+      if (error) {
+        console.error('Erreur Supabase deleteEvent:', error);
+      }
+    } catch (error) {
+      console.error('Erreur suppression événement:', error);
     }
   };
 
@@ -783,6 +857,8 @@ export const useGameData = (supabaseUser) => {
     updateChests,
     tasks,
     setTasks,
+    events,
+    setEvents,
     missions,
     setMissions,
     friends,
@@ -806,6 +882,8 @@ export const useGameData = (supabaseUser) => {
     saveFriend,
     saveMission,
     deleteMission,
+    saveEvent,
+    deleteEvent,
     checkPseudoAvailable,
     // Thème
     theme,

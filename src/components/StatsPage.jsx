@@ -113,7 +113,7 @@ export const StatsPage = ({ user, tasks, missions, chests, badges, friends }) =>
       {/* Stats principales */}
       <div className="grid grid-cols-2 gap-3">
         <StatCard 
-          title="Quêtes complétées" 
+          title="Tâches complétées" 
           value={stats.completedTasks}
           icon="✅"
           color="border-green-200"
@@ -171,7 +171,7 @@ export const StatsPage = ({ user, tasks, missions, chests, badges, friends }) =>
           </div>
           <div className="text-center p-3 bg-pink-50 rounded-xl">
             <div className="text-2xl font-black text-pink-600">{stats.completedQuests}/{stats.totalQuests}</div>
-            <div className="text-sm text-pink-700">Quêtes de mission</div>
+            <div className="text-sm text-pink-700">Tâches de mission</div>
           </div>
           <div className="text-center p-3 bg-cyan-50 rounded-xl">
             <div className="text-2xl font-black text-cyan-600">{stats.friends}</div>

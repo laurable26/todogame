@@ -1,12 +1,17 @@
 import React, { useState, useMemo } from 'react';
+import { PageHelp } from './PageHelp';
 
 export const TasksPage = ({ 
   tasks, 
+  events = [],
   tasksView, 
   setTasksView, 
-  onCompleteTask, 
-  onCreateTask, 
-  onEditTask, 
+  onCompleteTask,
+  onCompleteEvent, 
+  onCreateTask,
+  onCreateEvent, 
+  onEditTask,
+  onEditEvent, 
   onDeleteTask, 
   onClearCompleted, 
   getStatusColor, 
@@ -82,12 +87,12 @@ export const TasksPage = ({
     });
   };
 
-  // Récupérer les quêtes de mission assignées à l'utilisateur (uniquement celles explicitement assignées)
+  // Récupérer les tâches de mission assignées à l'utilisateur (uniquement celles explicitement assignées)
   const myMissionQuests = useMemo(() => {
     if (!missions || !user) return [];
     
     return missions.flatMap(mission => {
-      // Ne pas afficher les quêtes des missions terminées
+      // Ne pas afficher les tâches des missions terminées
       const isCompleted = mission.quests?.length > 0 && mission.quests.every(q => q.completed);
       if (isCompleted) return [];
       
@@ -102,18 +107,30 @@ export const TasksPage = ({
     });
   }, [missions, user]);
 
+  // Calcul des jours de la semaine : aujourd'hui + X jours suivants
   const weekDates = useMemo(() => {
-    const start = new Date(today);
-    const dayOfWeek = today.getDay();
-    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    start.setDate(today.getDate() + diff + (weekOffset * 7));
+    const dates = [];
+    let currentDate = new Date(today);
+    currentDate.setDate(currentDate.getDate() + (weekOffset * weekDaysCount));
     
-    return Array.from({ length: weekDaysCount }, (_, i) => {
-      const date = new Date(start);
-      date.setDate(start.getDate() + i);
-      date.setHours(0, 0, 0, 0);
-      return date;
-    });
+    let daysAdded = 0;
+    while (daysAdded < weekDaysCount) {
+      const dayOfWeek = currentDate.getDay();
+      
+      // Si mode 5 jours, on saute les week-ends
+      if (weekDaysCount === 5 && (dayOfWeek === 0 || dayOfWeek === 6)) {
+        currentDate.setDate(currentDate.getDate() + 1);
+        continue;
+      }
+      
+      const dateToAdd = new Date(currentDate);
+      dateToAdd.setHours(0, 0, 0, 0);
+      dates.push(dateToAdd);
+      daysAdded++;
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return dates;
   }, [today, weekDaysCount, weekOffset]);
 
   const weekRangeLabel = useMemo(() => {
@@ -128,7 +145,7 @@ export const TasksPage = ({
   const activeTasks = tasks.filter(t => !t.completed);
   const archivedTasks = tasks.filter(t => t.completed);
   
-  // Tâches d'aujourd'hui (incluant les quêtes de mission)
+  // Tâches d'aujourd'hui (incluant les tâches de mission)
   const todayTasks = useMemo(() => {
     const regularTasks = activeTasks.filter(t => {
       if (!t.date) return false;
@@ -147,7 +164,18 @@ export const TasksPage = ({
     return [...regularTasks, ...missionQuestsToday];
   }, [activeTasks, today, myMissionQuests]);
 
-  // Tâches de la semaine (incluant les quêtes de mission)
+  // Événements d'aujourd'hui
+  const todayEvents = useMemo(() => {
+    return events.filter(e => {
+      if (e.completed) return false;
+      if (!e.date) return false;
+      const eventDate = new Date(e.date);
+      eventDate.setHours(0, 0, 0, 0);
+      return eventDate.getTime() === today.getTime();
+    });
+  }, [events, today]);
+
+  // Tâches de la semaine (incluant les tâches de mission)
   const weekTasks = useMemo(() => weekDates.map(date => {
     const tasksForDate = activeTasks.filter(t => {
       if (!t.date) return false;
@@ -163,13 +191,23 @@ export const TasksPage = ({
       return questDate.getTime() === date.getTime();
     });
     
+    // Événements pour cette date
+    const eventsForDate = events.filter(e => {
+      if (e.completed) return false;
+      if (!e.date) return false;
+      const eventDate = new Date(e.date);
+      eventDate.setHours(0, 0, 0, 0);
+      return eventDate.getTime() === date.getTime();
+    });
+    
     return {
       date,
-      tasks: [...tasksForDate, ...missionQuestsForDate]
+      tasks: [...tasksForDate, ...missionQuestsForDate],
+      events: eventsForDate
     };
-  }), [weekDates, activeTasks, myMissionQuests]);
+  }), [weekDates, activeTasks, myMissionQuests, events]);
 
-  // Bucketlist = tâches sans date + quêtes de mission sans date
+  // Bucketlist = tâches sans date + tâches de mission sans date
   const bucketlistTasks = [
     ...activeTasks.filter(t => !t.date), 
     ...myMissionQuests.filter(q => !q.date)
@@ -215,56 +253,51 @@ export const TasksPage = ({
           )}
           
           <div className="flex-1 min-w-0" onClick={() => onEditTask(task)}>
-            <h3 className={`font-semibold ${compact ? 'text-xs leading-tight' : 'text-base'} cursor-pointer line-clamp-2 ${
-              isCompleted 
-                ? 'text-slate-400 line-through' 
-                : 'text-slate-900 hover:text-indigo-600'
-            }`}>
-              {task.title}
-            </h3>
-            
-            {/* Badge mission - obsolète, on l'enlève d'ici */}
+            {/* Titre + XP/Patates en haut */}
+            <div className="flex items-start justify-between gap-2">
+              <h3 className={`font-semibold ${compact ? 'text-xs leading-tight' : 'text-base'} cursor-pointer line-clamp-2 ${
+                isCompleted 
+                  ? 'text-slate-400 line-through' 
+                  : 'text-slate-900 hover:text-indigo-600'
+              }`}>
+                {task.title}
+              </h3>
+              
+              {/* XP et Patates en haut à droite */}
+              {!isCompleted && !compact && (
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <span className="px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
+                    ⚡+{xpGained}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
+                    🥔+{pointsGained}
+                  </span>
+                </div>
+              )}
+            </div>
             
             {!isCompleted && (
               <>
-                <div className="flex items-center justify-between gap-2 mt-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`px-2 py-1 rounded-lg border ${compact ? 'text-[10px]' : 'text-xs'} font-medium ${getStatusColor(task.status)}`}>
-                      {task.status}
-                    </span>
-                    <span className={`px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 ${compact ? 'text-[10px]' : 'text-xs'} font-medium text-slate-600`}>
-                      {task.duration}
-                    </span>
-                    {(task.recurrence && task.recurrence !== 'none') && (
-                      <span className="text-sm">🔄</span>
-                    )}
-                  </div>
-
-                  {/* XP et Patates à droite */}
-                  {!compact && (
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold flex items-center gap-1">
-                        ⚡ +{xpGained}
-                      </span>
-                      <span className="px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold flex items-center gap-1">
-                        🥔 +{pointsGained}
-                      </span>
-                    </div>
+                {/* Infos : importance, durée, récurrence, tags */}
+                <div className="flex items-center gap-2 flex-wrap mt-1">
+                  <span className={`px-2 py-1 rounded-lg border ${compact ? 'text-[10px]' : 'text-xs'} font-medium ${getStatusColor(task.status)}`}>
+                    {task.status}
+                  </span>
+                  <span className={`px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 ${compact ? 'text-[10px]' : 'text-xs'} font-medium text-slate-600`}>
+                    {task.duration}
+                  </span>
+                  {(task.recurrence && task.recurrence !== 'none') && (
+                    <span className="text-sm">🔄</span>
                   )}
+                  {/* Tags à la suite */}
+                  {task.tags && task.tags.length > 0 && !compact && task.tags.map((tag, index) => (
+                    <span key={index} className="px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 text-xs font-medium">
+                      #{tag}
+                    </span>
+                  ))}
                 </div>
 
-                {/* Tags */}
-                {task.tags && task.tags.length > 0 && !compact && (
-                  <div className="flex items-center gap-1 flex-wrap mt-2">
-                    {task.tags.map((tag, index) => (
-                      <span key={index} className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Mission liée - en bas à droite (pour les quêtes de mission) */}
+                {/* Mission liée - en bas à droite (pour les tâches de mission) */}
                 {task.isMissionQuest && !compact && (
                   <div className="flex justify-end mt-2">
                     <span className="px-2 py-1 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 text-xs font-medium">
@@ -273,6 +306,90 @@ export const TasksPage = ({
                   </div>
                 )}
               </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Carte événement
+  const EventCard = ({ event }) => {
+    const isCompleted = event.completed;
+    const participantCount = event.participants?.length || 0;
+    
+    return (
+      <div className={`rounded-xl p-4 border shadow-sm transition-all group ${
+        isCompleted 
+          ? 'bg-slate-100 border-slate-200 opacity-60' 
+          : 'bg-emerald-50 border-emerald-200 hover:shadow-md'
+      }`}>
+        <div className="flex items-start gap-3">
+          {!isCompleted ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onCompleteEvent(event.id);
+              }}
+              className="mt-1 w-6 h-6 rounded-lg border-2 border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100 transition-all flex-shrink-0 flex items-center justify-center"
+            >
+              <span className="opacity-0 group-hover:opacity-100 text-emerald-600 text-xs">✓</span>
+            </button>
+          ) : (
+            <div className="mt-1 w-6 h-6 rounded-lg bg-emerald-500 flex-shrink-0 flex items-center justify-center">
+              <span className="text-white text-xs">✓</span>
+            </div>
+          )}
+          
+          <div className="flex-1 min-w-0" onClick={() => onEditEvent(event)}>
+            {/* Titre */}
+            <div>
+              <h3 className={`font-semibold text-base cursor-pointer ${
+                isCompleted ? 'text-slate-400 line-through' : 'text-slate-900 hover:text-emerald-600'
+              }`}>
+                📅 {event.title}
+              </h3>
+              {!isCompleted && (
+                <div className="flex items-center gap-2 flex-wrap mt-1">
+                  <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                    {event.time}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                    {event.duration}
+                  </span>
+                  {event.location && (
+                    <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                      {event.location}
+                    </span>
+                  )}
+                  {event.reminder && event.reminder !== 'none' && (
+                    <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 text-xs font-medium">
+                      🔔 {event.reminder}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {/* Participants avec avatars complets */}
+            {!isCompleted && participantCount > 0 && (
+              <div className="flex items-center gap-1 mt-2">
+                <span className="text-xs text-slate-500">Avec :</span>
+                <div className="flex -space-x-1">
+                  {event.participants.slice(0, 5).map((p, i) => (
+                    <div 
+                      key={i} 
+                      className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center border-2 border-white shadow-sm"
+                      title={p.pseudo}
+                    >
+                      <span className="text-sm">{p.avatar}</span>
+                    </div>
+                  ))}
+                </div>
+                {participantCount > 5 && (
+                  <span className="text-xs text-slate-500 ml-1">+{participantCount - 5}</span>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -292,21 +409,35 @@ export const TasksPage = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-black text-slate-900">Quêtes</h1>
-        <button 
-          onClick={onCreateTask}
-          className="bg-gradient-to-r from-blue-500 to-cyan-500 px-6 py-3 rounded-xl font-bold text-white hover:scale-105 transition-transform shadow-lg"
-        >
-          + Nouvelle Quête
-        </button>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h1 className="text-2xl sm:text-3xl font-black text-slate-900">Tâches</h1>
+        <div className="flex gap-2">
+          <button 
+            onClick={onCreateEvent}
+            className="bg-gradient-to-r from-emerald-500 to-teal-500 px-3 sm:px-4 py-2 sm:py-3 rounded-xl font-bold text-white hover:scale-105 transition-transform shadow-lg text-sm sm:text-base"
+          >
+            + Événement
+          </button>
+          <button 
+            onClick={onCreateTask}
+            className="bg-gradient-to-r from-blue-500 to-cyan-500 px-3 sm:px-4 py-2 sm:py-3 rounded-xl font-bold text-white hover:scale-105 transition-transform shadow-lg text-sm sm:text-base"
+          >
+            + Tâche
+          </button>
+        </div>
       </div>
 
+      <PageHelp pageId="tasks" color="blue">
+        <strong>📋 Organise ton quotidien !</strong> Crée des tâches avec une durée estimée pour gagner des XP et des patates. 
+        Les <strong>événements</strong> sont des activités planifiées avec heure et lieu. 
+        Plus la tâche est longue, plus elle rapporte ! Les tâches non terminées sont automatiquement reportées au lendemain.
+      </PageHelp>
+
       {/* Onglets avec Archive */}
-      <div className="flex gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+      <div className="flex gap-1 sm:gap-2 bg-white p-1 sm:p-2 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
         <button
           onClick={() => setTasksView('today')}
-          className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
+          className={`flex-1 min-w-fit py-2 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold transition-all text-sm sm:text-base ${
             tasksView === 'today'
               ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
               : 'text-slate-600 hover:bg-slate-50'
@@ -316,7 +447,7 @@ export const TasksPage = ({
         </button>
         <button
           onClick={() => setTasksView('week')}
-          className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
+          className={`flex-1 min-w-fit py-2 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold transition-all text-sm sm:text-base ${
             tasksView === 'week'
               ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
               : 'text-slate-600 hover:bg-slate-50'
@@ -326,7 +457,7 @@ export const TasksPage = ({
         </button>
         <button
           onClick={() => setTasksView('bucketlist')}
-          className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
+          className={`flex-1 min-w-fit py-2 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold transition-all text-sm sm:text-base ${
             tasksView === 'bucketlist'
               ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
               : 'text-slate-600 hover:bg-slate-50'
@@ -336,7 +467,7 @@ export const TasksPage = ({
         </button>
         <button
           onClick={() => setTasksView('archive')}
-          className={`px-4 py-3 rounded-lg font-semibold transition-all ${
+          className={`px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-semibold transition-all ${
             tasksView === 'archive'
               ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
               : 'text-slate-600 hover:bg-slate-50'
@@ -391,7 +522,7 @@ export const TasksPage = ({
           </div>
         )}
 
-        {/* Bouton filtre de quêtes */}
+        {/* Bouton filtre de tâches */}
         {hasQuestFilter && (
           <div className="relative">
             <button
@@ -457,15 +588,25 @@ export const TasksPage = ({
 
       {/* VUE AUJOURD'HUI */}
       {tasksView === 'today' && (
-        <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
-          {filterTasks(todayTasks).length > 0 ? (
-            <TasksList tasks={sortTasks(filterTasks(todayTasks))} />
-          ) : (
-            <div className="text-center py-20 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300">
-              <h3 className="text-xl font-bold text-slate-900 mb-2">Aucune quête aujourd'hui</h3>
-              <p className="text-slate-600">Ajouter de nouvelles quêtes pour commencer l'aventure !</p>
+        <div className="space-y-4">
+          {/* Événements du jour - affichés directement sans titre */}
+          {todayEvents.length > 0 && (
+            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-2">
+              {todayEvents.map(event => <EventCard key={event.id} event={event} />)}
             </div>
           )}
+          
+          {/* Tâches du jour */}
+          <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+            {filterTasks(todayTasks).length > 0 ? (
+              <TasksList tasks={sortTasks(filterTasks(todayTasks))} />
+            ) : (
+              <div className="text-center py-20 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300">
+                <h3 className="text-xl font-bold text-slate-900 mb-2">Aucune tâche aujourd'hui</h3>
+                <p className="text-slate-600">Ajouter de nouvelles tâches pour commencer l'aventure !</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -522,11 +663,12 @@ export const TasksPage = ({
           </div>
           
           <div className="space-y-3">
-            {weekTasks.map(({ date, tasks: dayTasks }, index) => {
+            {weekTasks.map(({ date, tasks: dayTasks, events: dayEvents }, index) => {
               const todayTime = new Date();
               todayTime.setHours(0, 0, 0, 0);
               const isToday = date.getTime() === todayTime.getTime();
               const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+              const totalItems = dayTasks.length + (dayEvents?.length || 0);
               
               return (
                 <div key={index} className={`bg-slate-50 rounded-xl p-4 border-2 ${isToday ? 'border-indigo-500 shadow-md' : 'border-slate-200'}`}>
@@ -541,11 +683,25 @@ export const TasksPage = ({
                         {isToday && <span className="ml-2 text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">Aujourd'hui</span>}
                       </div>
                       <div className="text-sm text-slate-500">
-                        {dayTasks.length > 0 ? `${dayTasks.length} quête${dayTasks.length > 1 ? 's' : ''}` : 'Aucune quête'}
+                        {totalItems > 0 ? (
+                          <>
+                            {dayTasks.length > 0 && `${dayTasks.length} tâche${dayTasks.length > 1 ? 's' : ''}`}
+                            {dayTasks.length > 0 && dayEvents?.length > 0 && ' · '}
+                            {dayEvents?.length > 0 && `${dayEvents.length} événement${dayEvents.length > 1 ? 's' : ''}`}
+                          </>
+                        ) : 'Rien de prévu'}
                       </div>
                     </div>
                   </div>
                   
+                  {/* Événements du jour */}
+                  {dayEvents?.length > 0 && (
+                    <div className="space-y-2 mb-2">
+                      {dayEvents.map(event => <EventCard key={event.id} event={event} />)}
+                    </div>
+                  )}
+                  
+                  {/* Tâches du jour */}
                   {dayTasks.length > 0 && (
                     <div className="space-y-2">
                       {dayTasks.map(task => <TaskCard key={task.id} task={task} compact />)}
@@ -579,7 +735,7 @@ export const TasksPage = ({
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-slate-700">
-                  {filterTasks(archivedTasks).length} quête{filterTasks(archivedTasks).length > 1 ? 's' : ''} terminée{filterTasks(archivedTasks).length > 1 ? 's' : ''}
+                  {filterTasks(archivedTasks).length} tâche{filterTasks(archivedTasks).length > 1 ? 's' : ''} terminée{filterTasks(archivedTasks).length > 1 ? 's' : ''}
                 </h2>
                 {onClearCompleted && (
                   <button
@@ -594,8 +750,8 @@ export const TasksPage = ({
             </div>
           ) : (
             <div className="text-center py-20 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300">
-              <h3 className="text-xl font-bold text-slate-900 mb-2">Aucune quête archivée</h3>
-              <p className="text-slate-600">Les quêtes terminées apparaîtront ici !</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Aucune tâche archivée</h3>
+              <p className="text-slate-600">Les tâches terminées apparaîtront ici !</p>
             </div>
           )}
         </div>

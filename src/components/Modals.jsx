@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { supabase } from '../supabaseClient';
 
 // Modal de création/édition de tâche
-export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getStatusColor, missionMode, ownedItems = [], activeUpgrades = {} }) => {
+export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getStatusColor, missionMode, ownedItems = [], activeUpgrades = {}, existingTags = [], userId }) => {
   const [title, setTitle] = useState(initialTask?.title || '');
   const [status, setStatus] = useState(initialTask?.status || 'à faire');
   const [duration, setDuration] = useState(initialTask?.duration || '1h-2h');
@@ -10,12 +11,16 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
   const [recurrenceDays, setRecurrenceDays] = useState(initialTask?.recurrenceDays || []);
   const [tags, setTags] = useState(initialTask?.tags?.join(', ') || '');
   const [notes, setNotes] = useState(initialTask?.notes || '');
+  const [photos, setPhotos] = useState(initialTask?.photos || []);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [assignedTo, setAssignedTo] = useState(initialTask?.assignedTo || '');
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
 
   const isEditing = !!initialTask;
   
   // Notes étendues : 2000 caractères au lieu de 500 (possédé ET actif)
   const hasExtendedNotes = ownedItems.includes(72) && activeUpgrades[72] !== false;
+  const hasPhotoNotes = ownedItems.includes(86) && activeUpgrades[86] !== false;
   const notesMaxLength = hasExtendedNotes ? 2000 : 500;
 
   const weekDays = [
@@ -50,13 +55,14 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
       recurrenceDays: (recurrence === 'weekly' || recurrence === 'monthly') ? recurrenceDays : [],
       tags: tags.split(',').map(t => t.trim()).filter(t => t),
       notes: notes.trim(),
+      photos: photos,
       assignedTo: assignedTo || null,
     });
   };
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto">
-      {/* Overlay bleu pour les quêtes */}
+      {/* Overlay bleu pour les tâches */}
       <div className="fixed inset-0 bg-indigo-500" onClick={onClose}></div>
       
       {/* Conteneur centré */}
@@ -66,7 +72,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
           <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
             <div>
               <h2 className="text-xl font-bold text-slate-900">
-                {isEditing ? 'Modifier la quête' : 'Nouvelle quête'}
+                {isEditing ? 'Modifier la tâche' : 'Nouvelle tâche'}
               </h2>
               {missionMode && (
                 <p className="text-sm text-slate-500">Pour : {missionMode.title}</p>
@@ -250,24 +256,205 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
               </div>
             )}
 
-            {/* Tags */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Tags (séparés par des virgules)</label>
+            {/* Tags avec autocomplétion */}
+            <div className="relative">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Catégories (séparées par des virgules)</label>
               <input
                 type="text"
                 value={tags}
-                onChange={(e) => setTags(e.target.value)}
+                onChange={(e) => {
+                  setTags(e.target.value);
+                  setShowTagSuggestions(true);
+                }}
+                onFocus={() => setShowTagSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
                 placeholder="Ex: BTS, Site web"
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
               />
+              
+              {/* Suggestions de tags */}
+              {showTagSuggestions && existingTags.length > 0 && (() => {
+                // Récupérer le dernier mot tapé après la dernière virgule
+                const currentInput = tags.split(',').pop().trim().toLowerCase();
+                const alreadyUsedTags = tags.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
+                
+                // Filtrer les suggestions
+                const suggestions = existingTags.filter(tag => 
+                  tag.toLowerCase().includes(currentInput) && 
+                  !alreadyUsedTags.includes(tag.toLowerCase())
+                ).slice(0, 5);
+                
+                if (suggestions.length === 0) return null;
+                
+                return (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                    {suggestions.map((suggestion, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        className="w-full px-4 py-2 text-left hover:bg-indigo-50 text-slate-700 text-sm"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          // Remplacer le dernier mot par la suggestion
+                          const parts = tags.split(',');
+                          parts.pop();
+                          const newTags = parts.length > 0 
+                            ? parts.join(', ').trim() + ', ' + suggestion + ', '
+                            : suggestion + ', ';
+                          setTags(newTags);
+                        }}
+                      >
+                        #{suggestion}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
-            {/* Notes */}
+            {/* Notes avec éditeur de texte */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Notes {hasExtendedNotes && <span className="text-indigo-500 text-xs">(étendu)</span>}
               </label>
+              
+              {/* Barre d'outils éditeur - si amélioration achetée et active */}
+              {(ownedItems.includes(85) && activeUpgrades[85] !== false) || hasPhotoNotes ? (
+                <div className="flex items-center gap-1 mb-2 p-2 bg-slate-100 rounded-lg flex-wrap">
+                  {ownedItems.includes(85) && activeUpgrades[85] !== false && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const textarea = document.getElementById('notes-textarea');
+                          const start = textarea.selectionStart;
+                          const end = textarea.selectionEnd;
+                          const selectedText = notes.substring(start, end);
+                          const newText = notes.substring(0, start) + '**' + selectedText + '**' + notes.substring(end);
+                          setNotes(newText.slice(0, notesMaxLength));
+                        }}
+                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50"
+                        title="Gras"
+                      >
+                        G
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const textarea = document.getElementById('notes-textarea');
+                          const start = textarea.selectionStart;
+                          const end = textarea.selectionEnd;
+                          const selectedText = notes.substring(start, end);
+                          const newText = notes.substring(0, start) + '_' + selectedText + '_' + notes.substring(end);
+                          setNotes(newText.slice(0, notesMaxLength));
+                        }}
+                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm italic hover:bg-slate-50"
+                        title="Italique"
+                      >
+                        I
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const textarea = document.getElementById('notes-textarea');
+                          const start = textarea.selectionStart;
+                          const newText = notes.substring(0, start) + '\n• ' + notes.substring(start);
+                          setNotes(newText.slice(0, notesMaxLength));
+                        }}
+                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
+                        title="Liste à puces"
+                      >
+                        • Liste
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const textarea = document.getElementById('notes-textarea');
+                          const start = textarea.selectionStart;
+                          const newText = notes.substring(0, start) + '\n☐ ' + notes.substring(start);
+                          setNotes(newText.slice(0, notesMaxLength));
+                        }}
+                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
+                        title="Checklist"
+                      >
+                        ☐ Check
+                      </button>
+                    </>
+                  )}
+                  
+                  {/* Bouton photo */}
+                  {hasPhotoNotes && (
+                    <>
+                      <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                      <label className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer flex items-center gap-1">
+                        {uploadingPhoto ? (
+                          <span className="animate-spin">⏳</span>
+                        ) : (
+                          <>📷 Photo</>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingPhoto}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file || !userId) return;
+                            
+                            setUploadingPhoto(true);
+                            try {
+                              const fileExt = file.name.split('.').pop();
+                              const fileName = `${userId}/${Date.now()}.${fileExt}`;
+                              
+                              const { data, error } = await supabase.storage
+                                .from('notes-photos')
+                                .upload(fileName, file);
+                              
+                              if (error) throw error;
+                              
+                              const { data: urlData } = supabase.storage
+                                .from('notes-photos')
+                                .getPublicUrl(fileName);
+                              
+                              setPhotos([...photos, urlData.publicUrl]);
+                            } catch (error) {
+                              console.error('Erreur upload:', error);
+                              alert('Erreur lors de l\'upload de la photo');
+                            }
+                            setUploadingPhoto(false);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    </>
+                  )}
+                </div>
+              ) : null}
+              
+              {/* Photos uploadées */}
+              {photos.length > 0 && (
+                <div className="flex gap-2 mb-2 flex-wrap">
+                  {photos.map((url, i) => (
+                    <div key={i} className="relative group">
+                      <img 
+                        src={url} 
+                        alt={`Photo ${i + 1}`}
+                        className="w-20 h-20 object-cover rounded-lg border border-slate-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPhotos(photos.filter((_, idx) => idx !== i))}
+                        className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
               <textarea
+                id="notes-textarea"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value.slice(0, notesMaxLength))}
                 placeholder="Ajouter des notes ou détails..."
@@ -356,7 +543,7 @@ export const TaskCompletedModal = ({ task, onClose }) => {
     "Tu gères !",
     "Rien ne t'arrête !",
     "Champion !",
-    "Une quête de plus !",
+    "Une tâche de plus !",
     "Tu assures !",
     "Impressionnant !",
     "Keep going !",
@@ -365,7 +552,7 @@ export const TaskCompletedModal = ({ task, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-hidden">
-      {/* Overlay bleu pour les quêtes */}
+      {/* Overlay bleu pour les tâches */}
       <div className="fixed inset-0 bg-indigo-500"></div>
       
       {/* Confettis animés */}
@@ -408,7 +595,7 @@ export const TaskCompletedModal = ({ task, onClose }) => {
       <div className="min-h-full flex items-center justify-center p-4 relative z-20">
         <div className="bg-white rounded-3xl p-8 w-full max-w-lg h-[85vh] overflow-y-auto flex flex-col justify-center text-center animate-bounce-in shadow-2xl border border-slate-200">
           <h2 className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-500 to-emerald-500 mb-2">
-            Quête terminée !
+            Tâche terminée !
           </h2>
           <p className="text-slate-600 mb-6 text-lg">{randomMessage}</p>
           
@@ -564,7 +751,7 @@ export const MissionCompletedModal = ({ mission, pqDistribution, onClose }) => {
 };
 
 // Modal paramètres
-export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateEmail, onUpdatePassword, onDeleteAccount, ownedItems = [], activeUpgrades = {}, onToggleUpgrade, shopItems = [], onCheckPseudo }) => {
+export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateEmail, onUpdatePassword, onDeleteAccount, ownedItems = [], activeUpgrades = {}, onToggleUpgrade, shopItems = [], onCheckPseudo, notificationStatus, onEnableNotifications, onDisableNotifications, isNotificationSupported }) => {
   const [pseudo, setPseudo] = useState(user.pseudo);
   const [email, setEmail] = useState(user.email || '');
   const [customTitle, setCustomTitle] = useState(user.customTitle || '');
@@ -575,6 +762,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
   const [message, setMessage] = useState({ type: '', text: '' });
   const [loading, setLoading] = useState(false);
   const [pseudoError, setPseudoError] = useState('');
+  const [notifLoading, setNotifLoading] = useState(false);
 
   // Filtrer les améliorations possédées (pas les boosts)
   const ownedUpgrades = shopItems.filter(item => 
@@ -741,6 +929,57 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
               />
             </div>
+
+            {/* Séparateur */}
+            <hr className="border-slate-200" />
+
+            {/* Notifications */}
+            {isNotificationSupported && (
+              <div className="space-y-3">
+                <h3 className="font-bold text-slate-900">🔔 Notifications</h3>
+                <p className="text-sm text-slate-600">
+                  Reçois des rappels pour tes événements même quand l'app est fermée.
+                </p>
+                
+                {notificationStatus === 'granted' ? (
+                  <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-500 text-xl">✓</span>
+                      <span className="text-green-700 font-medium">Notifications activées</span>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        setNotifLoading(true);
+                        await onDisableNotifications();
+                        setNotifLoading(false);
+                      }}
+                      disabled={notifLoading}
+                      className="px-4 py-2 bg-white border border-green-300 rounded-lg text-green-700 text-sm font-medium hover:bg-green-100 transition-all disabled:opacity-50"
+                    >
+                      {notifLoading ? '...' : 'Désactiver'}
+                    </button>
+                  </div>
+                ) : notificationStatus === 'denied' ? (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <p className="text-red-700 text-sm">
+                      ⚠️ Les notifications sont bloquées. Autorise-les dans les paramètres de ton navigateur.
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      setNotifLoading(true);
+                      await onEnableNotifications();
+                      setNotifLoading(false);
+                    }}
+                    disabled={notifLoading}
+                    className="w-full bg-gradient-to-r from-amber-400 to-orange-500 text-white py-3 rounded-xl font-bold hover:opacity-90 transition-all disabled:opacity-50"
+                  >
+                    {notifLoading ? 'Activation...' : '🔔 Activer les notifications'}
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Séparateur */}
             <hr className="border-slate-200" />
@@ -971,7 +1210,8 @@ export const MissionDetailModal = ({
   onClose, 
   onTakeQuest, 
   onCompleteQuest, 
-  onAddQuest, 
+  onAddQuest,
+  onAddEvent, 
   onEditQuest, 
   onAddMember,
   onRemoveMember,
@@ -1003,7 +1243,7 @@ export const MissionDetailModal = ({
     if (pseudo === mission.createdBy) return false;
     // Ne peut pas supprimer si moins de 2 membres
     if ((mission.participants?.length || 0) <= 2) return false;
-    // Ne peut pas supprimer si le membre a une quête assignée ou complétée
+    // Ne peut pas supprimer si le membre a une tâche assignée ou complétée
     const hasQuest = mission.quests?.some(q => 
       q.assignedTo === pseudo || q.completedBy === pseudo
     );
@@ -1011,7 +1251,7 @@ export const MissionDetailModal = ({
   };
   
   // Vérifier si la mission peut être supprimée
-  // Peut supprimer : si aucune quête commencée OU si mission terminée
+  // Peut supprimer : si aucune tâche commencée OU si mission terminée
   const canDeleteMission = !mission.quests?.some(q => q.completed || q.assignedTo) || isMissionCompleted;
 
   return (
@@ -1103,7 +1343,7 @@ export const MissionDetailModal = ({
           <div className="mt-4">
             <div className="flex justify-between text-sm mb-1">
               <span className="text-slate-600">Progression</span>
-              <span className="font-medium">{completedQuests}/{totalQuests} quêtes</span>
+              <span className="font-medium">{completedQuests}/{totalQuests} tâches</span>
             </div>
             <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden">
               <div 
@@ -1116,93 +1356,152 @@ export const MissionDetailModal = ({
 
         <div className="p-6">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-slate-900">Quêtes</h3>
+            <h3 className="font-bold text-slate-900">Tâches & Événements</h3>
             {!isMissionCompleted && (
-              <button
-                onClick={onAddQuest}
-                className="bg-purple-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-purple-600"
-              >
-                + Ajouter
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={onAddQuest}
+                  className="bg-purple-500 text-white px-3 py-2 rounded-lg font-semibold text-sm hover:bg-purple-600"
+                >
+                  + Tâche
+                </button>
+                {onAddEvent && (
+                  <button
+                    onClick={onAddEvent}
+                    className="bg-emerald-500 text-white px-3 py-2 rounded-lg font-semibold text-sm hover:bg-emerald-600"
+                  >
+                    + Événement
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
           {mission.quests && mission.quests.length > 0 ? (
             <div className="space-y-3">
-              {mission.quests.map(quest => (
-                <div 
-                  key={quest.id}
-                  className={`p-4 rounded-xl border-2 ${quest.completed ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'}`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div 
-                      className={`flex-1 ${!isMissionCompleted && !quest.completed ? 'cursor-pointer' : ''}`} 
-                      onClick={() => !isMissionCompleted && !quest.completed && onEditQuest && onEditQuest(quest, mission)}
-                    >
-                      <h4 className={`font-semibold ${quest.completed ? 'text-green-700 line-through' : isMissionCompleted ? 'text-slate-900' : 'text-slate-900 hover:text-purple-600'}`}>
-                        {quest.title}
-                      </h4>
-                      <div className="flex items-center gap-2 mt-1 text-sm text-slate-500">
-                        <span>{quest.duration}</span>
-                        <span>•</span>
-                        <span>{quest.xp} XP</span>
-                        {quest.date && (
-                          <>
-                            <span>•</span>
-                            <span>{new Date(quest.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</span>
-                          </>
-                        )}
-                        {quest.assignedTo && (
-                          <>
-                            <span>•</span>
-                            <span className="text-purple-600">@{quest.assignedTo}</span>
-                          </>
-                        )}
-                        {quest.completedBy && quest.completed && (
-                          <>
-                            <span>•</span>
-                            <span className="text-green-600">fait par @{quest.completedBy}</span>
-                          </>
-                        )}
+              {mission.quests.map(quest => {
+                const isEvent = quest.isEvent;
+                const bgColor = quest.completed 
+                  ? 'bg-green-50 border-green-200' 
+                  : isEvent 
+                    ? 'bg-emerald-50 border-emerald-200' 
+                    : 'bg-white border-slate-200';
+                
+                return (
+                  <div 
+                    key={quest.id}
+                    className={`p-4 rounded-xl border-2 shadow-sm transition-all group ${bgColor}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Bouton compléter */}
+                      {!isMissionCompleted && !quest.completed && quest.assignedTo === currentUser && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCompleteQuest(mission.id, quest.id);
+                          }}
+                          className={`mt-1 w-6 h-6 rounded-lg border-2 ${isEvent ? 'border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100' : 'border-indigo-400 hover:border-indigo-600 hover:bg-indigo-100'} transition-all flex-shrink-0 flex items-center justify-center`}
+                        >
+                          <span className={`opacity-0 group-hover:opacity-100 ${isEvent ? 'text-emerald-600' : 'text-indigo-600'} text-xs`}>✓</span>
+                        </button>
+                      )}
+                      {quest.completed && (
+                        <div className="mt-1 w-6 h-6 rounded-lg bg-green-500 flex-shrink-0 flex items-center justify-center">
+                          <span className="text-white text-xs">✓</span>
+                        </div>
+                      )}
+                      
+                      {/* Contenu */}
+                      <div 
+                        className={`flex-1 min-w-0 ${!isMissionCompleted && !quest.completed ? 'cursor-pointer' : ''}`} 
+                        onClick={() => !isMissionCompleted && !quest.completed && onEditQuest && onEditQuest(quest, mission)}
+                      >
+                        {/* Titre + Récompenses */}
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className={`font-semibold ${quest.completed ? 'text-green-700 line-through' : isMissionCompleted ? 'text-slate-900' : 'text-slate-900 hover:text-purple-600'}`}>
+                            {isEvent ? '📅 ' : ''}{quest.title}
+                          </h4>
+                          
+                          {!quest.completed && (
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <span className="px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
+                                ⚡+{quest.xp || 10}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
+                                🥔+{quest.xp || 10}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Métadonnées */}
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                            ⏱️ {quest.duration}
+                          </span>
+                          {isEvent && quest.time && (
+                            <span className="px-2 py-0.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 text-xs font-medium">
+                              🕐 {quest.time}
+                            </span>
+                          )}
+                          {quest.date && (
+                            <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                              📆 {new Date(quest.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                            </span>
+                          )}
+                          {isEvent && quest.location && (
+                            <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                              📍 {quest.location}
+                            </span>
+                          )}
+                          {quest.assignedTo && (
+                            <span className="px-2 py-0.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-600 text-xs font-medium">
+                              @{quest.assignedTo}
+                            </span>
+                          )}
+                          {quest.completedBy && quest.completed && (
+                            <span className="px-2 py-0.5 rounded-lg bg-green-50 border border-green-200 text-green-600 text-xs font-medium">
+                              ✓ {quest.completedBy}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    {!isMissionCompleted && !quest.completed && (
-                      <div className="flex gap-2">
-                        {quest.assignedTo === currentUser ? (
-                          // Quête assignée à moi -> je peux terminer
-                          <button
-                            onClick={() => onCompleteQuest(mission.id, quest.id)}
-                            className="bg-green-500 text-white px-3 py-1 rounded-lg text-sm font-semibold hover:bg-green-600"
-                          >
-                            ✓ Terminer
-                          </button>
-                        ) : !quest.assignedTo ? (
-                          // Quête non assignée -> je prends
-                          <button
-                            onClick={() => onTakeQuest(mission.id, quest.id)}
-                            className="bg-indigo-500 text-white px-3 py-1 rounded-lg text-sm font-semibold hover:bg-indigo-600"
-                          >
-                            Je prends
-                          </button>
-                        ) : (
-                          // Quête assignée à quelqu'un d'autre -> je peux la prendre aussi
-                          <button
-                            onClick={() => onTakeQuest(mission.id, quest.id)}
-                            className="bg-slate-400 text-white px-3 py-1 rounded-lg text-sm font-semibold hover:bg-slate-500"
-                          >
-                            Reprendre
-                          </button>
-                        )}
-                      </div>
-                    )}
+                      {/* Actions */}
+                      {!isMissionCompleted && !quest.completed && (
+                        <div className="flex gap-2 flex-shrink-0">
+                          {quest.assignedTo === currentUser ? (
+                            <button
+                              onClick={() => onCompleteQuest(mission.id, quest.id)}
+                              className="bg-green-500 text-white px-3 py-1 rounded-lg text-sm font-semibold hover:bg-green-600"
+                            >
+                              ✓ Terminer
+                            </button>
+                          ) : !quest.assignedTo ? (
+                            <button
+                              onClick={() => onTakeQuest(mission.id, quest.id)}
+                              className="bg-indigo-500 text-white px-3 py-1 rounded-lg text-sm font-semibold hover:bg-indigo-600"
+                            >
+                              Je prends
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => onTakeQuest(mission.id, quest.id)}
+                              className="bg-slate-400 text-white px-3 py-1 rounded-lg text-sm font-semibold hover:bg-slate-500"
+                            >
+                              Reprendre
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-10 bg-slate-50 rounded-xl">
-              <p className="text-slate-500">Aucune quête pour le moment</p>
+              <p className="text-slate-500">Aucune tâche pour le moment</p>
             </div>
           )}
         </div>
@@ -1241,7 +1540,7 @@ export const MissionDetailModal = ({
   );
 };
 
-// Modal création quête de mission
+// Modal création tâche de mission
 export const CreateMissionQuestModal = ({ mission, onClose, onCreate, getStatusColor }) => {
   const [title, setTitle] = useState('');
   const [status, setStatus] = useState('à faire');
@@ -1259,7 +1558,7 @@ export const CreateMissionQuestModal = ({ mission, onClose, onCreate, getStatusC
         <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[85vh] overflow-hidden flex flex-col border border-slate-200">
           <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Nouvelle quête</h2>
+              <h2 className="text-xl font-bold text-slate-900">Nouvelle tâche</h2>
               <p className="text-sm text-slate-500">Pour : {mission.title}</p>
             </div>
             <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">✕</button>
@@ -1445,3 +1744,342 @@ export const BadgeUnlockedModal = ({ badge, onClose }) => {
 
 // Placeholder pour EditMissionQuestModal
 export const EditMissionQuestModal = CreateMissionQuestModal;
+
+// Modal de création/édition d'événement
+export const CreateEventModal = ({ onClose, onCreate, onDelete, initialEvent, friends = [], missionMode = null, missionParticipants = [] }) => {
+  const [title, setTitle] = useState(initialEvent?.title || '');
+  const [description, setDescription] = useState(initialEvent?.description || '');
+  const [date, setDate] = useState(initialEvent?.date ? new Date(initialEvent.date).toISOString().split('T')[0] : '');
+  const [time, setTime] = useState(initialEvent?.time || '');
+  const [duration, setDuration] = useState(initialEvent?.duration || '1h-2h');
+  const [location, setLocation] = useState(initialEvent?.location || '');
+  const [participants, setParticipants] = useState(initialEvent?.participants || []);
+  const [reminder, setReminder] = useState(initialEvent?.reminder || 'none');
+  const [assignedTo, setAssignedTo] = useState(initialEvent?.assignedTo || '');
+  const [showFriendsList, setShowFriendsList] = useState(false);
+
+  const isEditing = !!initialEvent;
+  const isMissionEvent = !!missionMode;
+  
+  // Liste des participants disponibles (amis ou participants de mission)
+  const availableParticipants = isMissionEvent ? missionParticipants : friends;
+
+  const durations = ['-1h', '1h-2h', '1/2 jour', '1 jour'];
+  const reminders = [
+    { value: 'none', label: 'Pas de rappel' },
+    { value: '0min', label: 'À l\'heure' },
+    { value: '15min', label: '15 minutes avant' },
+    { value: '30min', label: '30 minutes avant' },
+    { value: '1h', label: '1 heure avant' },
+    { value: '1day', label: '1 jour avant' },
+  ];
+
+  const toggleParticipant = (participant) => {
+    const pseudo = participant.pseudo;
+    if (participants.some(p => p.pseudo === pseudo)) {
+      setParticipants(participants.filter(p => p.pseudo !== pseudo));
+    } else {
+      setParticipants([...participants, { pseudo, avatar: participant.avatar }]);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!title.trim() || !date || !time) return;
+    
+    onCreate({
+      title: title.trim(),
+      description: description.trim(),
+      date: new Date(date),
+      time,
+      duration,
+      location: location.trim(),
+      participants,
+      reminder,
+      assignedTo: isMissionEvent ? assignedTo : null,
+      isEvent: true,
+    });
+  };
+
+  // Calculer les récompenses basées sur la durée
+  const getDurationXP = (dur) => {
+    const base = { '-1h': 10, '1h-2h': 20, '1/2 jour': 40, '1 jour': 80 };
+    return base[dur] || 10;
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] overflow-y-auto">
+      {/* Overlay vert pour les événements */}
+      <div className="fixed inset-0 bg-emerald-500" onClick={onClose}></div>
+      
+      {/* Conteneur centré */}
+      <div className="min-h-full flex items-center justify-center p-4">
+        {/* Modal */}
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[85vh] overflow-hidden flex flex-col border border-slate-200">
+          <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">
+                {isEditing ? 'Modifier l\'événement' : 'Nouvel événement'}
+              </h2>
+              {isMissionEvent && (
+                <p className="text-sm text-emerald-600">
+                  Mission: {missionMode.title}
+                </p>
+              )}
+            </div>
+            <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">✕</button>
+          </div>
+
+          <div className="p-5 space-y-4 overflow-y-auto flex-1">
+            {/* Titre */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Titre *</label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value.slice(0, 100))}
+                placeholder="Ex: Réunion équipe, Cinéma..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            {/* Date, Heure et Durée */}
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Date *</label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 focus:outline-none focus:border-emerald-500 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Heure *</label>
+                <input
+                  type="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 focus:outline-none focus:border-emerald-500 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Durée</label>
+                <select
+                  value={duration}
+                  onChange={(e) => setDuration(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 focus:outline-none focus:border-emerald-500 text-sm"
+                >
+                  {durations.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Rappel */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Rappel</label>
+              <select
+                value={reminder}
+                onChange={(e) => setReminder(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500"
+              >
+                {reminders.map(r => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Lieu */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Lieu</label>
+              <input
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value.slice(0, 100))}
+                placeholder="Ex: Salle de réunion, Cinéma UGC..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            {/* Assigné à (mode mission) */}
+            {isMissionEvent && missionParticipants.length > 0 && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Assigné à</label>
+                <select
+                  value={assignedTo}
+                  onChange={(e) => setAssignedTo(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="">Non assigné</option>
+                  {missionParticipants.map(p => (
+                    <option key={p.pseudo} value={p.pseudo}>{p.avatar} {p.pseudo}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Participants (hors mode mission) */}
+            {!isMissionEvent && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Participants ({participants.length})
+                </label>
+                
+                {/* Participants sélectionnés */}
+                {participants.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {participants.map((p, i) => (
+                      <div 
+                        key={i}
+                        onClick={() => toggleParticipant(p)}
+                        className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100"
+                      >
+                        <span className="emoji-display">{p.avatar}</span>
+                        <span className="text-sm font-medium text-emerald-700">{p.pseudo}</span>
+                        <span className="text-emerald-400">✕</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Bouton ajouter */}
+                <button
+                  type="button"
+                  onClick={() => setShowFriendsList(!showFriendsList)}
+                  className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-emerald-400 hover:text-emerald-600 transition-all"
+                >
+                  + Ajouter des participants
+                </button>
+                
+                {/* Liste des amis */}
+                {showFriendsList && availableParticipants.length > 0 && (
+                  <div className="mt-3 bg-slate-50 rounded-xl p-3 max-h-40 overflow-y-auto">
+                    {availableParticipants.map((friend, i) => (
+                      <div
+                        key={i}
+                        onClick={() => toggleParticipant(friend)}
+                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                          participants.some(p => p.pseudo === friend.pseudo)
+                            ? 'bg-emerald-100 border border-emerald-300'
+                            : 'hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-lg flex items-center justify-center">
+                          <span className="emoji-display text-sm">{friend.avatar}</span>
+                        </div>
+                        <span className="font-medium text-slate-700">{friend.pseudo}</span>
+                        {participants.some(p => p.pseudo === friend.pseudo) && (
+                          <span className="ml-auto text-emerald-500">✓</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Description</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value.slice(0, 500))}
+                placeholder="Détails de l'événement..."
+                rows={3}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 resize-none"
+              />
+            </div>
+          </div>
+
+          <div className="p-6 border-t border-slate-200 flex gap-3">
+            <button
+              onClick={handleSubmit}
+              disabled={!title.trim() || !date || !time}
+              className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50"
+            >
+              {isEditing ? 'Modifier' : 'Créer l\'événement'}
+            </button>
+            
+            {isEditing && onDelete && (
+              <button
+                onClick={onDelete}
+                className="px-6 bg-red-100 hover:bg-red-200 text-red-600 py-4 rounded-xl font-bold text-xl"
+              >
+                🗑️
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Modal événement complété
+export const EventCompletedModal = ({ event, onClose }) => {
+  // Calculer XP basé sur la durée
+  const getDurationXP = (dur) => {
+    const base = { '-1h': 10, '1h-2h': 20, '1/2 jour': 40, '1 jour': 80 };
+    return base[dur] || 10;
+  };
+  
+  const xpGained = event.xp || getDurationXP(event.duration);
+  const pointsGained = event.points || getDurationXP(event.duration);
+  const pqGained = event.pq || (event.participants?.length || 0) * 5;
+  
+  return (
+    <div className="fixed inset-0 z-[9999] overflow-hidden">
+      {/* Overlay vert */}
+      <div className="fixed inset-0 bg-emerald-500"></div>
+      
+      {/* Conteneur centré */}
+      <div className="min-h-full flex items-center justify-center p-4 relative z-20">
+        <div className="bg-white rounded-3xl p-8 w-full max-w-lg h-[85vh] overflow-y-auto flex flex-col justify-center text-center shadow-2xl border border-slate-200">
+          <div className="text-6xl mb-4">🎉</div>
+          <h2 className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-teal-500 mb-2">
+            Événement terminé !
+          </h2>
+          <p className="text-slate-600 mb-6 text-lg">{event.title}</p>
+          
+          <div className={`grid ${pqGained > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mb-6`}>
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-4 border-2 border-blue-200">
+              <div className="text-2xl font-black text-blue-600">+{xpGained}</div>
+              <div className="text-2xl mt-1">⚡</div>
+            </div>
+            <div className="bg-gradient-to-br from-amber-50 to-yellow-100 rounded-2xl p-4 border-2 border-amber-200">
+              <div className="text-2xl font-black text-amber-600">+{pointsGained}</div>
+              <div className="text-2xl mt-1">🥔</div>
+            </div>
+            {pqGained > 0 && (
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-100 rounded-2xl p-4 border-2 border-emerald-200">
+                <div className="text-2xl font-black text-emerald-600">+{pqGained}</div>
+                <div className="text-2xl mt-1">🏆</div>
+              </div>
+            )}
+          </div>
+
+          {event.participants?.length > 0 && (
+            <div className="mb-6">
+              <p className="text-sm text-slate-500 mb-2">Participants</p>
+              <div className="flex justify-center gap-2 flex-wrap">
+                {event.participants.map((p, i) => (
+                  <div key={i} className="bg-emerald-50 px-3 py-1 rounded-full text-sm text-emerald-700">
+                    {p.avatar} {p.pseudo}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={onClose}
+            className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform"
+          >
+            Super ! 🎉
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

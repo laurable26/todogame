@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useGameData } from './hooks/useGameData';
+import { useNotifications } from './hooks/useNotifications';
 import { AuthScreen, OnboardingScreen, LoadingScreen } from './components/AuthScreens';
 import { Header, Navigation } from './components/Header';
 import { TasksPage } from './components/TasksPage';
@@ -19,7 +20,9 @@ import {
   MissionDetailModal,
   CreateMissionQuestModal,
   EditMissionQuestModal,
-  BadgeUnlockedModal
+  BadgeUnlockedModal,
+  CreateEventModal,
+  EventCompletedModal
 } from './components/Modals';
 import { supabase } from './supabaseClient';
 
@@ -47,6 +50,8 @@ const QuestApp = () => {
     updateChests,
     tasks,
     setTasks,
+    events,
+    setEvents,
     missions,
     setMissions,
     friends,
@@ -67,6 +72,8 @@ const QuestApp = () => {
     saveFriend,
     saveMission,
     deleteMission: deleteMissionFromDB,
+    saveEvent,
+    deleteEvent: deleteEventFromDB,
     checkPseudoAvailable,
     // Thème
     theme,
@@ -83,6 +90,14 @@ const QuestApp = () => {
     toggleUpgrade,
     isUpgradeActive,
   } = useGameData(supabaseUser);
+
+  // Notifications push
+  const {
+    notificationStatus,
+    enableNotifications,
+    disableNotifications,
+    isSupported: isNotificationSupported
+  } = useNotifications(supabaseUser?.id);
 
   // State pour l'animation de badge débloqué
   const [unlockedBadge, setUnlockedBadge] = useState(null);
@@ -101,11 +116,15 @@ const QuestApp = () => {
   const [selectedMission, setSelectedMission] = useState(null);
   const [creatingMission, setCreatingMission] = useState(false);
   const [creatingMissionQuest, setCreatingMissionQuest] = useState(null);
+  const [creatingMissionEvent, setCreatingMissionEvent] = useState(null);
   const [editingQuest, setEditingQuest] = useState(null);
   const [completingMission, setCompletingMission] = useState(null);
   const [creatingTask, setCreatingTask] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [completingTask, setCompletingTask] = useState(null);
+  const [creatingEvent, setCreatingEvent] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [completingEvent, setCompletingEvent] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [openingChest, setOpeningChest] = useState(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -119,6 +138,53 @@ const QuestApp = () => {
   useEffect(() => {
     localStorage.setItem('todogame_tasksView', tasksView);
   }, [tasksView]);
+
+  // Reporter automatiquement les tâches non faites d'hier à aujourd'hui
+  useEffect(() => {
+    const checkAndReportTasks = async () => {
+      if (!tasks || tasks.length === 0) return;
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const tasksToReport = tasks.filter(task => {
+        if (task.completed) return false;
+        if (!task.date) return false;
+        
+        const taskDate = new Date(task.date);
+        taskDate.setHours(0, 0, 0, 0);
+        
+        // Si la date de la tâche est avant aujourd'hui, on la reporte
+        return taskDate < today;
+      });
+      
+      if (tasksToReport.length === 0) return;
+      
+      console.log(`Report de ${tasksToReport.length} tâche(s) non terminée(s) à aujourd'hui`);
+      
+      // Mettre à jour les tâches localement
+      const updatedTasks = tasks.map(task => {
+        if (tasksToReport.some(t => t.id === task.id)) {
+          return { ...task, date: today };
+        }
+        return task;
+      });
+      
+      setTasks(updatedTasks);
+      
+      // Mettre à jour dans Supabase
+      if (supabaseUser) {
+        for (const task of tasksToReport) {
+          await supabase
+            .from('tasks')
+            .update({ date: today.toISOString() })
+            .eq('id', task.id);
+        }
+      }
+    };
+    
+    checkAndReportTasks();
+  }, [tasks.length, supabaseUser]); // Se déclenche quand les tâches sont chargées
 
   // Recherche d'utilisateurs via Supabase
   useEffect(() => {
@@ -168,6 +234,13 @@ const QuestApp = () => {
     };
     return colors[status] || '';
   };
+
+  // Extraire tous les tags uniques des tâches existantes
+  const existingTags = [...new Set(
+    tasks
+      .flatMap(task => task.tags || [])
+      .filter(tag => tag && tag.trim())
+  )];
 
   const getStatusMultiplier = (status) => {
     return status === 'urgent' ? 1.5 : 1;
@@ -226,7 +299,7 @@ const QuestApp = () => {
         contributions[quest.assignedTo].xp += contribution;
         totalContribution += contribution;
 
-        // Bonus si le joueur a pris une quête non attribuée à l'origine
+        // Bonus si le joueur a pris une tâche non attribuée à l'origine
         if (quest.wasUnassigned) {
           contributions[quest.assignedTo].tookUnassigned = true;
         }
@@ -240,7 +313,7 @@ const QuestApp = () => {
       const playerContrib = contributions[playerId];
       let pq = Math.round(basePQ * (playerContrib.xp / totalContribution));
       
-      // Bonus +10 PQ pour ceux qui ont pris des quêtes non attribuées
+      // Bonus +10 PQ pour ceux qui ont pris des tâches non attribuées
       if (playerContrib.tookUnassigned) {
         pq += 10;
       }
@@ -675,6 +748,7 @@ const QuestApp = () => {
         recurrence_days: newTask.recurrenceDays || [],
         tags: newTask.tags || [],
         notes: newTask.notes || '',
+        photos: newTask.photos || [],
         category: taskData.date ? 'today' : 'bucketlist',
         completed: false,
       });
@@ -694,6 +768,7 @@ const QuestApp = () => {
         recurrence_days: taskData.recurrenceDays || [],
         tags: taskData.tags,
         notes: taskData.notes,
+        photos: taskData.photos || [],
       }).eq('id', taskId);
     }
   };
@@ -701,7 +776,7 @@ const QuestApp = () => {
   const deleteTask = async (taskId) => {
     const task = tasks.find(t => t.id === taskId);
     
-    // Si la quête était terminée, retirer les points gagnés
+    // Si la tâche était terminée, retirer les points gagnés
     if (task && task.completed) {
       const xpLost = getDurationXP(task.duration, task.status);
       const pointsLost = getDurationPoints(task.duration, task.status);
@@ -733,6 +808,86 @@ const QuestApp = () => {
     if (supabaseUser) {
       await supabase.from('tasks').delete().eq('id', taskId);
     }
+  };
+
+  // === ÉVÉNEMENTS ===
+  const addEvent = async (eventData) => {
+    const newEvent = {
+      id: crypto.randomUUID(),
+      ...eventData,
+      completed: false,
+    };
+    
+    setEvents([...events, newEvent]);
+    
+    if (supabaseUser) {
+      await saveEvent(newEvent);
+    }
+  };
+
+  const updateEvent = async (eventId, eventData) => {
+    const updatedEvent = { ...events.find(e => e.id === eventId), ...eventData };
+    setEvents(events.map(e => e.id === eventId ? updatedEvent : e));
+    
+    if (supabaseUser) {
+      await saveEvent(updatedEvent);
+    }
+  };
+
+  const deleteEvent = async (eventId) => {
+    setEvents(events.filter(e => e.id !== eventId));
+    if (supabaseUser) {
+      await deleteEventFromDB(eventId);
+    }
+  };
+
+  const completeEvent = async (eventId) => {
+    const event = events.find(e => e.id === eventId);
+    if (!event || event.completed) return;
+    
+    // Récompenses fixes : 5 XP, 5 patates
+    // + 5 PQ par participant SI au moins 1 participant en plus du créateur
+    const xpGained = 5;
+    const pointsGained = 5;
+    const participantCount = event.participants?.length || 0;
+    const pqGained = participantCount > 0 ? participantCount * 5 : 0;
+    
+    // Appliquer les multiplicateurs de boost
+    const finalXp = Math.round(xpGained * getXpMultiplier());
+    const finalPoints = Math.round(pointsGained * getPotatoesMultiplier());
+    
+    let newXp = user.xp + finalXp;
+    let newLevel = user.level;
+    let newXpToNext = user.xpToNext;
+    
+    while (newXp >= newXpToNext) {
+      newXp -= newXpToNext;
+      newLevel++;
+      newXpToNext = Math.floor(newXpToNext * 1.15);
+    }
+    
+    const newUser = {
+      ...user,
+      xp: newXp,
+      level: newLevel,
+      xpToNext: newXpToNext,
+      potatoes: user.potatoes + finalPoints,
+      pqSeason: (user.pqSeason || 0) + pqGained,
+      pqTotal: (user.pqTotal || 0) + pqGained,
+    };
+    
+    updateUser(newUser);
+    
+    // Marquer comme complété
+    const updatedEvent = { ...event, completed: true };
+    setEvents(events.map(e => e.id === eventId ? updatedEvent : e));
+    
+    if (supabaseUser) {
+      await saveEvent(updatedEvent);
+    }
+    
+    // Afficher le modal de célébration
+    setCompletingEvent({ ...event, xp: finalXp, points: finalPoints, pq: pqGained });
   };
 
   // Loading
@@ -812,19 +967,21 @@ const QuestApp = () => {
             return { success: false, error: error.message };
           }
         }}
-       onDeleteAccount={async () => {
+        onDeleteAccount={async () => {
           try {
-            // Appeler la fonction Supabase qui supprime tout
-            const { error } = await supabase.rpc('delete_user_account');
-            if (error) throw error;
-            
+            // Supprimer les données utilisateur
+            if (supabaseUser) {
+              await supabase.from('tasks').delete().eq('user_id', supabaseUser.id);
+              await supabase.from('chests').delete().eq('user_id', supabaseUser.id);
+              await supabase.from('push_subscriptions').delete().eq('user_id', supabaseUser.id);
+              await supabase.from('profiles').delete().eq('id', supabaseUser.id);
+            }
             // Déconnecter l'utilisateur
             await supabase.auth.signOut();
             setShowSettings(false);
             setIsLoggedIn(false);
             return { success: true };
           } catch (error) {
-            console.error('Erreur suppression:', error);
             return { success: false, error: error.message };
           }
         }}
@@ -833,12 +990,18 @@ const QuestApp = () => {
         onToggleUpgrade={toggleUpgrade}
         shopItems={shopItems}
         onCheckPseudo={checkPseudoAvailable}
+        notificationStatus={notificationStatus}
+        onEnableNotifications={enableNotifications}
+        onDisableNotifications={disableNotifications}
+        isNotificationSupported={isNotificationSupported}
       />
     );
   } else if (openingChest) {
     pageContent = <ChestOpeningModal chest={openingChest} onClose={() => setOpeningChest(null)} />;
   } else if (completingTask) {
     pageContent = <TaskCompletedModal task={completingTask} onClose={() => setCompletingTask(null)} />;
+  } else if (completingEvent) {
+    pageContent = <EventCompletedModal event={completingEvent} onClose={() => setCompletingEvent(null)} />;
   } else if (completingMission) {
     pageContent = <MissionCompletedModal mission={completingMission.mission} pqDistribution={completingMission.pqDistribution} onClose={() => { setCompletingMission(null); setSelectedMission(null); }} />;
   } else if (editingTask) {
@@ -851,6 +1014,8 @@ const QuestApp = () => {
         getStatusColor={getStatusColor}
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
+        existingTags={existingTags}
+        userId={supabaseUser?.id}
       />
     );
   } else if (creatingTask) {
@@ -861,6 +1026,26 @@ const QuestApp = () => {
         getStatusColor={getStatusColor}
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
+        existingTags={existingTags}
+        userId={supabaseUser?.id}
+      />
+    );
+  } else if (editingEvent) {
+    pageContent = (
+      <CreateEventModal
+        onClose={() => setEditingEvent(null)}
+        onCreate={(eventData) => { updateEvent(editingEvent.id, eventData); setEditingEvent(null); }}
+        onDelete={() => { deleteEvent(editingEvent.id); setEditingEvent(null); }}
+        initialEvent={editingEvent}
+        friends={friends}
+      />
+    );
+  } else if (creatingEvent) {
+    pageContent = (
+      <CreateEventModal
+        onClose={() => setCreatingEvent(false)}
+        onCreate={(eventData) => { addEvent(eventData); setCreatingEvent(false); }}
+        friends={friends}
       />
     );
   } else if (creatingMissionQuest) {
@@ -875,6 +1060,7 @@ const QuestApp = () => {
             duration: questData.duration,
             tags: questData.tags,
             notes: questData.notes,
+            photos: questData.photos || [],
             assignedTo: questData.assignedTo || null,
             date: questData.date || null,
             completed: false, 
@@ -896,10 +1082,12 @@ const QuestApp = () => {
         missionMode={creatingMissionQuest}
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
+        existingTags={existingTags}
+        userId={supabaseUser?.id}
       />
     );
   } else if (editingQuest) {
-    // Édition d'une quête de mission
+    // Édition d'une tâche de mission
     pageContent = (
       <CreateTaskModal
         onClose={() => setEditingQuest(null)}
@@ -911,6 +1099,7 @@ const QuestApp = () => {
             duration: questData.duration,
             tags: questData.tags,
             notes: questData.notes,
+            photos: questData.photos || [],
             assignedTo: questData.assignedTo || null,
             date: questData.date || null,
             xp: getDurationXP(questData.duration, questData.status) 
@@ -945,6 +1134,45 @@ const QuestApp = () => {
         missionMode={editingQuest.mission}
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
+        existingTags={existingTags}
+        userId={supabaseUser?.id}
+      />
+    );
+  } else if (creatingMissionEvent) {
+    // Création d'un événement dans une mission
+    pageContent = (
+      <CreateEventModal
+        onClose={() => setCreatingMissionEvent(null)}
+        onCreate={async (eventData) => {
+          const newEvent = { 
+            id: Date.now(), 
+            title: eventData.title,
+            description: eventData.description,
+            date: eventData.date,
+            time: eventData.time,
+            duration: eventData.duration,
+            location: eventData.location,
+            reminder: eventData.reminder,
+            assignedTo: eventData.assignedTo || null,
+            completed: false, 
+            isEvent: true,
+            xp: getDurationXP(eventData.duration, 'à faire') 
+          };
+          const updatedMission = { 
+            ...creatingMissionEvent, 
+            quests: [...(creatingMissionEvent.quests || []), newEvent] 
+          };
+          setMissions(missions.map(m => m.id === creatingMissionEvent.id ? updatedMission : m));
+          setSelectedMission(updatedMission);
+          setCreatingMissionEvent(null);
+          // Sauvegarder dans Supabase
+          if (supabaseUser) {
+            await saveMission(updatedMission);
+          }
+        }}
+        missionMode={creatingMissionEvent}
+        missionParticipants={creatingMissionEvent?.participants || []}
+        friends={friends}
       />
     );
   } else if (creatingMission) {
@@ -975,7 +1203,7 @@ const QuestApp = () => {
         mission={selectedMission}
         onClose={() => setSelectedMission(null)}
         onTakeQuest={async (missionId, questId) => {
-          // Vérifier si la quête était non assignée (bonus PQ)
+          // Vérifier si la tâche était non assignée (bonus PQ)
           const wasUnassigned = selectedMission?.quests?.find(q => q.id === questId)?.assignedTo === undefined || 
                                 selectedMission?.quests?.find(q => q.id === questId)?.assignedTo === '' ||
                                 selectedMission?.quests?.find(q => q.id === questId)?.assignedTo === null;
@@ -996,7 +1224,7 @@ const QuestApp = () => {
           }
         }}
         onCompleteQuest={async (missionId, questId) => {
-          // Vérifier si la quête était non assignée au moment de la complétion
+          // Vérifier si la tâche était non assignée au moment de la complétion
           const quest = selectedMission?.quests?.find(q => q.id === questId);
           const wasUnassigned = !quest?.assignedTo;
           
@@ -1024,12 +1252,12 @@ const QuestApp = () => {
           // Vérifier si la mission est terminée
           if (updatedMission && updatedMission.quests.every(q => q.completed)) {
             // Mission terminée ! Calculer les PQ
-            // 100 PQ par MISSION à répartir proportionnellement selon le nombre de quêtes réalisées
-            // + 10 PQ bonus pour chaque quête prise quand elle n'était pas assignée
+            // 100 PQ par MISSION à répartir proportionnellement selon le nombre de tâches réalisées
+            // + 10 PQ bonus pour chaque tâche prise quand elle n'était pas assignée
             
             const totalMissionPQ = 100; // 100 PQ par mission
             
-            // Compter les quêtes complétées par chaque participant
+            // Compter les tâches complétées par chaque participant
             const questsByParticipant = {};
             const bonusByParticipant = {};
             
@@ -1037,7 +1265,7 @@ const QuestApp = () => {
               const completedBy = q.completedBy;
               if (completedBy) {
                 questsByParticipant[completedBy] = (questsByParticipant[completedBy] || 0) + 1;
-                // Bonus si la quête a été prise quand elle n'était pas assignée
+                // Bonus si la tâche a été prise quand elle n'était pas assignée
                 if (q.takenWhenUnassigned) {
                   bonusByParticipant[completedBy] = (bonusByParticipant[completedBy] || 0) + 10;
                 }
@@ -1057,7 +1285,7 @@ const QuestApp = () => {
             setCompletingMission({ mission: updatedMission, pqDistribution });
           }
           
-          // Donner XP/Patates pour la quête
+          // Donner XP/Patates pour la tâche
           const questData = missions.find(m => m.id === missionId)?.quests.find(q => q.id === questId);
           if (questData) {
             const xpGained = getDurationXP(questData.duration, questData.status || 'à faire');
@@ -1095,6 +1323,7 @@ const QuestApp = () => {
           }
         }}
         onAddQuest={() => setCreatingMissionQuest(selectedMission)}
+        onAddEvent={() => setCreatingMissionEvent(selectedMission)}
         onEditQuest={(quest, mission) => setEditingQuest({ quest, mission })}
         onAddMember={async (friend) => {
           const newParticipant = { pseudo: friend.pseudo, avatar: friend.avatar, contribution: 0 };
@@ -1139,13 +1368,16 @@ const QuestApp = () => {
     pageContent = (
       <TasksPage 
         tasks={tasks}
+        events={events}
         tasksView={tasksView}
         setTasksView={setTasksView}
         onCompleteTask={completeTask}
+        onCompleteEvent={completeEvent}
         onCreateTask={() => setCreatingTask(true)}
+        onCreateEvent={() => setCreatingEvent(true)}
         onEditTask={(task) => {
           if (task.isMissionQuest) {
-            // Édition d'une quête de mission
+            // Édition d'une tâche de mission
             const mission = missions.find(m => m.id === task.missionId);
             const quest = mission?.quests.find(q => q.id === task.id);
             if (mission && quest) {
@@ -1155,6 +1387,7 @@ const QuestApp = () => {
             setEditingTask(task);
           }
         }}
+        onEditEvent={(event) => setEditingEvent(event)}
         onDeleteTask={deleteTask}
         onClearCompleted={() => {
           const completedIds = tasks.filter(t => t.completed).map(t => t.id);
@@ -1166,12 +1399,12 @@ const QuestApp = () => {
         missions={missions}
         user={user}
         onCompleteMissionQuest={async (missionId, questId) => {
-          // Vérifier si la quête était non assignée
+          // Vérifier si la tâche était non assignée
           const mission = missions.find(m => m.id === missionId);
           const quest = mission?.quests.find(q => q.id === questId);
           const wasUnassigned = !quest?.assignedTo;
           
-          // Compléter la quête de mission
+          // Compléter la tâche de mission
           const updatedMission = {
             ...mission,
             quests: mission.quests.map(q => 
@@ -1196,7 +1429,7 @@ const QuestApp = () => {
             // Mission terminée ! 100 PQ par MISSION à répartir
             const totalMissionPQ = 100;
             
-            // Compter les quêtes complétées par chaque participant
+            // Compter les tâches complétées par chaque participant
             const questsByParticipant = {};
             const bonusByParticipant = {};
             
@@ -1223,7 +1456,7 @@ const QuestApp = () => {
             setCompletingMission({ mission: updatedMission, pqDistribution });
           }
           
-          // Donner XP/Patates pour la quête
+          // Donner XP/Patates pour la tâche
           if (quest) {
             const xpGained = getDurationXP(quest.duration, quest.status || 'à faire');
             const pointsGained = getDurationPoints(quest.duration, quest.status || 'à faire');
@@ -1249,7 +1482,7 @@ const QuestApp = () => {
               tasksCompleted: newTasksCompleted,
             });
             
-            // Coffre toutes les 8 tâches (quêtes de mission incluses)
+            // Coffre toutes les 8 tâches (tâches de mission incluses)
             if (newTasksCompleted % 8 === 0) {
               const newChests = { ...chests, bronze: chests.bronze + 1 };
               setChests(newChests);
@@ -1277,22 +1510,49 @@ const QuestApp = () => {
             const userToAdd = searchResults.find(u => u.pseudo === pseudo);
             if (!userToAdd) return;
             
-            // Ajouter directement à la liste des amis
+            // Envoyer une demande d'ami (pas ajouter directement)
             if (supabaseUser) {
-              await saveFriend(user.pseudo, pseudo);
+              // Vérifier si une demande existe déjà
+              const { data: existingRequest } = await supabase
+                .from('friend_requests')
+                .select('*')
+                .eq('from_user', user.pseudo)
+                .eq('to_user', pseudo)
+                .single();
+              
+              if (existingRequest) {
+                alert('Demande déjà envoyée !');
+                return;
+              }
+              
+              // Vérifier si on est déjà amis
+              const { data: existingFriend } = await supabase
+                .from('friends')
+                .select('*')
+                .eq('user_pseudo', user.pseudo)
+                .eq('friend_pseudo', pseudo)
+                .single();
+              
+              if (existingFriend) {
+                alert('Vous êtes déjà amis !');
+                return;
+              }
+              
+              // Créer la demande d'ami
+              await supabase.from('friend_requests').insert({
+                from_user: user.pseudo,
+                to_user: pseudo,
+                status: 'pending',
+                created_at: new Date().toISOString()
+              });
+              
+              alert(`Demande envoyée à ${pseudo} !`);
             }
             
-            // Mettre à jour l'état local
-            setFriends([...friends, { 
-              pseudo: userToAdd.pseudo, 
-              avatar: userToAdd.avatar, 
-              level: userToAdd.level,
-              pqSeason: userToAdd.pqSeason || 0
-            }]);
             setSearchQuery('');
             setSearchResults([]);
           } catch (err) {
-            console.error('Erreur ajout ami:', err);
+            console.error('Erreur envoi demande:', err);
           }
         }}
         setSelectedMission={setSelectedMission}
