@@ -3,15 +3,48 @@ import { supabase } from '../supabaseClient';
 import { requestNotificationPermission, onMessageListener } from '../firebase';
 
 export const useNotifications = (userId) => {
-  const [notificationStatus, setNotificationStatus] = useState('default'); // default, granted, denied
+  const [notificationStatus, setNotificationStatus] = useState('loading'); // loading, enabled, disabled, denied
   const [fcmToken, setFcmToken] = useState(null);
 
-  // Vérifier le statut actuel des notifications
+  // Vérifier le statut au chargement
   useEffect(() => {
-    if ('Notification' in window) {
-      setNotificationStatus(Notification.permission);
-    }
-  }, []);
+    const checkStatus = async () => {
+      // Vérifier la permission du navigateur
+      if (!('Notification' in window)) {
+        setNotificationStatus('disabled');
+        return;
+      }
+
+      if (Notification.permission === 'denied') {
+        setNotificationStatus('denied');
+        return;
+      }
+
+      // Vérifier si on a un token en base
+      if (userId) {
+        try {
+          const { data } = await supabase
+            .from('push_subscriptions')
+            .select('fcm_token')
+            .eq('user_id', userId)
+            .single();
+
+          if (data?.fcm_token) {
+            setFcmToken(data.fcm_token);
+            setNotificationStatus('enabled');
+          } else {
+            setNotificationStatus('disabled');
+          }
+        } catch (error) {
+          setNotificationStatus('disabled');
+        }
+      } else {
+        setNotificationStatus('disabled');
+      }
+    };
+
+    checkStatus();
+  }, [userId]);
 
   // Écouter les messages en premier plan
   useEffect(() => {
@@ -19,11 +52,9 @@ export const useNotifications = (userId) => {
       try {
         const payload = await onMessageListener();
         if (payload) {
-          // Afficher une notification même en premier plan
           if (Notification.permission === 'granted') {
             new Notification(payload.notification?.title || 'ToDoGame', {
-              body: payload.notification?.body,
-              icon: '/icon-192.png'
+              body: payload.notification?.body
             });
           }
         }
@@ -32,7 +63,7 @@ export const useNotifications = (userId) => {
       }
     };
     
-    if (notificationStatus === 'granted') {
+    if (notificationStatus === 'enabled') {
       setupListener();
     }
   }, [notificationStatus]);
@@ -45,11 +76,11 @@ export const useNotifications = (userId) => {
     }
 
     try {
+      console.log('Demande de permission...');
       const token = await requestNotificationPermission();
       
       if (token) {
-        setFcmToken(token);
-        setNotificationStatus('granted');
+        console.log('Token obtenu:', token);
         
         // Sauvegarder le token dans Supabase
         const { error } = await supabase
@@ -67,10 +98,15 @@ export const useNotifications = (userId) => {
           return false;
         }
 
+        setFcmToken(token);
+        setNotificationStatus('enabled');
         console.log('Notifications activées et token sauvegardé');
         return true;
       } else {
-        setNotificationStatus(Notification.permission);
+        console.log('Pas de token obtenu');
+        if (Notification.permission === 'denied') {
+          setNotificationStatus('denied');
+        }
         return false;
       }
     } catch (error) {
@@ -79,7 +115,7 @@ export const useNotifications = (userId) => {
     }
   };
 
-  // Désactiver les notifications (supprimer le token de la DB)
+  // Désactiver les notifications
   const disableNotifications = async () => {
     if (!userId) return false;
 
@@ -95,6 +131,7 @@ export const useNotifications = (userId) => {
       }
 
       setFcmToken(null);
+      setNotificationStatus('disabled');
       console.log('Notifications désactivées');
       return true;
     } catch (error) {
@@ -103,33 +140,11 @@ export const useNotifications = (userId) => {
     }
   };
 
-  // Vérifier si l'utilisateur a un token enregistré
-  const checkExistingSubscription = async () => {
-    if (!userId) return null;
-
-    try {
-      const { data, error } = await supabase
-        .from('push_subscriptions')
-        .select('fcm_token')
-        .eq('user_id', userId)
-        .single();
-
-      if (data?.fcm_token) {
-        setFcmToken(data.fcm_token);
-        return data.fcm_token;
-      }
-      return null;
-    } catch (error) {
-      return null;
-    }
-  };
-
   return {
-    notificationStatus,
+    notificationStatus, // 'loading', 'enabled', 'disabled', 'denied'
     fcmToken,
     enableNotifications,
     disableNotifications,
-    checkExistingSubscription,
     isSupported: 'Notification' in window && 'serviceWorker' in navigator
   };
 };

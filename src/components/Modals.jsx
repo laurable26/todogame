@@ -941,7 +941,11 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                   Reçois des rappels pour tes événements même quand l'app est fermée.
                 </p>
                 
-                {notificationStatus === 'granted' ? (
+                {notificationStatus === 'loading' ? (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
+                    <span className="text-slate-500">Chargement...</span>
+                  </div>
+                ) : notificationStatus === 'enabled' ? (
                   <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4">
                     <div className="flex items-center gap-2">
                       <span className="text-green-500 text-xl">✓</span>
