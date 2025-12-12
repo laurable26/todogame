@@ -72,6 +72,7 @@ const QuestApp = () => {
     saveOwnedItems,
     saveEquippedItems,
     saveFriend,
+    deleteFriend,
     saveMission,
     deleteMission: deleteMissionFromDB,
     saveEvent,
@@ -1655,6 +1656,12 @@ const QuestApp = () => {
               .eq('to_user', user.pseudo);
           }
           setFriendRequests(friendRequests.filter(r => r.pseudo !== pseudo));
+        }}
+        onRemoveFriend={async (pseudo) => {
+          if (supabaseUser) {
+            await deleteFriend(user.pseudo, pseudo);
+          }
+          setFriends(friends.filter(f => f.pseudo !== pseudo));
         }}
         ownedItems={ownedItems}
       />

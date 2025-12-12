@@ -383,6 +383,30 @@ export const useGameData = (supabaseUser) => {
     }
   };
 
+  // Supprimer un ami
+  const deleteFriend = async (userPseudo, friendPseudo) => {
+    if (!supabaseUser) return;
+    
+    try {
+      // Supprimer la relation dans les deux sens
+      await supabase
+        .from('friends')
+        .delete()
+        .eq('user_pseudo', userPseudo)
+        .eq('friend_pseudo', friendPseudo);
+      
+      await supabase
+        .from('friends')
+        .delete()
+        .eq('user_pseudo', friendPseudo)
+        .eq('friend_pseudo', userPseudo);
+        
+      console.log(`Ami supprimé: ${friendPseudo}`);
+    } catch (error) {
+      console.error('Erreur suppression ami:', error);
+    }
+  };
+
   // Sauvegarder une mission
   const saveMission = async (mission) => {
     if (!supabaseUser) {
@@ -968,6 +992,7 @@ export const useGameData = (supabaseUser) => {
     saveOwnedItems,
     saveEquippedItems,
     saveFriend,
+    deleteFriend,
     saveMission,
     deleteMission,
     saveEvent,

@@ -15,10 +15,12 @@ export const FriendsPage = ({
   friendRequests,
   onAcceptRequest,
   onDeclineRequest,
+  onRemoveFriend,
   ownedItems = []
 }) => {
   const [activeTab, setActiveTab] = useState('missions'); // Missions par défaut
   const [showArchived, setShowArchived] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(null); // pseudo de l'ami à supprimer
 
   // Séparer missions actives et terminées
   const activeMissions = missions.filter(m => {
@@ -265,9 +267,20 @@ export const FriendsPage = ({
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <span>🧻</span>
-                      <span className="font-bold text-pink-600">{player.pqSeason || 0}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <span>🧻</span>
+                        <span className="font-bold text-pink-600">{player.pqSeason || 0}</span>
+                      </div>
+                      {!player.isMe && onRemoveFriend && (
+                        <button
+                          onClick={() => setConfirmRemove(player.pseudo)}
+                          className="ml-2 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Supprimer cet ami"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -277,6 +290,35 @@ export const FriendsPage = ({
                 <p className="text-slate-500">Ajoute des amis pour voir le classement !</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmation de suppression */}
+      {confirmRemove && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setConfirmRemove(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Supprimer cet ami ?</h3>
+            <p className="text-slate-600 mb-4">
+              Es-tu sûr de vouloir retirer <strong>{confirmRemove}</strong> de ta liste d'amis ?
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmRemove(null)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => {
+                  onRemoveFriend(confirmRemove);
+                  setConfirmRemove(null);
+                }}
+                className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold transition-colors"
+              >
+                Supprimer
+              </button>
+            </div>
           </div>
         </div>
       )}
