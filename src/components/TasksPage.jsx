@@ -87,7 +87,7 @@ export const TasksPage = ({
     });
   };
 
-  // Récupérer les tâches de mission assignées à l'utilisateur (uniquement celles explicitement assignées)
+  // Récupérer les tâches/événements de mission assignées à l'utilisateur
   const myMissionQuests = useMemo(() => {
     if (!missions || !user) return [];
     
@@ -97,7 +97,17 @@ export const TasksPage = ({
       if (isCompleted) return [];
       
       return (mission.quests || [])
-        .filter(q => !q.completed && q.assignedTo === user.pseudo) // Seulement si assignée à moi
+        .filter(q => {
+          if (q.completed) return false;
+          
+          // Pour les événements, vérifier si l'utilisateur est dans les participants
+          if (q.isEvent && q.participants) {
+            return q.participants.some(p => p.pseudo === user.pseudo);
+          }
+          
+          // Pour les tâches, vérifier si assignée à l'utilisateur
+          return q.assignedTo === user.pseudo;
+        })
         .map(q => ({
           ...q,
           missionId: mission.id,
@@ -155,6 +165,7 @@ export const TasksPage = ({
     });
     
     const missionQuestsToday = myMissionQuests.filter(q => {
+      if (q.isEvent) return false; // Les événements sont gérés séparément
       if (!q.date) return false;
       const questDate = new Date(q.date);
       questDate.setHours(0, 0, 0, 0);
@@ -164,16 +175,30 @@ export const TasksPage = ({
     return [...regularTasks, ...missionQuestsToday];
   }, [activeTasks, today, myMissionQuests]);
 
-  // Événements d'aujourd'hui
+  // Événements de mission
+  const missionEvents = useMemo(() => {
+    return myMissionQuests.filter(q => q.isEvent && !q.completed);
+  }, [myMissionQuests]);
+
+  // Événements d'aujourd'hui (incluant les événements de mission)
   const todayEvents = useMemo(() => {
-    return events.filter(e => {
+    const regularEvents = events.filter(e => {
       if (e.completed) return false;
       if (!e.date) return false;
       const eventDate = new Date(e.date);
       eventDate.setHours(0, 0, 0, 0);
       return eventDate.getTime() === today.getTime();
     });
-  }, [events, today]);
+    
+    const missionEventsToday = missionEvents.filter(e => {
+      if (!e.date) return false;
+      const eventDate = new Date(e.date);
+      eventDate.setHours(0, 0, 0, 0);
+      return eventDate.getTime() === today.getTime();
+    });
+    
+    return [...regularEvents, ...missionEventsToday];
+  }, [events, today, missionEvents]);
 
   // Tâches de la semaine (incluant les tâches de mission)
   const weekTasks = useMemo(() => weekDates.map(date => {
@@ -185,15 +210,23 @@ export const TasksPage = ({
     });
     
     const missionQuestsForDate = myMissionQuests.filter(q => {
+      if (q.isEvent) return false; // Les événements sont gérés séparément
       if (!q.date) return false;
       const questDate = new Date(q.date);
       questDate.setHours(0, 0, 0, 0);
       return questDate.getTime() === date.getTime();
     });
     
-    // Événements pour cette date
-    const eventsForDate = events.filter(e => {
+    // Événements pour cette date (incluant les événements de mission)
+    const regularEventsForDate = events.filter(e => {
       if (e.completed) return false;
+      if (!e.date) return false;
+      const eventDate = new Date(e.date);
+      eventDate.setHours(0, 0, 0, 0);
+      return eventDate.getTime() === date.getTime();
+    });
+    
+    const missionEventsForDate = missionEvents.filter(e => {
       if (!e.date) return false;
       const eventDate = new Date(e.date);
       eventDate.setHours(0, 0, 0, 0);
@@ -203,9 +236,9 @@ export const TasksPage = ({
     return {
       date,
       tasks: [...tasksForDate, ...missionQuestsForDate],
-      events: eventsForDate
+      events: [...regularEventsForDate, ...missionEventsForDate]
     };
-  }), [weekDates, activeTasks, myMissionQuests, events]);
+  }), [weekDates, activeTasks, myMissionQuests, events, missionEvents]);
 
   // Bucketlist = tâches sans date + tâches de mission sans date
   const bucketlistTasks = [

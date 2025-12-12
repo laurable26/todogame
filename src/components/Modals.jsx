@@ -1906,20 +1906,63 @@ export const CreateEventModal = ({ onClose, onCreate, onDelete, initialEvent, fr
               />
             </div>
 
-            {/* Assigné à (mode mission) */}
+            {/* Participants (mode mission - sélection multiple parmi les membres) */}
             {isMissionEvent && missionParticipants.length > 0 && (
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Assigné à</label>
-                <select
-                  value={assignedTo}
-                  onChange={(e) => setAssignedTo(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500"
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Participants ({participants.length})
+                </label>
+                
+                {/* Participants sélectionnés */}
+                {participants.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {participants.map((p, i) => (
+                      <div 
+                        key={i}
+                        onClick={() => toggleParticipant(p)}
+                        className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100"
+                      >
+                        <span className="emoji-display">{p.avatar}</span>
+                        <span className="text-sm font-medium text-emerald-700">{p.pseudo}</span>
+                        <span className="text-emerald-400">✕</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Bouton ajouter */}
+                <button
+                  type="button"
+                  onClick={() => setShowFriendsList(!showFriendsList)}
+                  className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-emerald-400 hover:text-emerald-600 transition-all"
                 >
-                  <option value="">Non assigné</option>
-                  {missionParticipants.map(p => (
-                    <option key={p.pseudo} value={p.pseudo}>{p.avatar} {p.pseudo}</option>
-                  ))}
-                </select>
+                  + Ajouter des participants
+                </button>
+                
+                {/* Liste des participants de la mission */}
+                {showFriendsList && (
+                  <div className="mt-3 bg-slate-50 rounded-xl p-3 max-h-40 overflow-y-auto">
+                    {missionParticipants.map((member, i) => (
+                      <div
+                        key={i}
+                        onClick={() => toggleParticipant(member)}
+                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                          participants.some(p => p.pseudo === member.pseudo)
+                            ? 'bg-emerald-100 border border-emerald-300'
+                            : 'hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-lg flex items-center justify-center">
+                          <span className="emoji-display text-sm">{member.avatar}</span>
+                        </div>
+                        <span className="font-medium text-slate-700">{member.pseudo}</span>
+                        {participants.some(p => p.pseudo === member.pseudo) && (
+                          <span className="ml-auto text-emerald-500">✓</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
