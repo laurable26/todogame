@@ -387,105 +387,186 @@ export const TasksPage = ({
     const participantCount = event.participants?.length || 0;
     const isCalendarEvent = event.isCalendarEvent;
     
-    // Couleur différente pour les événements calendrier
-    const bgColor = isCalendarEvent 
-      ? 'bg-blue-50 border-blue-200 hover:shadow-md' 
-      : isCompleted 
-        ? 'bg-slate-100 border-slate-200 opacity-60' 
-        : 'bg-emerald-50 border-emerald-200 hover:shadow-md';
+    // Tous les événements en vert
+    const bgColor = isCompleted 
+      ? 'bg-slate-100 border-slate-200 opacity-60' 
+      : 'bg-emerald-50 border-emerald-200 hover:shadow-md';
 
-    const providerIcon = event.provider === 'google' ? '📆' : event.provider === 'outlook' ? '📅' : '📅';
+    const [showCalendarEventModal, setShowCalendarEventModal] = useState(false);
     
     return (
-      <div className={`rounded-xl p-4 border shadow-sm transition-all group ${bgColor}`}>
-        <div className="flex items-start gap-3">
-          {/* Checkbox - pas pour les événements calendrier */}
-          {isCalendarEvent ? (
-            <div className="mt-1 w-6 h-6 rounded-lg bg-blue-100 flex-shrink-0 flex items-center justify-center">
-              <span className="text-blue-600 text-xs">{providerIcon}</span>
-            </div>
-          ) : !isCompleted ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onCompleteEvent(event.id);
-              }}
-              className="mt-1 w-6 h-6 rounded-lg border-2 border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100 transition-all flex-shrink-0 flex items-center justify-center"
-            >
-              <span className="opacity-0 group-hover:opacity-100 text-emerald-600 text-xs">✓</span>
-            </button>
-          ) : (
-            <div className="mt-1 w-6 h-6 rounded-lg bg-emerald-500 flex-shrink-0 flex items-center justify-center">
-              <span className="text-white text-xs">✓</span>
-            </div>
-          )}
-          
-          <div className="flex-1 min-w-0" onClick={() => !isCalendarEvent && onEditEvent(event)}>
-            {/* Titre */}
-            <div>
-              <h3 className={`font-semibold text-base ${
-                isCalendarEvent 
-                  ? 'text-slate-900' 
-                  : isCompleted 
-                    ? 'text-slate-400 line-through cursor-pointer' 
-                    : 'text-slate-900 hover:text-emerald-600 cursor-pointer'
-              }`}>
-                {event.title}
-              </h3>
-              {!isCompleted && (
-                <div className="flex items-center gap-2 flex-wrap mt-1">
-                  {event.time && (
-                    <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
-                      🕐 {event.time}
-                    </span>
-                  )}
-                  {event.duration && !isCalendarEvent && (
-                    <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
-                      {event.duration}
-                    </span>
-                  )}
-                  {event.location && (
-                    <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
-                      📍 {event.location}
-                    </span>
-                  )}
-                  {event.reminder && event.reminder !== 'none' && (
-                    <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 text-xs font-medium">
-                      🔔 {event.reminder}
-                    </span>
-                  )}
-                  {isCalendarEvent && (
-                    <span className="px-2 py-0.5 rounded-lg bg-blue-100 border border-blue-200 text-blue-600 text-xs font-medium">
-                      {event.provider === 'google' ? 'Google' : 'Outlook'}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
+      <>
+        <div className={`rounded-xl p-4 border shadow-sm transition-all group ${bgColor}`}>
+          <div className="flex items-start gap-3">
+            {/* Checkbox - pas pour les événements calendrier */}
+            {isCalendarEvent ? (
+              <div className="mt-1 w-6 h-6 rounded-lg bg-emerald-100 flex-shrink-0 flex items-center justify-center">
+                <span className="text-emerald-600 text-xs">📅</span>
+              </div>
+            ) : !isCompleted ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCompleteEvent(event.id);
+                }}
+                className="mt-1 w-6 h-6 rounded-lg border-2 border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100 transition-all flex-shrink-0 flex items-center justify-center"
+              >
+                <span className="opacity-0 group-hover:opacity-100 text-emerald-600 text-xs">✓</span>
+              </button>
+            ) : (
+              <div className="mt-1 w-6 h-6 rounded-lg bg-emerald-500 flex-shrink-0 flex items-center justify-center">
+                <span className="text-white text-xs">✓</span>
+              </div>
+            )}
             
-            {/* Participants avec avatars complets */}
-            {!isCompleted && participantCount > 0 && (
-              <div className="flex items-center gap-1 mt-2">
-                <span className="text-xs text-slate-500">Avec :</span>
-                <div className="flex -space-x-1">
-                  {event.participants.slice(0, 5).map((p, i) => (
-                    <div 
-                      key={i} 
-                      className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center border-2 border-white shadow-sm"
-                      title={p.pseudo}
-                    >
-                      <span className="text-sm">{p.avatar || '👤'}</span>
-                    </div>
-                  ))}
-                </div>
-                {participantCount > 5 && (
-                  <span className="text-xs text-slate-500 ml-1">+{participantCount - 5}</span>
+            <div 
+              className="flex-1 min-w-0 cursor-pointer" 
+              onClick={() => isCalendarEvent ? setShowCalendarEventModal(true) : onEditEvent(event)}
+            >
+              {/* Titre */}
+              <div>
+                <h3 className={`font-semibold text-base ${
+                  isCompleted 
+                    ? 'text-slate-400 line-through' 
+                    : 'text-slate-900 hover:text-emerald-600'
+                }`}>
+                  {event.title}
+                </h3>
+                {!isCompleted && (
+                  <div className="flex items-center gap-2 flex-wrap mt-1">
+                    {event.time && (
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                        🕐 {event.time}
+                      </span>
+                    )}
+                    {event.duration && !isCalendarEvent && (
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                        {event.duration}
+                      </span>
+                    )}
+                    {event.location && (
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                        📍 {event.location}
+                      </span>
+                    )}
+                    {event.reminder && event.reminder !== 'none' && (
+                      <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 text-xs font-medium">
+                        🔔 {event.reminder}
+                      </span>
+                    )}
+                    {isCalendarEvent && (
+                      <span className="px-2 py-0.5 rounded-lg bg-emerald-100 border border-emerald-200 text-emerald-600 text-xs font-medium">
+                        {event.provider === 'google' ? 'Google' : 'Outlook'}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
+              
+              {/* Participants avec avatars complets */}
+              {!isCompleted && participantCount > 0 && (
+                <div className="flex items-center gap-1 mt-2">
+                  <span className="text-xs text-slate-500">Avec :</span>
+                  <div className="flex -space-x-1">
+                    {event.participants.slice(0, 5).map((p, i) => (
+                      <div 
+                        key={i} 
+                        className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center border-2 border-white shadow-sm"
+                        title={p.pseudo}
+                      >
+                        <span className="text-sm">{p.avatar || '👤'}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {participantCount > 5 && (
+                    <span className="text-xs text-slate-500 ml-1">+{participantCount - 5}</span>
+                  )}
+                </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Modal lecture seule pour événements calendrier */}
+      {showCalendarEventModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50" onClick={() => setShowCalendarEventModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-emerald-50">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📅</span>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Événement {event.provider === 'google' ? 'Google' : 'Outlook'}</h2>
+                  <p className="text-xs text-emerald-600">Synchronisé depuis votre calendrier</p>
+                </div>
+              </div>
+              <button onClick={() => setShowCalendarEventModal(false)} className="text-2xl text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">{event.title}</h3>
+              </div>
+              
+              <div className="space-y-3">
+                {event.time && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-slate-400">🕐</span>
+                    <span className="text-slate-700">{event.time}</span>
+                  </div>
+                )}
+                
+                {event.date && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-slate-400">📆</span>
+                    <span className="text-slate-700">
+                      {new Date(event.date).toLocaleDateString('fr-FR', { 
+                        weekday: 'long', 
+                        day: 'numeric', 
+                        month: 'long',
+                        year: 'numeric'
+                      })}
+                    </span>
+                  </div>
+                )}
+                
+                {event.location && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-slate-400">📍</span>
+                    <span className="text-slate-700">{event.location}</span>
+                  </div>
+                )}
+                
+                {event.description && (
+                  <div className="flex items-start gap-3">
+                    <span className="text-slate-400">📝</span>
+                    <span className="text-slate-700">{event.description}</span>
+                  </div>
+                )}
+                
+                {participantCount > 0 && (
+                  <div className="flex items-start gap-3">
+                    <span className="text-slate-400">👥</span>
+                    <div className="flex flex-wrap gap-2">
+                      {event.participants.map((p, i) => (
+                        <span key={i} className="px-2 py-1 bg-slate-100 rounded-lg text-sm text-slate-600">
+                          {p.pseudo}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="p-5 border-t border-slate-100 bg-slate-50">
+              <p className="text-xs text-slate-500 text-center">
+                Pour modifier cet événement, ouvrez {event.provider === 'google' ? 'Google Calendar' : 'Outlook'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      </>
     );
   };
 
