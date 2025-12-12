@@ -96,13 +96,21 @@ export const TasksPage = ({
       const isCompleted = mission.quests?.length > 0 && mission.quests.every(q => q.completed);
       if (isCompleted) return [];
       
+      // Vérifier si l'utilisateur est participant de cette mission
+      const isUserMissionParticipant = mission.participants?.some(p => p.pseudo === user.pseudo);
+      
       return (mission.quests || [])
         .filter(q => {
           if (q.completed) return false;
           
-          // Pour les événements, vérifier si l'utilisateur est dans les participants
-          if (q.isEvent && q.participants) {
-            return q.participants.some(p => p.pseudo === user.pseudo);
+          // Pour les événements
+          if (q.isEvent) {
+            // Si l'événement a des participants spécifiques, vérifier si l'utilisateur en fait partie
+            if (q.participants && q.participants.length > 0) {
+              return q.participants.some(p => p.pseudo === user.pseudo);
+            }
+            // Sinon, si pas de participants spécifiques, tous les participants de la mission voient l'événement
+            return isUserMissionParticipant;
           }
           
           // Pour les tâches, vérifier si assignée à l'utilisateur
