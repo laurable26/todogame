@@ -21,6 +21,26 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   messaging = getMessaging(app);
 }
 
+// Attendre que le Service Worker soit actif
+const waitForServiceWorkerActive = async (registration) => {
+  if (registration.active) {
+    return registration;
+  }
+  
+  return new Promise((resolve) => {
+    const sw = registration.installing || registration.waiting;
+    if (sw) {
+      sw.addEventListener('statechange', () => {
+        if (sw.state === 'activated') {
+          resolve(registration);
+        }
+      });
+    } else {
+      resolve(registration);
+    }
+  });
+};
+
 // Demander la permission et obtenir le token
 export const requestNotificationPermission = async () => {
   try {
@@ -43,8 +63,15 @@ export const requestNotificationPermission = async () => {
     }
 
     // Enregistrer le Service Worker
-    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    let registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
     console.log('Service Worker enregistré:', registration);
+
+    // Attendre que le SW soit actif
+    registration = await waitForServiceWorkerActive(registration);
+    console.log('Service Worker actif:', registration.active);
+
+    // Petit délai pour s'assurer que tout est prêt
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // Obtenir le token FCM
     const token = await getToken(messaging, {

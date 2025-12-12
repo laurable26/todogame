@@ -2,6 +2,17 @@
 importScripts('https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging-compat.js');
 
+// Activer immédiatement le Service Worker
+self.addEventListener('install', (event) => {
+  console.log('[SW] Installing...');
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  console.log('[SW] Activating...');
+  event.waitUntil(clients.claim());
+});
+
 firebase.initializeApp({
   apiKey: "AIzaSyDHnnn0F0XDnv5tRhvGtSTJ_y2_VvaKWY4",
   authDomain: "todogame-notifications.firebaseapp.com",
@@ -15,13 +26,11 @@ const messaging = firebase.messaging();
 
 // Gestion des notifications en arrière-plan
 messaging.onBackgroundMessage((payload) => {
-  console.log('[SW] Notification reçue en arrière-plan:', payload);
+  console.log('[SW] Notification reçue:', payload);
   
   const notificationTitle = payload.notification?.title || 'ToDoGame';
   const notificationOptions = {
     body: payload.notification?.body || 'Tu as un rappel !',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
     tag: 'todogame-reminder',
     vibrate: [200, 100, 200],
     data: payload.data
@@ -35,7 +44,6 @@ self.addEventListener('notificationclick', (event) => {
   console.log('[SW] Notification cliquée');
   event.notification.close();
   
-  // Ouvrir l'app ou focus si déjà ouverte
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
