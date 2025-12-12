@@ -10,6 +10,8 @@ export const AuthScreen = ({ mode, setMode, onLogin, onRegister, onForgotPasswor
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [acceptPrivacy, setAcceptPrivacy] = useState(false);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -53,6 +55,11 @@ export const AuthScreen = ({ mode, setMode, onLogin, onRegister, onForgotPasswor
         }
         if (pseudo.length < 3) {
           setError('Le pseudo doit contenir au moins 3 caractères');
+          setLoading(false);
+          return;
+        }
+        if (!acceptPrivacy) {
+          setError('Vous devez accepter la politique de confidentialité');
           setLoading(false);
           return;
         }
@@ -231,6 +238,29 @@ export const AuthScreen = ({ mode, setMode, onLogin, onRegister, onForgotPasswor
                 </div>
               )}
 
+              {mode === 'register' && (
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    id="acceptPrivacy"
+                    checked={acceptPrivacy}
+                    onChange={(e) => setAcceptPrivacy(e.target.checked)}
+                    className="mt-1 w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                  />
+                  <label htmlFor="acceptPrivacy" className="text-sm text-slate-600">
+                    J'accepte la{' '}
+                    <button
+                      type="button"
+                      onClick={() => setShowPrivacyPolicy(true)}
+                      className="text-indigo-600 hover:underline font-medium"
+                    >
+                      politique de confidentialité
+                    </button>
+                    {' '}et le traitement de mes données personnelles.
+                  </label>
+                </div>
+              )}
+
               {mode === 'login' && (
                 <div className="text-right">
                   <button
@@ -266,6 +296,90 @@ export const AuthScreen = ({ mode, setMode, onLogin, onRegister, onForgotPasswor
           </>
         )}
       </div>
+
+      {/* Modal Politique de Confidentialité */}
+      {showPrivacyPolicy && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-slate-900">Politique de Confidentialité</h2>
+              <button 
+                onClick={() => setShowPrivacyPolicy(false)}
+                className="text-2xl text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto text-sm text-slate-700 space-y-4">
+              <p className="text-slate-500 italic">Dernière mise à jour : Décembre 2025</p>
+              
+              <h3 className="font-bold text-slate-900">1. Responsable du traitement</h3>
+              <p>ToDoGame est une application de gestion de tâches gamifiée. Le responsable du traitement des données est l'éditeur de l'application.</p>
+              
+              <h3 className="font-bold text-slate-900">2. Données collectées</h3>
+              <p>Nous collectons les données suivantes :</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li><strong>Compte utilisateur :</strong> email, pseudo, mot de passe (hashé)</li>
+                <li><strong>Données de jeu :</strong> tâches, événements, missions, progression, récompenses</li>
+                <li><strong>Données sociales :</strong> liste d'amis, participations aux missions</li>
+                <li><strong>Données techniques :</strong> token de notification push (si activé)</li>
+              </ul>
+              
+              <h3 className="font-bold text-slate-900">3. Finalités du traitement</h3>
+              <p>Vos données sont utilisées pour :</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Gérer votre compte et authentification</li>
+                <li>Fournir les fonctionnalités de l'application (tâches, missions, récompenses)</li>
+                <li>Permettre les interactions sociales (amis, missions collaboratives)</li>
+                <li>Envoyer des notifications de rappel (si vous les activez)</li>
+              </ul>
+              
+              <h3 className="font-bold text-slate-900">4. Base légale</h3>
+              <p>Le traitement est basé sur votre consentement lors de l'inscription et l'exécution du contrat de service.</p>
+              
+              <h3 className="font-bold text-slate-900">5. Durée de conservation</h3>
+              <p>Vos données sont conservées tant que votre compte est actif. En cas de suppression de compte, toutes vos données sont effacées définitivement.</p>
+              
+              <h3 className="font-bold text-slate-900">6. Vos droits</h3>
+              <p>Conformément au RGPD, vous disposez des droits suivants :</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li><strong>Droit d'accès :</strong> exporter vos données depuis les paramètres</li>
+                <li><strong>Droit de rectification :</strong> modifier vos informations dans l'app</li>
+                <li><strong>Droit à l'effacement :</strong> supprimer votre compte dans les paramètres</li>
+                <li><strong>Droit à la portabilité :</strong> exporter vos données au format JSON</li>
+              </ul>
+              
+              <h3 className="font-bold text-slate-900">7. Sécurité</h3>
+              <p>Vos données sont protégées par :</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Chiffrement des mots de passe (bcrypt)</li>
+                <li>Connexion sécurisée HTTPS</li>
+                <li>Politiques de sécurité Row Level Security (RLS)</li>
+                <li>Hébergement sur des serveurs sécurisés (Supabase, Vercel)</li>
+              </ul>
+              
+              <h3 className="font-bold text-slate-900">8. Partage des données</h3>
+              <p>Vos données ne sont jamais vendues à des tiers. Elles sont partagées uniquement avec :</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Supabase (hébergement base de données)</li>
+                <li>Firebase (notifications push)</li>
+                <li>Vercel (hébergement application)</li>
+              </ul>
+              
+              <h3 className="font-bold text-slate-900">9. Contact</h3>
+              <p>Pour toute question concernant vos données, contactez-nous via l'application.</p>
+            </div>
+            <div className="p-4 border-t border-slate-200">
+              <button
+                onClick={() => { setShowPrivacyPolicy(false); setAcceptPrivacy(true); }}
+                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-bold hover:opacity-90 transition-all"
+              >
+                J'ai lu et j'accepte
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

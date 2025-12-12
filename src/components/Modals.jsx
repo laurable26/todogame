@@ -763,6 +763,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
   const [loading, setLoading] = useState(false);
   const [pseudoError, setPseudoError] = useState('');
   const [notifLoading, setNotifLoading] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   // Filtrer les améliorations possédées (pas les boosts)
   const ownedUpgrades = shopItems.filter(item => 
@@ -1035,6 +1036,63 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
             {/* Séparateur */}
             <hr className="border-slate-200" />
 
+            {/* Mes données - RGPD */}
+            <div className="space-y-4">
+              <h3 className="font-bold text-slate-900">📋 Mes données</h3>
+              
+              <button
+                onClick={async () => {
+                  try {
+                    // Collecter toutes les données de l'utilisateur
+                    const exportData = {
+                      exportDate: new Date().toISOString(),
+                      profile: {
+                        email: email,
+                        pseudo: user?.pseudo,
+                        level: user?.level,
+                        xp: user?.xp,
+                        potatoes: user?.potatoes,
+                        avatar: user?.avatar,
+                        createdAt: user?.createdAt
+                      },
+                      statistics: {
+                        tasksCompleted: user?.tasksCompleted,
+                        eventsCompleted: user?.eventsCompleted,
+                        missionsCompleted: user?.missionsCompleted
+                      },
+                      note: "Données exportées conformément au RGPD - Droit à la portabilité"
+                    };
+                    
+                    // Créer et télécharger le fichier JSON
+                    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `todogame-export-${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  } catch (error) {
+                    console.error('Erreur export:', error);
+                  }
+                }}
+                className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-600 py-3 rounded-xl font-semibold border border-indigo-200 transition-all flex items-center justify-center gap-2"
+              >
+                <span>📥</span> Exporter mes données
+              </button>
+              
+              <button
+                onClick={() => setShowPrivacyModal(true)}
+                className="w-full bg-slate-50 hover:bg-slate-100 text-slate-600 py-3 rounded-xl font-semibold border border-slate-200 transition-all flex items-center justify-center gap-2"
+              >
+                <span>🔒</span> Politique de confidentialité
+              </button>
+            </div>
+
+            {/* Séparateur */}
+            <hr className="border-slate-200" />
+
             {/* Zone dangereuse */}
             <div className="space-y-3">
               <h3 className="font-bold text-red-500">Zone dangereuse</h3>
@@ -1082,6 +1140,90 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
           </div>
         </div>
       </div>
+
+      {/* Modal Politique de Confidentialité */}
+      {showPrivacyModal && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-slate-900">Politique de Confidentialité</h2>
+              <button 
+                onClick={() => setShowPrivacyModal(false)}
+                className="text-2xl text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto text-sm text-slate-700 space-y-4">
+              <p className="text-slate-500 italic">Dernière mise à jour : Décembre 2025</p>
+              
+              <h3 className="font-bold text-slate-900">1. Responsable du traitement</h3>
+              <p>ToDoGame est une application de gestion de tâches gamifiée. Le responsable du traitement des données est l'éditeur de l'application.</p>
+              
+              <h3 className="font-bold text-slate-900">2. Données collectées</h3>
+              <p>Nous collectons les données suivantes :</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li><strong>Compte utilisateur :</strong> email, pseudo, mot de passe (hashé)</li>
+                <li><strong>Données de jeu :</strong> tâches, événements, missions, progression, récompenses</li>
+                <li><strong>Données sociales :</strong> liste d'amis, participations aux missions</li>
+                <li><strong>Données techniques :</strong> token de notification push (si activé)</li>
+              </ul>
+              
+              <h3 className="font-bold text-slate-900">3. Finalités du traitement</h3>
+              <p>Vos données sont utilisées pour :</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Gérer votre compte et authentification</li>
+                <li>Fournir les fonctionnalités de l'application (tâches, missions, récompenses)</li>
+                <li>Permettre les interactions sociales (amis, missions collaboratives)</li>
+                <li>Envoyer des notifications de rappel (si vous les activez)</li>
+              </ul>
+              
+              <h3 className="font-bold text-slate-900">4. Base légale</h3>
+              <p>Le traitement est basé sur votre consentement lors de l'inscription et l'exécution du contrat de service.</p>
+              
+              <h3 className="font-bold text-slate-900">5. Durée de conservation</h3>
+              <p>Vos données sont conservées tant que votre compte est actif. En cas de suppression de compte, toutes vos données sont effacées définitivement.</p>
+              
+              <h3 className="font-bold text-slate-900">6. Vos droits</h3>
+              <p>Conformément au RGPD, vous disposez des droits suivants :</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li><strong>Droit d'accès :</strong> exporter vos données depuis les paramètres</li>
+                <li><strong>Droit de rectification :</strong> modifier vos informations dans l'app</li>
+                <li><strong>Droit à l'effacement :</strong> supprimer votre compte dans les paramètres</li>
+                <li><strong>Droit à la portabilité :</strong> exporter vos données au format JSON</li>
+              </ul>
+              
+              <h3 className="font-bold text-slate-900">7. Sécurité</h3>
+              <p>Vos données sont protégées par :</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Chiffrement des mots de passe (bcrypt)</li>
+                <li>Connexion sécurisée HTTPS</li>
+                <li>Politiques de sécurité Row Level Security (RLS)</li>
+                <li>Hébergement sur des serveurs sécurisés (Supabase, Vercel)</li>
+              </ul>
+              
+              <h3 className="font-bold text-slate-900">8. Partage des données</h3>
+              <p>Vos données ne sont jamais vendues à des tiers. Elles sont partagées uniquement avec :</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Supabase (hébergement base de données)</li>
+                <li>Firebase (notifications push)</li>
+                <li>Vercel (hébergement application)</li>
+              </ul>
+              
+              <h3 className="font-bold text-slate-900">9. Contact</h3>
+              <p>Pour toute question concernant vos données, contactez-nous via l'application.</p>
+            </div>
+            <div className="p-4 border-t border-slate-200">
+              <button
+                onClick={() => setShowPrivacyModal(false)}
+                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-bold hover:opacity-90 transition-all"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
