@@ -1693,9 +1693,9 @@ const QuestApp = () => {
       {/* Notification in-app */}
       {inAppNotification && (
         <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-in w-11/12 max-w-md">
-          <div className="bg-gradient-to-r from-amber-400 to-orange-500 rounded-2xl shadow-2xl p-4 text-white">
+          <div className="bg-gradient-to-r from-emerald-400 to-teal-500 rounded-2xl shadow-2xl p-4 text-white">
             <div className="flex items-start gap-3">
-              <div className="text-3xl">🔔</div>
+              <div className="text-3xl">📅</div>
               <div className="flex-1">
                 <h3 className="font-bold text-lg">{inAppNotification.title}</h3>
                 <p className="text-white/90">{inAppNotification.body}</p>

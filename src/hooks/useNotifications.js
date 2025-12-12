@@ -47,6 +47,39 @@ export const useNotifications = (userId) => {
     checkStatus();
   }, [userId]);
 
+  // Jouer un son de notification
+  const playNotificationSound = useCallback(() => {
+    try {
+      // Créer un son avec l'API Web Audio
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Créer deux bips courts et agréables
+      const playBeep = (startTime, frequency) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = frequency;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.3, startTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.15);
+        
+        oscillator.start(startTime);
+        oscillator.stop(startTime + 0.15);
+      };
+      
+      const now = audioContext.currentTime;
+      playBeep(now, 880);        // La (A5)
+      playBeep(now + 0.18, 1108); // Do# (C#6)
+      
+    } catch (error) {
+      console.log('Impossible de jouer le son:', error);
+    }
+  }, []);
+
   // Écouter les messages en premier plan
   useEffect(() => {
     if (notificationStatus !== 'enabled') {
@@ -57,6 +90,10 @@ export const useNotifications = (userId) => {
     
     const unsubscribe = setupMessageListener((payload) => {
       console.log('Notification reçue dans l\'app:', payload);
+      
+      // Jouer le son
+      playNotificationSound();
+      
       setInAppNotification({
         title: payload.notification?.title || 'ToDoGame',
         body: payload.notification?.body || '',
@@ -69,7 +106,7 @@ export const useNotifications = (userId) => {
         unsubscribe();
       }
     };
-  }, [notificationStatus]);
+  }, [notificationStatus, playNotificationSound]);
 
   // Fermer la notification in-app
   const dismissInAppNotification = useCallback(() => {
