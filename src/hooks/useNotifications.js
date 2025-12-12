@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { requestNotificationPermission, onMessageListener } from '../firebase';
 
 export const useNotifications = (userId) => {
   const [notificationStatus, setNotificationStatus] = useState('loading'); // loading, enabled, disabled, denied
   const [fcmToken, setFcmToken] = useState(null);
+  const [inAppNotification, setInAppNotification] = useState(null); // Pour afficher dans l'app
 
   // Vérifier le statut au chargement
   useEffect(() => {
@@ -46,27 +47,41 @@ export const useNotifications = (userId) => {
     checkStatus();
   }, [userId]);
 
-  // Écouter les messages en premier plan
+  // Écouter les messages en premier plan - PAS de nouvelle notification, juste afficher dans l'app
   useEffect(() => {
+    let isListening = true;
+    
     const setupListener = async () => {
-      try {
-        const payload = await onMessageListener();
-        if (payload) {
-          if (Notification.permission === 'granted') {
-            new Notification(payload.notification?.title || 'ToDoGame', {
-              body: payload.notification?.body
+      while (isListening && notificationStatus === 'enabled') {
+        try {
+          const payload = await onMessageListener();
+          if (payload && isListening) {
+            // Afficher dans l'app (pas de new Notification car le SW le fait déjà)
+            setInAppNotification({
+              title: payload.notification?.title || 'ToDoGame',
+              body: payload.notification?.body || '',
+              timestamp: Date.now()
             });
           }
+        } catch (error) {
+          console.error('Erreur listener:', error);
         }
-      } catch (error) {
-        console.error('Erreur listener:', error);
       }
     };
     
     if (notificationStatus === 'enabled') {
       setupListener();
     }
+
+    return () => {
+      isListening = false;
+    };
   }, [notificationStatus]);
+
+  // Fermer la notification in-app
+  const dismissInAppNotification = useCallback(() => {
+    setInAppNotification(null);
+  }, []);
 
   // Activer les notifications
   const enableNotifications = async () => {
@@ -145,6 +160,8 @@ export const useNotifications = (userId) => {
     fcmToken,
     enableNotifications,
     disableNotifications,
+    inAppNotification,
+    dismissInAppNotification,
     isSupported: 'Notification' in window && 'serviceWorker' in navigator
   };
 };

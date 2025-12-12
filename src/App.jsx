@@ -96,6 +96,8 @@ const QuestApp = () => {
     notificationStatus,
     enableNotifications,
     disableNotifications,
+    inAppNotification,
+    dismissInAppNotification,
     isSupported: isNotificationSupported
   } = useNotifications(supabaseUser?.id);
 
@@ -1687,6 +1689,27 @@ const QuestApp = () => {
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
       />
+
+      {/* Notification in-app */}
+      {inAppNotification && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-fade-in w-11/12 max-w-md">
+          <div className="bg-gradient-to-r from-amber-400 to-orange-500 rounded-2xl shadow-2xl p-4 text-white">
+            <div className="flex items-start gap-3">
+              <div className="text-3xl">🔔</div>
+              <div className="flex-1">
+                <h3 className="font-bold text-lg">{inAppNotification.title}</h3>
+                <p className="text-white/90">{inAppNotification.body}</p>
+              </div>
+              <button 
+                onClick={dismissInAppNotification}
+                className="text-white/80 hover:text-white text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto pt-16 sm:pt-20 md:pt-24 pb-16 sm:pb-20 md:pb-24 relative z-10">
         {pageContent}
