@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { requestNotificationPermission, onMessageListener } from '../firebase';
+import { requestNotificationPermission, setupMessageListener } from '../firebase';
 
 export const useNotifications = (userId) => {
   const [notificationStatus, setNotificationStatus] = useState('loading'); // loading, enabled, disabled, denied
@@ -47,34 +47,27 @@ export const useNotifications = (userId) => {
     checkStatus();
   }, [userId]);
 
-  // Écouter les messages en premier plan - PAS de nouvelle notification, juste afficher dans l'app
+  // Écouter les messages en premier plan
   useEffect(() => {
-    let isListening = true;
-    
-    const setupListener = async () => {
-      while (isListening && notificationStatus === 'enabled') {
-        try {
-          const payload = await onMessageListener();
-          if (payload && isListening) {
-            // Afficher dans l'app (pas de new Notification car le SW le fait déjà)
-            setInAppNotification({
-              title: payload.notification?.title || 'ToDoGame',
-              body: payload.notification?.body || '',
-              timestamp: Date.now()
-            });
-          }
-        } catch (error) {
-          console.error('Erreur listener:', error);
-        }
-      }
-    };
-    
-    if (notificationStatus === 'enabled') {
-      setupListener();
+    if (notificationStatus !== 'enabled') {
+      return;
     }
+    
+    console.log('Configuration du listener de messages...');
+    
+    const unsubscribe = setupMessageListener((payload) => {
+      console.log('Notification reçue dans l\'app:', payload);
+      setInAppNotification({
+        title: payload.notification?.title || 'ToDoGame',
+        body: payload.notification?.body || '',
+        timestamp: Date.now()
+      });
+    });
 
     return () => {
-      isListening = false;
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, [notificationStatus]);
 

@@ -87,7 +87,26 @@ export const requestNotificationPermission = async () => {
   }
 };
 
-// Écouter les messages en premier plan
+// Écouter les messages en premier plan - avec callback
+export const setupMessageListener = (callback) => {
+  if (!messaging) {
+    console.log('Messaging non disponible pour le listener');
+    return () => {};
+  }
+  
+  console.log('Listener de messages configuré');
+  
+  const unsubscribe = onMessage(messaging, (payload) => {
+    console.log('Message reçu en premier plan:', payload);
+    if (callback) {
+      callback(payload);
+    }
+  });
+  
+  return unsubscribe;
+};
+
+// Ancienne fonction pour compatibilité
 export const onMessageListener = () => {
   return new Promise((resolve) => {
     if (!messaging) {
