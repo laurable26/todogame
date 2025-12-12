@@ -367,7 +367,17 @@ export const AuthScreen = ({ mode, setMode, onLogin, onRegister, onForgotPasswor
               </ul>
               
               <h3 className="font-bold text-slate-900">9. Contact</h3>
-              <p>Pour toute question concernant vos données, contactez-nous via l'application.</p>
+              <p>
+                Pour toute question concernant vos données,{' '}
+                <a 
+                  href="https://docs.google.com/forms/d/e/1FAIpQLSffbCto_beD9OxnQd0QmwExeNm-XPUqu1tx6aAeh1lJxpGHYA/viewform" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-indigo-600 hover:underline font-medium"
+                >
+                  contactez-nous via ce formulaire
+                </a>.
+              </p>
             </div>
             <div className="p-4 border-t border-slate-200">
               <button

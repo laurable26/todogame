@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useGameData } from './hooks/useGameData';
 import { useNotifications } from './hooks/useNotifications';
+import { useCalendarSync } from './hooks/useCalendarSync';
 import { AuthScreen, OnboardingScreen, LoadingScreen } from './components/AuthScreens';
 import { Header, Navigation } from './components/Header';
 import { TasksPage } from './components/TasksPage';
@@ -10,6 +11,7 @@ import { ChestsPage, ChestOpeningModal } from './components/ChestsPage';
 import { BadgesPage } from './components/BadgesPage';
 import { ShopPage } from './components/ShopPage';
 import { StatsPage } from './components/StatsPage';
+import CalendarSettings from './components/CalendarSettings';
 import { 
   CreateTaskModal, 
   ChestOpenedModal, 
@@ -100,6 +102,9 @@ const QuestApp = () => {
     dismissInAppNotification,
     isSupported: isNotificationSupported
   } = useNotifications(supabaseUser?.id);
+
+  // Calendriers (Google, Outlook)
+  const calendarSync = useCalendarSync(supabaseUser?.id);
 
   // State pour l'animation de badge débloqué
   const [unlockedBadge, setUnlockedBadge] = useState(null);
@@ -976,6 +981,8 @@ const QuestApp = () => {
               await supabase.from('tasks').delete().eq('user_id', supabaseUser.id);
               await supabase.from('chests').delete().eq('user_id', supabaseUser.id);
               await supabase.from('push_subscriptions').delete().eq('user_id', supabaseUser.id);
+              await supabase.from('calendar_connections').delete().eq('user_id', supabaseUser.id);
+              await supabase.from('calendar_events').delete().eq('user_id', supabaseUser.id);
               await supabase.from('profiles').delete().eq('id', supabaseUser.id);
             }
             // Déconnecter l'utilisateur
@@ -996,6 +1003,7 @@ const QuestApp = () => {
         onEnableNotifications={enableNotifications}
         onDisableNotifications={disableNotifications}
         isNotificationSupported={isNotificationSupported}
+        calendarSync={calendarSync}
       />
     );
   } else if (openingChest) {
@@ -1089,57 +1097,107 @@ const QuestApp = () => {
       />
     );
   } else if (editingQuest) {
-    // Édition d'une tâche de mission
-    pageContent = (
-      <CreateTaskModal
-        onClose={() => setEditingQuest(null)}
-        onCreate={async (questData) => {
-          const updatedQuest = { 
-            ...editingQuest.quest,
-            title: questData.title,
-            status: questData.status,
-            duration: questData.duration,
-            tags: questData.tags,
-            notes: questData.notes,
-            photos: questData.photos || [],
-            assignedTo: questData.assignedTo || null,
-            date: questData.date || null,
-            xp: getDurationXP(questData.duration, questData.status) 
-          };
-          const updatedMission = {
-            ...editingQuest.mission,
-            quests: editingQuest.mission.quests.map(q => q.id === editingQuest.quest.id ? updatedQuest : q)
-          };
-          setMissions(missions.map(m => m.id === editingQuest.mission.id ? updatedMission : m));
-          setSelectedMission(updatedMission);
-          setEditingQuest(null);
-          // Sauvegarder dans Supabase
-          if (supabaseUser) {
-            await saveMission(updatedMission);
-          }
-        }}
-        onDelete={async () => {
-          const updatedMission = {
-            ...editingQuest.mission,
-            quests: editingQuest.mission.quests.filter(q => q.id !== editingQuest.quest.id)
-          };
-          setMissions(missions.map(m => m.id === editingQuest.mission.id ? updatedMission : m));
-          setSelectedMission(updatedMission);
-          setEditingQuest(null);
-          // Sauvegarder dans Supabase
-          if (supabaseUser) {
-            await saveMission(updatedMission);
-          }
-        }}
-        initialTask={editingQuest.quest}
-        getStatusColor={getStatusColor}
-        missionMode={editingQuest.mission}
-        ownedItems={ownedItems}
-        activeUpgrades={activeUpgrades}
-        existingTags={existingTags}
-        userId={supabaseUser?.id}
-      />
-    );
+    // Édition d'une tâche ou événement de mission
+    if (editingQuest.quest.isEvent) {
+      // C'est un événement de mission → utiliser CreateEventModal
+      pageContent = (
+        <CreateEventModal
+          onClose={() => setEditingQuest(null)}
+          onCreate={async (eventData) => {
+            const updatedQuest = { 
+              ...editingQuest.quest,
+              title: eventData.title,
+              date: eventData.date,
+              time: eventData.time,
+              duration: eventData.duration,
+              location: eventData.location,
+              reminder: eventData.reminder,
+              participants: eventData.participants || [],
+            };
+            const updatedMission = {
+              ...editingQuest.mission,
+              quests: editingQuest.mission.quests.map(q => q.id === editingQuest.quest.id ? updatedQuest : q)
+            };
+            setMissions(missions.map(m => m.id === editingQuest.mission.id ? updatedMission : m));
+            setSelectedMission(updatedMission);
+            setEditingQuest(null);
+            // Sauvegarder dans Supabase
+            if (supabaseUser) {
+              await saveMission(updatedMission);
+            }
+          }}
+          onDelete={async () => {
+            const updatedMission = {
+              ...editingQuest.mission,
+              quests: editingQuest.mission.quests.filter(q => q.id !== editingQuest.quest.id)
+            };
+            setMissions(missions.map(m => m.id === editingQuest.mission.id ? updatedMission : m));
+            setSelectedMission(updatedMission);
+            setEditingQuest(null);
+            // Sauvegarder dans Supabase
+            if (supabaseUser) {
+              await saveMission(updatedMission);
+            }
+          }}
+          initialEvent={editingQuest.quest}
+          friends={friends}
+          missionMode={editingQuest.mission}
+          missionParticipants={editingQuest.mission.participants || []}
+        />
+      );
+    } else {
+      // C'est une tâche de mission → utiliser CreateTaskModal
+      pageContent = (
+        <CreateTaskModal
+          onClose={() => setEditingQuest(null)}
+          onCreate={async (questData) => {
+            const updatedQuest = { 
+              ...editingQuest.quest,
+              title: questData.title,
+              status: questData.status,
+              duration: questData.duration,
+              tags: questData.tags,
+              notes: questData.notes,
+              photos: questData.photos || [],
+              assignedTo: questData.assignedTo || null,
+              date: questData.date || null,
+              xp: getDurationXP(questData.duration, questData.status) 
+            };
+            const updatedMission = {
+              ...editingQuest.mission,
+              quests: editingQuest.mission.quests.map(q => q.id === editingQuest.quest.id ? updatedQuest : q)
+            };
+            setMissions(missions.map(m => m.id === editingQuest.mission.id ? updatedMission : m));
+            setSelectedMission(updatedMission);
+            setEditingQuest(null);
+            // Sauvegarder dans Supabase
+            if (supabaseUser) {
+              await saveMission(updatedMission);
+            }
+          }}
+          onDelete={async () => {
+            const updatedMission = {
+              ...editingQuest.mission,
+              quests: editingQuest.mission.quests.filter(q => q.id !== editingQuest.quest.id)
+            };
+            setMissions(missions.map(m => m.id === editingQuest.mission.id ? updatedMission : m));
+            setSelectedMission(updatedMission);
+            setEditingQuest(null);
+            // Sauvegarder dans Supabase
+            if (supabaseUser) {
+              await saveMission(updatedMission);
+            }
+          }}
+          initialTask={editingQuest.quest}
+          getStatusColor={getStatusColor}
+          missionMode={editingQuest.mission}
+          ownedItems={ownedItems}
+          activeUpgrades={activeUpgrades}
+          existingTags={existingTags}
+          userId={supabaseUser?.id}
+        />
+      );
+    }
   } else if (creatingMissionEvent) {
     // Création d'un événement dans une mission
     pageContent = (
@@ -1389,7 +1447,18 @@ const QuestApp = () => {
             setEditingTask(task);
           }
         }}
-        onEditEvent={(event) => setEditingEvent(event)}
+        onEditEvent={(event) => {
+          if (event.isMissionQuest) {
+            // Édition d'un événement de mission
+            const mission = missions.find(m => m.id === event.missionId);
+            const quest = mission?.quests.find(q => q.id === event.id);
+            if (mission && quest) {
+              setEditingQuest({ quest, mission });
+            }
+          } else {
+            setEditingEvent(event);
+          }
+        }}
         onDeleteTask={deleteTask}
         onClearCompleted={() => {
           const completedIds = tasks.filter(t => t.completed).map(t => t.id);

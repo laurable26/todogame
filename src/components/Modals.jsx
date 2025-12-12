@@ -751,7 +751,7 @@ export const MissionCompletedModal = ({ mission, pqDistribution, onClose }) => {
 };
 
 // Modal paramètres
-export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateEmail, onUpdatePassword, onDeleteAccount, ownedItems = [], activeUpgrades = {}, onToggleUpgrade, shopItems = [], onCheckPseudo, notificationStatus, onEnableNotifications, onDisableNotifications, isNotificationSupported }) => {
+export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateEmail, onUpdatePassword, onDeleteAccount, ownedItems = [], activeUpgrades = {}, onToggleUpgrade, shopItems = [], onCheckPseudo, notificationStatus, onEnableNotifications, onDisableNotifications, isNotificationSupported, calendarSync }) => {
   const [pseudo, setPseudo] = useState(user.pseudo);
   const [email, setEmail] = useState(user.email || '');
   const [customTitle, setCustomTitle] = useState(user.customTitle || '');
@@ -1038,37 +1038,39 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
 
             {/* Mes données - RGPD */}
             <div className="space-y-4">
-              <h3 className="font-bold text-slate-900">📋 Mes données</h3>
+              <h3 className="font-bold text-slate-900">Mes données</h3>
               
               <button
                 onClick={async () => {
                   try {
-                    // Collecter toutes les données de l'utilisateur
-                    const exportData = {
-                      exportDate: new Date().toISOString(),
-                      profile: {
-                        email: email,
-                        pseudo: user?.pseudo,
-                        level: user?.level,
-                        xp: user?.xp,
-                        potatoes: user?.potatoes,
-                        avatar: user?.avatar,
-                        createdAt: user?.createdAt
-                      },
-                      statistics: {
-                        tasksCompleted: user?.tasksCompleted,
-                        eventsCompleted: user?.eventsCompleted,
-                        missionsCompleted: user?.missionsCompleted
-                      },
-                      note: "Données exportées conformément au RGPD - Droit à la portabilité"
-                    };
+                    // Créer un fichier texte lisible
+                    const date = new Date().toLocaleDateString('fr-FR');
+                    const textContent = `=== MES DONNÉES TODOGAME ===
+Date d'export : ${date}
+
+PROFIL
+- Pseudo : ${user?.pseudo || 'Non défini'}
+- Email : ${email || 'Non défini'}
+- Niveau : ${user?.level || 1}
+- XP : ${user?.xp || 0}
+- Patates : ${user?.potatoes || 0}
+- Avatar : ${user?.avatar || '🎮'}
+
+STATISTIQUES
+- Tâches complétées : ${user?.tasksCompleted || 0}
+- Événements complétés : ${user?.eventsCompleted || 0}
+- Missions complétées : ${user?.missionsCompleted || 0}
+
+---
+Données exportées conformément au RGPD
+Droit à la portabilité des données`;
                     
-                    // Créer et télécharger le fichier JSON
-                    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                    // Créer et télécharger le fichier texte
+                    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `todogame-export-${new Date().toISOString().split('T')[0]}.json`;
+                    a.download = `todogame-export-${new Date().toISOString().split('T')[0]}.txt`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
@@ -1077,21 +1079,134 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                     console.error('Erreur export:', error);
                   }
                 }}
-                className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-600 py-3 rounded-xl font-semibold border border-indigo-200 transition-all flex items-center justify-center gap-2"
+                className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-600 py-3 rounded-xl font-semibold border border-indigo-200 transition-all"
               >
-                <span>📥</span> Exporter mes données
+                Exporter mes données
               </button>
               
               <button
                 onClick={() => setShowPrivacyModal(true)}
-                className="w-full bg-slate-50 hover:bg-slate-100 text-slate-600 py-3 rounded-xl font-semibold border border-slate-200 transition-all flex items-center justify-center gap-2"
+                className="w-full bg-slate-50 hover:bg-slate-100 text-slate-600 py-3 rounded-xl font-semibold border border-slate-200 transition-all"
               >
-                <span>🔒</span> Politique de confidentialité
+                Politique de confidentialité
               </button>
             </div>
 
             {/* Séparateur */}
             <hr className="border-slate-200" />
+
+            {/* Calendriers connectés */}
+            {calendarSync && (
+              <>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-slate-800">📅 Calendriers connectés</h3>
+                    {(calendarSync.google.isConnected || calendarSync.outlook.isConnected) && (
+                      <button
+                        onClick={calendarSync.syncAll}
+                        disabled={calendarSync.isSyncing}
+                        className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                          calendarSync.isSyncing 
+                            ? 'bg-slate-200 text-slate-500' 
+                            : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                        }`}
+                      >
+                        {calendarSync.isSyncing ? '🔄 Sync...' : '🔄 Synchroniser'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Google Calendar */}
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm">
+                        <svg className="w-6 h-6" viewBox="0 0 24 24">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-slate-800">Google Calendar</h4>
+                        {calendarSync.google.isConnected && (
+                          <p className="text-xs text-green-600">
+                            ✅ {calendarSync.google.events.length} événement(s)
+                          </p>
+                        )}
+                      </div>
+                      {calendarSync.google.isLoading ? (
+                        <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                      ) : calendarSync.google.isConnected ? (
+                        <button
+                          onClick={calendarSync.google.disconnect}
+                          className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                        >
+                          Déconnecter
+                        </button>
+                      ) : (
+                        <button
+                          onClick={calendarSync.google.connect}
+                          className="px-3 py-1.5 text-sm bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
+                        >
+                          Connecter
+                        </button>
+                      )}
+                    </div>
+                    {calendarSync.google.error && (
+                      <p className="text-xs text-red-500 mt-2">⚠️ {calendarSync.google.error}</p>
+                    )}
+                  </div>
+
+                  {/* Outlook Calendar */}
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm">
+                        <svg className="w-6 h-6" viewBox="0 0 24 24">
+                          <path fill="#0078D4" d="M24 7.387v10.478c0 .23-.08.424-.238.576-.16.154-.353.23-.577.23h-8.186V6.58h8.186c.224 0 .418.077.577.23.158.153.238.347.238.577z"/>
+                          <path fill="#0364B8" d="M15 6.58v12.09L8.367 21l-6.129-1.363C1.583 19.483 1.163 19 1.163 18.343V5.656c0-.656.42-1.14 1.075-1.294L8.367 3 15 6.58z"/>
+                          <path fill="#0078D4" d="M15 6.58H8.367v12.09L15 21V6.58z"/>
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-slate-800">Outlook / Microsoft 365</h4>
+                        {calendarSync.outlook.isConnected && (
+                          <p className="text-xs text-green-600">
+                            ✅ {calendarSync.outlook.events.length} événement(s)
+                          </p>
+                        )}
+                      </div>
+                      {calendarSync.outlook.isLoading ? (
+                        <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      ) : calendarSync.outlook.isConnected ? (
+                        <button
+                          onClick={calendarSync.outlook.disconnect}
+                          className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                        >
+                          Déconnecter
+                        </button>
+                      ) : (
+                        <button
+                          onClick={calendarSync.outlook.connect}
+                          className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                        >
+                          Connecter
+                        </button>
+                      )}
+                    </div>
+                    {calendarSync.outlook.error && (
+                      <p className="text-xs text-red-500 mt-2">⚠️ {calendarSync.outlook.error}</p>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-slate-500">
+                    💡 Les événements de vos calendriers seront synchronisés automatiquement.
+                  </p>
+                </div>
+
+                <hr className="border-slate-200" />
+              </>
+            )}
 
             {/* Zone dangereuse */}
             <div className="space-y-3">
@@ -1211,7 +1326,17 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
               </ul>
               
               <h3 className="font-bold text-slate-900">9. Contact</h3>
-              <p>Pour toute question concernant vos données, contactez-nous via l'application.</p>
+              <p>
+                Pour toute question concernant vos données,{' '}
+                <a 
+                  href="https://docs.google.com/forms/d/e/1FAIpQLSffbCto_beD9OxnQd0QmwExeNm-XPUqu1tx6aAeh1lJxpGHYA/viewform" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-indigo-600 hover:underline font-medium"
+                >
+                  contactez-nous via ce formulaire
+                </a>.
+              </p>
             </div>
             <div className="p-4 border-t border-slate-200">
               <button

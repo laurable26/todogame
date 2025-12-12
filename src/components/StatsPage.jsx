@@ -20,6 +20,37 @@ export const StatsPage = ({ user, tasks, missions, chests, badges, friends }) =>
       'important': completedTasks.filter(t => t.status === 'important').length,
       'normal': completedTasks.filter(t => t.status === 'à faire' || t.status === 'normal').length,
     };
+
+    // Temps en minutes par durée
+    const durationToMinutes = {
+      '-1h': 45,
+      '1h-2h': 90,
+      '1/2 jour': 240,
+      '1 jour': 480,
+    };
+
+    // Stats par tags - nombre de tâches et temps estimé
+    const tagStats = {};
+    completedTasks.forEach(task => {
+      const taskTags = task.tags || [];
+      const taskMinutes = durationToMinutes[task.duration] || 60;
+      
+      taskTags.forEach(tag => {
+        if (tag && tag.trim()) {
+          const normalizedTag = tag.trim();
+          if (!tagStats[normalizedTag]) {
+            tagStats[normalizedTag] = { count: 0, minutes: 0 };
+          }
+          tagStats[normalizedTag].count += 1;
+          tagStats[normalizedTag].minutes += taskMinutes;
+        }
+      });
+    });
+
+    // Trier les tags par nombre de tâches (décroissant)
+    const sortedTagStats = Object.entries(tagStats)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 10); // Top 10 tags
     
     // Stats missions
     const completedMissions = missions.filter(m => 
@@ -43,13 +74,7 @@ export const StatsPage = ({ user, tasks, missions, chests, badges, friends }) =>
     }, 0);
     const totalBadges = badges.length * 3;
     
-    // Temps total estimé (en heures) - avec les vraies durées
-    const durationToMinutes = {
-      '-1h': 45,
-      '1h-2h': 90,
-      '1/2 jour': 240,
-      '1 jour': 480,
-    };
+    // Temps total estimé (en heures)
     const totalMinutes = completedTasks.reduce((acc, t) => 
       acc + (durationToMinutes[t.duration] || 60), 0
     );
@@ -60,6 +85,7 @@ export const StatsPage = ({ user, tasks, missions, chests, badges, friends }) =>
       activeTasks: activeTasks.length,
       tasksByDuration,
       tasksByStatus,
+      tagStats: sortedTagStats,
       completedMissions,
       activeMissions,
       totalQuests,
@@ -156,6 +182,48 @@ export const StatsPage = ({ user, tasks, missions, chests, badges, friends }) =>
         <ProgressBar label="Important" value={stats.tasksByStatus.important} max={stats.completedTasks} color="bg-orange-400" />
         <ProgressBar label="Normal" value={stats.tasksByStatus.normal} max={stats.completedTasks} color="bg-slate-400" />
       </div>
+
+      {/* Stats par tags */}
+      {stats.tagStats.length > 0 && (
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-900 mb-4">🏷️ Statistiques par tags</h2>
+          <div className="space-y-3">
+            {stats.tagStats.map(([tag, data], index) => {
+              const hours = Math.floor(data.minutes / 60);
+              const mins = data.minutes % 60;
+              const timeDisplay = hours > 0 
+                ? `${hours}h${mins > 0 ? mins + 'min' : ''}` 
+                : `${mins}min`;
+              
+              const colors = [
+                'bg-indigo-400', 'bg-purple-400', 'bg-pink-400', 'bg-rose-400', 
+                'bg-orange-400', 'bg-amber-400', 'bg-lime-400', 'bg-emerald-400',
+                'bg-cyan-400', 'bg-blue-400'
+              ];
+              
+              return (
+                <div key={tag} className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full ${colors[index % colors.length]}`} />
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-medium text-slate-700">{tag}</span>
+                      <span className="text-sm text-slate-500">
+                        {data.count} tâche{data.count > 1 ? 's' : ''} • {timeDisplay}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full ${colors[index % colors.length]} rounded-full transition-all duration-500`}
+                        style={{ width: `${Math.min((data.count / stats.completedTasks) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Stats missions */}
       <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
