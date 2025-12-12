@@ -4,6 +4,7 @@ import { PageHelp } from './PageHelp';
 export const TasksPage = ({ 
   tasks, 
   events = [],
+  calendarEvents = [],
   tasksView, 
   setTasksView, 
   onCompleteTask,
@@ -188,7 +189,7 @@ export const TasksPage = ({
     return myMissionQuests.filter(q => q.isEvent && !q.completed);
   }, [myMissionQuests]);
 
-  // Événements d'aujourd'hui (incluant les événements de mission)
+  // Événements d'aujourd'hui (incluant les événements de mission et calendrier)
   const todayEvents = useMemo(() => {
     const regularEvents = events.filter(e => {
       if (e.completed) return false;
@@ -204,9 +205,22 @@ export const TasksPage = ({
       eventDate.setHours(0, 0, 0, 0);
       return eventDate.getTime() === today.getTime();
     });
+
+    // Événements calendrier (Google, Outlook)
+    const calendarEventsToday = calendarEvents.filter(e => {
+      if (!e.startDate) return false;
+      const eventDate = new Date(e.startDate);
+      eventDate.setHours(0, 0, 0, 0);
+      return eventDate.getTime() === today.getTime();
+    }).map(e => ({
+      ...e,
+      isCalendarEvent: true,
+      date: e.startDate,
+      time: new Date(e.startDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+    }));
     
-    return [...regularEvents, ...missionEventsToday];
-  }, [events, today, missionEvents]);
+    return [...regularEvents, ...missionEventsToday, ...calendarEventsToday];
+  }, [events, today, missionEvents, calendarEvents]);
 
   // Tâches de la semaine (incluant les tâches de mission)
   const weekTasks = useMemo(() => weekDates.map(date => {
@@ -240,13 +254,26 @@ export const TasksPage = ({
       eventDate.setHours(0, 0, 0, 0);
       return eventDate.getTime() === date.getTime();
     });
+
+    // Événements calendrier (Google, Outlook)
+    const calendarEventsForDate = calendarEvents.filter(e => {
+      if (!e.startDate) return false;
+      const eventDate = new Date(e.startDate);
+      eventDate.setHours(0, 0, 0, 0);
+      return eventDate.getTime() === date.getTime();
+    }).map(e => ({
+      ...e,
+      isCalendarEvent: true,
+      date: e.startDate,
+      time: new Date(e.startDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+    }));
     
     return {
       date,
       tasks: [...tasksForDate, ...missionQuestsForDate],
-      events: [...regularEventsForDate, ...missionEventsForDate]
+      events: [...regularEventsForDate, ...missionEventsForDate, ...calendarEventsForDate]
     };
-  }), [weekDates, activeTasks, myMissionQuests, events, missionEvents]);
+  }), [weekDates, activeTasks, myMissionQuests, events, missionEvents, calendarEvents]);
 
   // Bucketlist = tâches sans date + tâches de mission sans date
   const bucketlistTasks = [
@@ -358,15 +385,26 @@ export const TasksPage = ({
   const EventCard = ({ event }) => {
     const isCompleted = event.completed;
     const participantCount = event.participants?.length || 0;
+    const isCalendarEvent = event.isCalendarEvent;
+    
+    // Couleur différente pour les événements calendrier
+    const bgColor = isCalendarEvent 
+      ? 'bg-blue-50 border-blue-200 hover:shadow-md' 
+      : isCompleted 
+        ? 'bg-slate-100 border-slate-200 opacity-60' 
+        : 'bg-emerald-50 border-emerald-200 hover:shadow-md';
+
+    const providerIcon = event.provider === 'google' ? '📆' : event.provider === 'outlook' ? '📅' : '📅';
     
     return (
-      <div className={`rounded-xl p-4 border shadow-sm transition-all group ${
-        isCompleted 
-          ? 'bg-slate-100 border-slate-200 opacity-60' 
-          : 'bg-emerald-50 border-emerald-200 hover:shadow-md'
-      }`}>
+      <div className={`rounded-xl p-4 border shadow-sm transition-all group ${bgColor}`}>
         <div className="flex items-start gap-3">
-          {!isCompleted ? (
+          {/* Checkbox - pas pour les événements calendrier */}
+          {isCalendarEvent ? (
+            <div className="mt-1 w-6 h-6 rounded-lg bg-blue-100 flex-shrink-0 flex items-center justify-center">
+              <span className="text-blue-600 text-xs">{providerIcon}</span>
+            </div>
+          ) : !isCompleted ? (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -382,30 +420,43 @@ export const TasksPage = ({
             </div>
           )}
           
-          <div className="flex-1 min-w-0" onClick={() => onEditEvent(event)}>
+          <div className="flex-1 min-w-0" onClick={() => !isCalendarEvent && onEditEvent(event)}>
             {/* Titre */}
             <div>
-              <h3 className={`font-semibold text-base cursor-pointer ${
-                isCompleted ? 'text-slate-400 line-through' : 'text-slate-900 hover:text-emerald-600'
+              <h3 className={`font-semibold text-base ${
+                isCalendarEvent 
+                  ? 'text-slate-900' 
+                  : isCompleted 
+                    ? 'text-slate-400 line-through cursor-pointer' 
+                    : 'text-slate-900 hover:text-emerald-600 cursor-pointer'
               }`}>
-                📅 {event.title}
+                {event.title}
               </h3>
               {!isCompleted && (
                 <div className="flex items-center gap-2 flex-wrap mt-1">
-                  <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
-                    {event.time}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
-                    {event.duration}
-                  </span>
+                  {event.time && (
+                    <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                      🕐 {event.time}
+                    </span>
+                  )}
+                  {event.duration && !isCalendarEvent && (
+                    <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                      {event.duration}
+                    </span>
+                  )}
                   {event.location && (
                     <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
-                      {event.location}
+                      📍 {event.location}
                     </span>
                   )}
                   {event.reminder && event.reminder !== 'none' && (
                     <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 text-xs font-medium">
                       🔔 {event.reminder}
+                    </span>
+                  )}
+                  {isCalendarEvent && (
+                    <span className="px-2 py-0.5 rounded-lg bg-blue-100 border border-blue-200 text-blue-600 text-xs font-medium">
+                      {event.provider === 'google' ? 'Google' : 'Outlook'}
                     </span>
                   )}
                 </div>
@@ -423,7 +474,7 @@ export const TasksPage = ({
                       className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center border-2 border-white shadow-sm"
                       title={p.pseudo}
                     >
-                      <span className="text-sm">{p.avatar}</span>
+                      <span className="text-sm">{p.avatar || '👤'}</span>
                     </div>
                   ))}
                 </div>

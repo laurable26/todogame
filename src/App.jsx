@@ -1565,6 +1565,7 @@ const QuestApp = () => {
         }}
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
+        calendarEvents={calendarSync?.calendarEvents || []}
       />
     );
   } else if (currentPage === 'friends') {
