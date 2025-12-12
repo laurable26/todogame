@@ -289,26 +289,26 @@ export const FriendsPage = ({
           {friendRequests.length > 0 ? (
             <div className="space-y-3">
               {friendRequests.map(request => (
-                <div key={request.pseudo} className="flex items-center justify-between p-4 bg-purple-50 rounded-xl border border-purple-100">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center text-2xl">
+                <div key={request.pseudo} className="p-4 bg-purple-50 rounded-xl border border-purple-100">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
                       <span className="emoji-display">{request.avatar}</span>
                     </div>
-                    <div>
-                      <div className="font-bold text-slate-900">{request.pseudo}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-900 truncate">{request.pseudo}</div>
                       <div className="text-sm text-slate-500">Niv. {request.level} • {request.pqSeason || 0} PQ</div>
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => onAcceptRequest(request.pseudo)}
-                      className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-90"
+                      className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-3 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90"
                     >
                       Accepter
                     </button>
                     <button
                       onClick={() => onDeclineRequest(request.pseudo)}
-                      className="bg-slate-200 text-slate-600 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-slate-300"
+                      className="flex-1 bg-slate-200 text-slate-600 px-3 py-2.5 rounded-lg font-semibold text-sm hover:bg-slate-300"
                     >
                       Refuser
                     </button>

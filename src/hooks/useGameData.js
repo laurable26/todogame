@@ -559,10 +559,98 @@ export const useGameData = (supabaseUser) => {
   };
 
   // Mettre à jour l'utilisateur et sauvegarder
-  const updateUser = (newUserData) => {
+  const updateUser = async (newUserData) => {
+    const oldPseudo = user.pseudo;
+    const newPseudo = newUserData.pseudo;
+    
     // Créer un nouvel objet pour forcer le re-render
     setUser({ ...newUserData });
-    saveProfile(newUserData);
+    await saveProfile(newUserData);
+    
+    // Si le pseudo a changé, mettre à jour partout
+    if (oldPseudo && newPseudo && oldPseudo !== newPseudo) {
+      await updatePseudoEverywhere(oldPseudo, newPseudo);
+    }
+  };
+
+  // Mettre à jour le pseudo dans toutes les tables
+  const updatePseudoEverywhere = async (oldPseudo, newPseudo) => {
+    if (!supabaseUser) return;
+    
+    try {
+      console.log(`Mise à jour pseudo: ${oldPseudo} → ${newPseudo}`);
+      
+      // 1. Mettre à jour friends (user_pseudo)
+      await supabase
+        .from('friends')
+        .update({ user_pseudo: newPseudo })
+        .eq('user_pseudo', oldPseudo);
+      
+      // 2. Mettre à jour friends (friend_pseudo) - quand d'autres nous ont en ami
+      await supabase
+        .from('friends')
+        .update({ friend_pseudo: newPseudo })
+        .eq('friend_pseudo', oldPseudo);
+      
+      // 3. Mettre à jour friend_requests (from_user)
+      await supabase
+        .from('friend_requests')
+        .update({ from_user: newPseudo })
+        .eq('from_user', oldPseudo);
+      
+      // 4. Mettre à jour friend_requests (to_user)
+      await supabase
+        .from('friend_requests')
+        .update({ to_user: newPseudo })
+        .eq('to_user', oldPseudo);
+      
+      // 5. Mettre à jour missions (created_by)
+      await supabase
+        .from('missions')
+        .update({ created_by: newPseudo })
+        .eq('created_by', oldPseudo);
+      
+      // 6. Mettre à jour missions (participant_pseudos et participants)
+      // Récupérer toutes les missions où l'utilisateur est participant
+      const { data: missionsWithUser } = await supabase
+        .from('missions')
+        .select('*')
+        .contains('participant_pseudos', [oldPseudo]);
+      
+      if (missionsWithUser) {
+        for (const mission of missionsWithUser) {
+          // Mettre à jour participant_pseudos
+          const newParticipantPseudos = mission.participant_pseudos.map(p => 
+            p === oldPseudo ? newPseudo : p
+          );
+          
+          // Mettre à jour participants (array d'objets avec pseudo)
+          const newParticipants = (mission.participants || []).map(p => 
+            p.pseudo === oldPseudo ? { ...p, pseudo: newPseudo } : p
+          );
+          
+          // Mettre à jour les quests (assignedTo, completedBy)
+          const newQuests = (mission.quests || []).map(q => ({
+            ...q,
+            assignedTo: q.assignedTo === oldPseudo ? newPseudo : q.assignedTo,
+            completedBy: q.completedBy === oldPseudo ? newPseudo : q.completedBy,
+          }));
+          
+          await supabase
+            .from('missions')
+            .update({
+              participant_pseudos: newParticipantPseudos,
+              participants: newParticipants,
+              quests: newQuests,
+            })
+            .eq('id', mission.id);
+        }
+      }
+      
+      console.log('Pseudo mis à jour partout avec succès');
+    } catch (error) {
+      console.error('Erreur mise à jour pseudo:', error);
+    }
   };
 
   // Mettre à jour les coffres et sauvegarder
