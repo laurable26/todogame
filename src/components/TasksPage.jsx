@@ -837,7 +837,7 @@ export const TasksPage = ({
               onClick={() => setWeekDaysCount(5)}
               className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition-all ${
                 weekDaysCount === 5
-                  ? 'bg-indigo-500 text-white'
+                  ? 'bg-blue-500 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -847,7 +847,7 @@ export const TasksPage = ({
               onClick={() => setWeekDaysCount(7)}
               className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition-all ${
                 weekDaysCount === 7
-                  ? 'bg-indigo-500 text-white'
+                  ? 'bg-blue-500 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -864,15 +864,15 @@ export const TasksPage = ({
               const totalItems = dayTasks.length + (dayEvents?.length || 0);
               
               return (
-                <div key={index} className={`bg-slate-50 rounded-xl p-4 border-2 ${isToday ? 'border-indigo-500 shadow-md' : 'border-slate-200'}`}>
+                <div key={index} className={`bg-slate-50 rounded-xl p-4 border-2 ${isToday ? 'border-blue-500 shadow-md' : 'border-slate-200'}`}>
                   <div className="flex items-center gap-3 mb-3">
-                    <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center ${isToday ? 'bg-indigo-500 text-white' : 'bg-white text-slate-700'}`}>
+                    <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center ${isToday ? 'bg-blue-500 text-white' : 'bg-white text-slate-700'}`}>
                       <div className="text-xs font-medium">{dayNames[date.getDay()].slice(0, 3)}</div>
                       <div className="text-lg font-black">{date.getDate()}</div>
                     </div>
                     <div className="flex-1">
-                      <div className={`font-bold ${isToday ? 'text-indigo-600' : 'text-slate-900'}`}>
-                        {isToday && <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">Aujourd'hui</span>}
+                      <div className={`font-bold ${isToday ? 'text-blue-600' : 'text-slate-900'}`}>
+                        {isToday && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">Aujourd'hui</span>}
                       </div>
                       <div className="text-sm text-slate-500">
                         {totalItems > 0 ? (

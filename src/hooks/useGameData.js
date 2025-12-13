@@ -147,6 +147,7 @@ export const useGameData = (supabaseUser) => {
     { id: 84, name: 'Filtre de Tâches', price: 800, type: 'amelioration', image: '🔍', description: 'Filtre par statut et durée', isQuestFilter: true },
     { id: 78, name: 'Mode Sombre', price: 1000, type: 'amelioration', image: '🌙', description: 'Active le thème sombre', isDarkMode: true },
     { id: 87, name: 'Journaling', price: 1200, type: 'amelioration', image: '🦋', description: 'Journal quotidien + bilan hebdo', isJournaling: true },
+    { id: 88, name: 'Citations', price: 200, type: 'amelioration', image: '🎴', description: 'Citation inspirante quotidienne', isDailyQuote: true },
     { id: 79, name: 'Titre Personnalisé', price: 1500, type: 'amelioration', image: '🏷️', description: 'Affiche un titre sous ton pseudo', isCustomTitle: true },
     { id: 80, name: 'Animations +', price: 2000, type: 'amelioration', image: '💫', description: 'Animations améliorées', isAnimations: true },
     { id: 81, name: 'Statistiques', price: 2500, type: 'amelioration', image: '📊', description: 'Stats détaillées', unlocksStats: true },
@@ -165,12 +166,16 @@ export const useGameData = (supabaseUser) => {
     { id: 11, name: 'Super Combo', price: 1500, type: 'boost', duration: '24h', image: '🌟', description: 'x2 XP + x2 Patates pendant 24h', boostType: 'super_combo', durationMs: 24 * 60 * 60 * 1000, multiplier: 2 },
   ]);
 
-  // Charger les données au montage
+  // Flag pour éviter les rechargements multiples
+  const [dataLoaded, setDataLoaded] = useState(false);
+
+  // Charger les données au montage (une seule fois)
   useEffect(() => {
-    if (supabaseUser) {
+    if (supabaseUser && !dataLoaded) {
       loadUserData(supabaseUser.id);
+      setDataLoaded(true);
     }
-  }, [supabaseUser]);
+  }, [supabaseUser, dataLoaded]);
 
   const loadUserData = async (userId) => {
     try {

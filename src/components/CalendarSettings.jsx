@@ -87,8 +87,8 @@ const CalendarSettings = ({ calendarSync, theme }) => {
         )}
       </div>
 
-      {/* Outlook Calendar */}
-      <div className="p-4 rounded-xl border border-slate-200 bg-white">
+      {/* Outlook Calendar - Temporairement désactivé */}
+      <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 opacity-60">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm">
             <svg className="w-6 h-6" viewBox="0 0 24 24">
@@ -100,43 +100,12 @@ const CalendarSettings = ({ calendarSync, theme }) => {
           </div>
           <div className="flex-1">
             <h4 className="font-semibold text-slate-800">Outlook / Microsoft 365</h4>
-            {outlook.isConnected && (
-              <p className="text-xs text-slate-500">
-                Dernière sync: {formatLastSync(outlook.lastSync)}
-              </p>
-            )}
+            <p className="text-xs text-slate-500">Bientôt disponible</p>
           </div>
-          {outlook.isLoading ? (
-            <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-          ) : outlook.isConnected ? (
-            <button
-              onClick={outlook.disconnect}
-              className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
-            >
-              Déconnecter
-            </button>
-          ) : (
-            <button
-              onClick={outlook.connect}
-              className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              Connecter
-            </button>
-          )}
+          <span className="px-3 py-1.5 text-sm bg-slate-200 text-slate-500 rounded-lg">
+            Bientôt
+          </span>
         </div>
-        
-        {outlook.isConnected && (
-          <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 rounded-lg px-3 py-2">
-            <span>✅</span>
-            <span>{outlook.events.length} événement(s) synchronisé(s)</span>
-          </div>
-        )}
-        
-        {outlook.error && (
-          <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mt-2">
-            ⚠️ {outlook.error}
-          </div>
-        )}
       </div>
 
       {/* Info */}

@@ -16,6 +16,7 @@ import { StatsPage } from './components/StatsPage';
 import CalendarSettings from './components/CalendarSettings';
 import { JournalingButterfly } from './components/JournalingButterfly';
 import { SeasonalChallengeBanner } from './components/SeasonalChallengeBanner';
+import { DailyQuoteCard, DailyQuoteButton } from './components/DailyQuote';
 import { 
   CreateTaskModal, 
   ChestOpenedModal, 
@@ -114,6 +115,10 @@ const QuestApp = () => {
   // Journaling (si amélioration débloquée)
   const journalingEnabled = ownedItems.includes(87) && isUpgradeActive(87);
   const journaling = useJournaling(journalingEnabled ? supabaseUser?.id : null);
+
+  // Citations quotidiennes (si amélioration débloquée)
+  const dailyQuoteEnabled = ownedItems.includes(88) && isUpgradeActive(88);
+  const [showDailyQuote, setShowDailyQuote] = useState(false);
 
   // Défis saisonniers
   const seasonalChallenges = useSeasonalChallenges(supabaseUser?.id, user.avatar, user.avatarBg);
@@ -1026,14 +1031,26 @@ const QuestApp = () => {
         }}
         onExportData={async () => {
           try {
-            if (!supabaseUser) return;
+            if (!supabaseUser) {
+              alert('Vous devez être connecté pour exporter vos données');
+              return;
+            }
             
             // Appeler la fonction SQL d'export
             const { data, error } = await supabase.rpc('export_user_data', {
               user_uuid: supabaseUser.id
             });
             
-            if (error) throw error;
+            if (error) {
+              console.error('Erreur export SQL:', error);
+              alert('Erreur lors de l\'export. Assurez-vous que la fonction SQL export_user_data existe dans Supabase.');
+              return;
+            }
+            
+            if (!data) {
+              alert('Aucune donnée trouvée à exporter');
+              return;
+            }
             
             // Formater les données pour être lisibles
             const exportData = {
@@ -2256,6 +2273,16 @@ const QuestApp = () => {
       {/* Papillon de journaling (si activé et après 16h) */}
       {journalingEnabled && journaling && (
         <JournalingButterfly journaling={journaling} />
+      )}
+
+      {/* Bouton citations quotidiennes (si activé) */}
+      {dailyQuoteEnabled && (
+        <DailyQuoteButton onClick={() => setShowDailyQuote(true)} />
+      )}
+
+      {/* Modal citations quotidiennes */}
+      {showDailyQuote && (
+        <DailyQuoteCard onClose={() => setShowDailyQuote(false)} />
       )}
     </div>
   );

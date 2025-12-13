@@ -21,6 +21,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
   
   // Notes étendues : 2000 caractères au lieu de 500 (possédé ET actif)
   const hasExtendedNotes = ownedItems.includes(72) && activeUpgrades[72] !== false;
+  const hasRichTextEditor = ownedItems.includes(85) && activeUpgrades[85] !== false;
   const hasPhotoNotes = ownedItems.includes(86) && activeUpgrades[86] !== false;
   const notesMaxLength = hasExtendedNotes ? 2000 : 500;
 
@@ -386,7 +387,10 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                   {/* Bouton photo */}
                   {hasPhotoNotes && (
                     <>
-                      <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                      {/* Séparateur seulement si l'éditeur est aussi actif */}
+                      {ownedItems.includes(85) && activeUpgrades[85] !== false && (
+                        <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                      )}
                       <label className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer flex items-center gap-1">
                         {uploadingPhoto ? (
                           <span className="animate-spin">⏳</span>
@@ -1064,50 +1068,6 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
             {/* Mes données - RGPD */}
             <div className="space-y-4">
               <h3 className="font-bold text-slate-900">Mes données</h3>
-              
-              <button
-                onClick={async () => {
-                  try {
-                    // Créer un fichier texte lisible
-                    const date = new Date().toLocaleDateString('fr-FR');
-                    const textContent = `=== MES DONNÉES TODOGAME ===
-Date d'export : ${date}
-
-PROFIL
-- Pseudo : ${user?.pseudo || 'Non défini'}
-- Email : ${email || 'Non défini'}
-- Niveau : ${user?.level || 1}
-- XP : ${user?.xp || 0}
-- Patates : ${user?.potatoes || 0}
-- Avatar : ${user?.avatar || '🎮'}
-
-STATISTIQUES
-- Tâches complétées : ${user?.tasksCompleted || 0}
-- Événements complétés : ${user?.eventsCompleted || 0}
-- Missions complétées : ${user?.missionsCompleted || 0}
-
----
-Données exportées conformément au RGPD
-Droit à la portabilité des données`;
-                    
-                    // Créer et télécharger le fichier texte
-                    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `todogame-export-${new Date().toISOString().split('T')[0]}.txt`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  } catch (error) {
-                    console.error('Erreur export:', error);
-                  }
-                }}
-                className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-600 py-3 rounded-xl font-semibold border border-indigo-200 transition-all"
-              >
-                Exporter mes données
-              </button>
               
               <button
                 onClick={() => setShowPrivacyModal(true)}
