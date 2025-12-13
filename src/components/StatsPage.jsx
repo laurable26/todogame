@@ -323,7 +323,7 @@ export const StatsPage = ({ user, tasks, missions, chests, badges, friends, jour
           title="Niveau actuel" 
           value={user.level}
           subtitle={`${user.xp}/${user.xpToNext} XP`}
-          icon="⚡"
+          icon="⭐"
           color="border-yellow-200"
           tooltip={getLevelInterpretation(user.level)}
         />

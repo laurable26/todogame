@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 
 // Modal de création/édition de tâche
@@ -16,7 +16,6 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
   const [assignedTo, setAssignedTo] = useState(initialTask?.assignedTo || '');
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [enlargedPhoto, setEnlargedPhoto] = useState(null);
-  const cameraInputRef = useRef(null);
 
   const isEditing = !!initialTask;
   
@@ -65,7 +64,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto">
       {/* Overlay bleu pour les tâches */}
-      <div className="fixed inset-0 bg-indigo-500" onClick={onClose}></div>
+      <div className="fixed inset-0 bg-blue-500" onClick={onClose}></div>
       
       {/* Conteneur centré */}
       <div className="min-h-full flex items-center justify-center p-4">
@@ -92,7 +91,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                 value={title}
                 onChange={(e) => setTitle(e.target.value.slice(0, 100))}
                 placeholder="Ex: Finir le rapport"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
               />
               <div className="text-xs text-slate-400 text-right mt-1">{title.length}/100</div>
             </div>
@@ -109,7 +108,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                       status === s 
                         ? s === 'urgent' ? 'bg-red-50 border-red-300 text-red-700' 
                           : s === 'à faire' ? 'bg-blue-50 border-blue-300 text-blue-700'
-                          : 'bg-purple-50 border-purple-300 text-purple-700'
+                          : 'bg-teal-50 border-teal-300 text-teal-700'
                         : 'border-slate-200 text-slate-600 hover:border-slate-300'
                     }`}
                   >
@@ -129,7 +128,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                     onClick={() => setDuration(d)}
                     className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all ${
                       duration === d 
-                        ? 'bg-indigo-500 text-white border-indigo-500' 
+                        ? 'bg-blue-500 text-white border-blue-500' 
                         : 'border-slate-200 text-slate-600 hover:border-slate-300'
                     }`}
                   >
@@ -147,7 +146,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
                 />
               </div>
             )}
@@ -173,7 +172,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                       }}
                       className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all ${
                         recurrence === r.value 
-                          ? 'bg-purple-500 text-white border-purple-500' 
+                          ? 'bg-blue-500 text-white border-blue-500' 
                           : 'border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
                     >
@@ -193,8 +192,8 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                           onClick={() => toggleDay(day.value)}
                           className={`py-2 rounded-lg border-2 font-semibold text-xs transition-all ${
                             recurrenceDays.includes(day.value)
-                              ? 'bg-purple-500 text-white border-purple-500'
-                              : 'border-slate-200 text-slate-600 hover:border-purple-300'
+                              ? 'bg-blue-500 text-white border-blue-500'
+                              : 'border-slate-200 text-slate-600 hover:border-blue-300'
                           }`}
                         >
                           {day.label}
@@ -215,8 +214,8 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                           onClick={() => toggleDay(day)}
                           className={`py-2 rounded-lg border-2 font-semibold text-xs transition-all ${
                             recurrenceDays.includes(day)
-                              ? 'bg-purple-500 text-white border-purple-500'
-                              : 'border-slate-200 text-slate-600 hover:border-purple-300'
+                              ? 'bg-blue-500 text-white border-blue-500'
+                              : 'border-slate-200 text-slate-600 hover:border-blue-300'
                           }`}
                         >
                           {day}
@@ -235,7 +234,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                 <select
                   value={assignedTo}
                   onChange={(e) => setAssignedTo(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
                 >
                   <option value="">Non assignée</option>
                   {missionMode.participants.map(p => (
@@ -253,7 +252,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
                 />
               </div>
             )}
@@ -271,7 +270,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                 onFocus={() => setShowTagSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
                 placeholder="Ex: BTS, Site web"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
               />
               
               {/* Suggestions de tags */}
@@ -388,48 +387,6 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                   {hasPhotoNotes && (
                     <>
                       <div className="w-px h-6 bg-slate-300 mx-1"></div>
-                      {/* Bouton galerie */}
-                      <label className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer flex items-center gap-1">
-                        {uploadingPhoto ? (
-                          <span className="animate-spin">⏳</span>
-                        ) : (
-                          <>🖼️ Galerie</>
-                        )}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={uploadingPhoto}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file || !userId) return;
-                            
-                            setUploadingPhoto(true);
-                            try {
-                              const fileExt = file.name.split('.').pop();
-                              const fileName = `${userId}/${Date.now()}.${fileExt}`;
-                              
-                              const { data, error } = await supabase.storage
-                                .from('notes-photos')
-                                .upload(fileName, file);
-                              
-                              if (error) throw error;
-                              
-                              const { data: urlData } = supabase.storage
-                                .from('notes-photos')
-                                .getPublicUrl(fileName);
-                              
-                              setPhotos([...photos, urlData.publicUrl]);
-                            } catch (error) {
-                              console.error('Erreur upload:', error);
-                              alert('Erreur lors de l\'upload de la photo');
-                            }
-                            setUploadingPhoto(false);
-                            e.target.value = '';
-                          }}
-                        />
-                      </label>
-                      {/* Bouton caméra */}
                       <label className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer flex items-center gap-1">
                         {uploadingPhoto ? (
                           <span className="animate-spin">⏳</span>
@@ -437,10 +394,8 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                           <>📷 Photo</>
                         )}
                         <input
-                          ref={cameraInputRef}
                           type="file"
                           accept="image/*"
-                          capture="environment"
                           className="hidden"
                           disabled={uploadingPhoto}
                           onChange={async (e) => {
@@ -528,7 +483,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                 onChange={(e) => setNotes(e.target.value.slice(0, notesMaxLength))}
                 placeholder="Ajouter des notes ou détails..."
                 rows={hasExtendedNotes ? 6 : 4}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 resize-none"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 resize-none"
               />
               <div className="text-xs text-slate-400 text-right mt-1">{notes.length}/{notesMaxLength}</div>
             </div>
@@ -538,7 +493,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
             <button
               onClick={handleSubmit}
               disabled={!title.trim()}
-              className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-500 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50"
+              className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50"
             >
               Enregistrer
             </button>
@@ -582,10 +537,10 @@ export const ChestOpenedModal = ({ chest, onClose }) => {
             <div className="mb-6">
               <p className="text-sm text-slate-500 mb-3">Item bonus :</p>
               {chest.rewards.items.map((item, i) => (
-                <div key={i} className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4">
+                <div key={i} className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
                   <div className="text-4xl mb-2">{item.image}</div>
-                  <div className="font-bold text-purple-900">{item.name}</div>
-                  <div className="text-xs text-purple-600">{item.type}</div>
+                  <div className="font-bold text-blue-900">{item.name}</div>
+                  <div className="text-xs text-blue-600">{item.type}</div>
                 </div>
               ))}
             </div>
@@ -593,7 +548,7 @@ export const ChestOpenedModal = ({ chest, onClose }) => {
 
           <button
             onClick={onClose}
-            className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform"
+            className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform"
           >
             Super ! 🎉
           </button>
@@ -622,7 +577,7 @@ export const TaskCompletedModal = ({ task, onClose }) => {
   return (
     <div className="fixed inset-0 z-[9999] overflow-hidden">
       {/* Overlay bleu pour les tâches */}
-      <div className="fixed inset-0 bg-indigo-500"></div>
+      <div className="fixed inset-0 bg-blue-500"></div>
       
       {/* Confettis animés */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -656,7 +611,7 @@ export const TaskCompletedModal = ({ task, onClose }) => {
       {/* Cercles de célébration */}
       <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-10">
         <div className="w-64 h-64 rounded-full border-4 border-yellow-400 animate-ping opacity-20"></div>
-        <div className="absolute w-48 h-48 rounded-full border-4 border-purple-400 animate-ping opacity-30" style={{ animationDelay: '0.2s' }}></div>
+        <div className="absolute w-48 h-48 rounded-full border-4 border-blue-400 animate-ping opacity-30" style={{ animationDelay: '0.2s' }}></div>
         <div className="absolute w-32 h-32 rounded-full border-4 border-green-400 animate-ping opacity-40" style={{ animationDelay: '0.4s' }}></div>
       </div>
 
@@ -671,7 +626,7 @@ export const TaskCompletedModal = ({ task, onClose }) => {
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="bg-gradient-to-br from-indigo-50 to-blue-100 rounded-2xl p-4 border-2 border-indigo-200">
               <div className="text-3xl sm:text-4xl font-black text-indigo-600">+{task.xp}</div>
-              <div className="text-3xl mt-1">⚡</div>
+              <div className="text-3xl mt-1">⭐</div>
             </div>
             <div className="bg-gradient-to-br from-amber-50 to-yellow-100 rounded-2xl p-4 border-2 border-amber-200">
               <div className="text-3xl sm:text-4xl font-black text-amber-600">+{task.points}</div>
@@ -820,7 +775,7 @@ export const MissionCompletedModal = ({ mission, pqDistribution, onClose }) => {
 };
 
 // Modal paramètres
-export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateEmail, onUpdatePassword, onDeleteAccount, ownedItems = [], activeUpgrades = {}, onToggleUpgrade, shopItems = [], onCheckPseudo, notificationStatus, onEnableNotifications, onDisableNotifications, isNotificationSupported }) => {
+export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateEmail, onUpdatePassword, onDeleteAccount, ownedItems = [], activeUpgrades = {}, onToggleUpgrade, shopItems = [], onCheckPseudo, notificationStatus, onEnableNotifications, onDisableNotifications, isNotificationSupported, userId, onExportData }) => {
   const [pseudo, setPseudo] = useState(user.pseudo);
   const [email, setEmail] = useState(user.email || '');
   const [customTitle, setCustomTitle] = useState(user.customTitle || '');
@@ -833,6 +788,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
   const [pseudoError, setPseudoError] = useState('');
   const [notifLoading, setNotifLoading] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Filtrer les améliorations possédées (pas les boosts)
   const ownedUpgrades = shopItems.filter(item => 
@@ -963,7 +919,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                   setPseudoError('');
                 }}
                 className={`w-full bg-slate-50 border rounded-xl px-4 py-3 focus:outline-none ${
-                  pseudoError ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-indigo-500'
+                  pseudoError ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-blue-500'
                 }`}
               />
               {pseudoError && (
@@ -983,7 +939,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                   onChange={(e) => setCustomTitle(e.target.value.slice(0, 30))}
                   placeholder="Ex: Aventurier Légendaire"
                   maxLength={30}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
                 />
                 <p className="text-xs text-slate-400 mt-1">{customTitle.length}/30 caractères</p>
               </div>
@@ -996,7 +952,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value.trim().toLowerCase())}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
               />
             </div>
 
@@ -1069,7 +1025,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -1080,7 +1036,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
@@ -1257,11 +1213,36 @@ Droit à la portabilité des données`;
               
               <h3 className="font-bold text-slate-900">6. Vos droits</h3>
               <p>Conformément au RGPD, vous disposez des droits suivants :</p>
-              <ul className="list-disc pl-5 space-y-1">
-                <li><strong>Droit d'accès :</strong> exporter vos données depuis les paramètres</li>
-                <li><strong>Droit de rectification :</strong> modifier vos informations dans l'app</li>
-                <li><strong>Droit à l'effacement :</strong> supprimer votre compte dans les paramètres</li>
-                <li><strong>Droit à la portabilité :</strong> exporter vos données au format JSON</li>
+              <ul className="list-disc pl-5 space-y-2">
+                <li>
+                  <strong>Droit d'accès et portabilité :</strong> exporter vos données
+                  <button
+                    onClick={async () => {
+                      setExporting(true);
+                      try {
+                        await onExportData();
+                      } catch (e) {
+                        console.error(e);
+                      }
+                      setExporting(false);
+                    }}
+                    disabled={exporting}
+                    className="ml-2 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold hover:bg-indigo-200 transition-colors disabled:opacity-50"
+                  >
+                    {exporting ? '⏳ Export...' : '📥 Télécharger mes données'}
+                  </button>
+                </li>
+                <li><strong>Droit de rectification :</strong> modifier vos informations dans les paramètres</li>
+                <li>
+                  <strong>Droit à l'effacement :</strong> supprimer votre compte
+                  <button
+                    onClick={() => { setShowPrivacyModal(false); }}
+                    className="ml-2 px-3 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-200 transition-colors"
+                  >
+                    🗑️ Supprimer mon compte
+                  </button>
+                  <span className="block text-xs text-slate-500 mt-1">(Voir "Zone dangereuse" dans les paramètres)</span>
+                </li>
               </ul>
               
               <h3 className="font-bold text-slate-900">7. Sécurité</h3>
@@ -1297,7 +1278,7 @@ Droit à la portabilité des données`;
             <div className="p-4 border-t border-slate-200">
               <button
                 onClick={() => setShowPrivacyModal(false)}
-                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-bold hover:opacity-90 transition-all"
+                className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-3 rounded-xl font-bold hover:opacity-90 transition-all"
               >
                 Fermer
               </button>
@@ -1652,7 +1633,7 @@ export const MissionDetailModal = ({
                           {!quest.completed && (
                             <div className="flex items-center gap-1 flex-shrink-0">
                               <span className="px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
-                                ⚡+{quest.xp || 10}
+                                ⭐+{quest.xp || 10}
                               </span>
                               <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
                                 🥔+{quest.xp || 10}
@@ -2315,7 +2296,7 @@ export const EventCompletedModal = ({ event, onClose }) => {
           <div className={`grid ${pqGained > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mb-6`}>
             <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-4 border-2 border-blue-200">
               <div className="text-2xl font-black text-blue-600">+{xpGained}</div>
-              <div className="text-2xl mt-1">⚡</div>
+              <div className="text-2xl mt-1">⭐</div>
             </div>
             <div className="bg-gradient-to-br from-amber-50 to-yellow-100 rounded-2xl p-4 border-2 border-amber-200">
               <div className="text-2xl font-black text-amber-600">+{pointsGained}</div>

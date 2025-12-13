@@ -342,7 +342,7 @@ export const TasksPage = ({
               {!isCompleted && !compact && (
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <span className="px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
-                    ⚡+{xpGained}
+                    ⭐+{xpGained}
                   </span>
                   <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
                     🥔+{pointsGained}

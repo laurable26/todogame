@@ -90,7 +90,7 @@ export const Header = ({ user, onAvatarClick, activeBoosts = [], theme = {}, own
 
             {/* Jauge XP - Bleue avec animation level up */}
             <div className="flex items-center gap-1 sm:gap-2">
-              <span className="text-sm sm:text-lg">⚡</span>
+              <span className="text-sm sm:text-lg">⭐</span>
               <div className={`w-16 sm:w-24 h-2 sm:h-3 bg-slate-200 rounded-full overflow-hidden ${levelUpAnimation ? 'ring-2 ring-blue-400 ring-offset-1' : ''}`}>
                 <div 
                   className={`h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-500 ${levelUpAnimation ? 'animate-pulse' : ''}`}

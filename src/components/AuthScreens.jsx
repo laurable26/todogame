@@ -415,7 +415,7 @@ export const OnboardingScreen = ({ onComplete, userName }) => {
 
   const gameRules = [
     { icon: '✅', title: 'Compléter des quêtes', desc: 'Chaque tâche terminée rapporte de l\'XP et des patates' },
-    { icon: '⚡', title: 'Monter de niveau', desc: 'Gagner de l\'XP pour débloquer de nouveaux avantages' },
+    { icon: '⭐', title: 'Monter de niveau', desc: 'Gagner de l\'XP pour débloquer de nouveaux avantages' },
     { icon: '🥔', title: 'Collecter des patates', desc: 'Utiliser les patates pour acheter des items dans la boutique' },
     { icon: '📦', title: 'Ouvrir des coffres', desc: 'Toutes les 8 tâches complétées, un coffre est gagné avec des récompenses' },
     { icon: '👥', title: 'Jouer avec ses amis', desc: 'Créer des missions en groupe et grimper dans le classement' },

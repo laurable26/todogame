@@ -988,14 +988,26 @@ const QuestApp = () => {
         }}
         onDeleteAccount={async () => {
           try {
-            // Supprimer les données utilisateur
+            // Utiliser la fonction SQL complète
             if (supabaseUser) {
-              await supabase.from('tasks').delete().eq('user_id', supabaseUser.id);
-              await supabase.from('chests').delete().eq('user_id', supabaseUser.id);
-              await supabase.from('push_subscriptions').delete().eq('user_id', supabaseUser.id);
-              await supabase.from('calendar_connections').delete().eq('user_id', supabaseUser.id);
-              await supabase.from('calendar_events').delete().eq('user_id', supabaseUser.id);
-              await supabase.from('profiles').delete().eq('id', supabaseUser.id);
+              // Supprimer les photos du storage d'abord
+              try {
+                const { data: files } = await supabase.storage
+                  .from('notes-photos')
+                  .list(supabaseUser.id);
+                if (files && files.length > 0) {
+                  const filePaths = files.map(f => `${supabaseUser.id}/${f.name}`);
+                  await supabase.storage.from('notes-photos').remove(filePaths);
+                }
+              } catch (e) {
+                console.log('Pas de photos à supprimer');
+              }
+              
+              // Appeler la fonction SQL de suppression complète
+              const { error } = await supabase.rpc('delete_user_completely', {
+                user_uuid: supabaseUser.id
+              });
+              if (error) throw error;
             }
             // Déconnecter l'utilisateur
             await supabase.auth.signOut();
@@ -1006,6 +1018,190 @@ const QuestApp = () => {
             return { success: false, error: error.message };
           }
         }}
+        onExportData={async () => {
+          try {
+            if (!supabaseUser) return;
+            
+            // Appeler la fonction SQL d'export
+            const { data, error } = await supabase.rpc('export_user_data', {
+              user_uuid: supabaseUser.id
+            });
+            
+            if (error) throw error;
+            
+            // Formater les données pour être lisibles
+            const exportData = {
+              "📋 EXPORT DE VOS DONNÉES TODOGAME": {
+                "Date d'export": new Date().toLocaleDateString('fr-FR', { 
+                  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+                }),
+                "Identifiant utilisateur": supabaseUser.id
+              },
+              "👤 PROFIL": data.profile ? {
+                "Pseudo": data.profile.pseudo,
+                "Email": data.profile.email,
+                "Niveau": data.profile.level,
+                "XP": data.profile.xp,
+                "Patates": data.profile.potatoes,
+                "Avatar": data.profile.avatar,
+                "Tâches complétées": data.profile.tasks_completed,
+                "Série actuelle": data.profile.streak,
+                "Meilleure série": data.profile.best_streak,
+                "Date d'inscription": data.profile.created_at
+              } : null,
+              "✅ TÂCHES": (data.tasks || []).map(t => ({
+                "Titre": t.title,
+                "Statut": t.status,
+                "Durée": t.duration,
+                "Date": t.date,
+                "Complétée": t.completed ? "Oui" : "Non",
+                "Récurrence": t.recurrence,
+                "Notes": t.notes,
+                "Tags": t.tags
+              })),
+              "📅 ÉVÉNEMENTS": (data.events || []).map(e => ({
+                "Titre": e.title,
+                "Date": e.date,
+                "Heure": e.time,
+                "Lieu": e.location,
+                "Complété": e.completed ? "Oui" : "Non"
+              })),
+              "📦 COFFRES": data.chests ? {
+                "Bronze": data.chests.bronze,
+                "Argent": data.chests.silver,
+                "Or": data.chests.gold,
+                "Légendaire": data.chests.legendary
+              } : null,
+              "👥 AMIS": data.friends || [],
+              "🎯 MISSIONS CRÉÉES": (data.missions_created || []).map(m => ({
+                "Titre": m.title,
+                "Description": m.description,
+                "Date limite": m.deadline,
+                "Statut": m.status
+              })),
+              "🎮 MISSIONS PARTICIPÉES": data.missions_participated || [],
+              "🛒 ITEMS ACHETÉS": data.owned_items || [],
+              "🏆 BADGES": data.badges || [],
+              "🦋 JOURNAL - ENTRÉES QUOTIDIENNES": (data.journal_entries || []).map(j => ({
+                "Date": j.entry_date,
+                "Humeur": j.mood,
+                "Émotion": j.emotion
+              })),
+              "📝 JOURNAL - BILANS HEBDOMADAIRES": (data.journal_weekly || []).map(j => ({
+                "Semaine": j.week_start,
+                "Réponses": j.answers
+              })),
+              "🎄 DÉFIS SAISONNIERS": (data.seasonal_challenges || []).map(s => ({
+                "Mois": s.month,
+                "Année": s.year,
+                "Accepté": s.accepted ? "Oui" : "Non",
+                "Complété": s.completed ? "Oui" : "Non",
+                "Tâches": s.tasks_completed
+              })),
+              "📆 CALENDRIERS CONNECTÉS": data.calendar_connections || []
+            };
+            
+            // Créer le fichier texte lisible
+            let textContent = "═══════════════════════════════════════════════════════════════\n";
+            textContent += "                    EXPORT DE VOS DONNÉES TODOGAME\n";
+            textContent += "═══════════════════════════════════════════════════════════════\n\n";
+            textContent += `Date d'export : ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}\n\n`;
+            
+            // Profil
+            if (data.profile) {
+              textContent += "───────────────────────────────────────────────────────────────\n";
+              textContent += "                           👤 PROFIL\n";
+              textContent += "───────────────────────────────────────────────────────────────\n";
+              textContent += `Pseudo          : ${data.profile.pseudo}\n`;
+              textContent += `Email           : ${data.profile.email}\n`;
+              textContent += `Niveau          : ${data.profile.level}\n`;
+              textContent += `XP              : ${data.profile.xp}\n`;
+              textContent += `Patates         : ${data.profile.potatoes}\n`;
+              textContent += `Tâches faites   : ${data.profile.tasks_completed}\n`;
+              textContent += `Série actuelle  : ${data.profile.streak} jours\n`;
+              textContent += `Meilleure série : ${data.profile.best_streak} jours\n`;
+              textContent += `Inscrit le      : ${new Date(data.profile.created_at).toLocaleDateString('fr-FR')}\n\n`;
+            }
+            
+            // Tâches
+            if (data.tasks && data.tasks.length > 0) {
+              textContent += "───────────────────────────────────────────────────────────────\n";
+              textContent += `                    ✅ TÂCHES (${data.tasks.length})\n`;
+              textContent += "───────────────────────────────────────────────────────────────\n";
+              data.tasks.forEach((t, i) => {
+                textContent += `\n${i + 1}. ${t.title}\n`;
+                textContent += `   Statut: ${t.status} | Durée: ${t.duration} | ${t.completed ? '✓ Complétée' : '○ En cours'}\n`;
+                if (t.date) textContent += `   Date: ${new Date(t.date).toLocaleDateString('fr-FR')}\n`;
+                if (t.notes) textContent += `   Notes: ${t.notes}\n`;
+              });
+              textContent += "\n";
+            }
+            
+            // Événements
+            if (data.events && data.events.length > 0) {
+              textContent += "───────────────────────────────────────────────────────────────\n";
+              textContent += `                    📅 ÉVÉNEMENTS (${data.events.length})\n`;
+              textContent += "───────────────────────────────────────────────────────────────\n";
+              data.events.forEach((e, i) => {
+                textContent += `\n${i + 1}. ${e.title}\n`;
+                textContent += `   ${new Date(e.date).toLocaleDateString('fr-FR')} à ${e.time}\n`;
+                if (e.location) textContent += `   Lieu: ${e.location}\n`;
+              });
+              textContent += "\n";
+            }
+            
+            // Coffres
+            if (data.chests) {
+              textContent += "───────────────────────────────────────────────────────────────\n";
+              textContent += "                         📦 COFFRES\n";
+              textContent += "───────────────────────────────────────────────────────────────\n";
+              textContent += `Bronze: ${data.chests.bronze} | Argent: ${data.chests.silver} | Or: ${data.chests.gold} | Légendaire: ${data.chests.legendary}\n\n`;
+            }
+            
+            // Amis
+            if (data.friends && data.friends.length > 0) {
+              textContent += "───────────────────────────────────────────────────────────────\n";
+              textContent += `                      👥 AMIS (${data.friends.length})\n`;
+              textContent += "───────────────────────────────────────────────────────────────\n";
+              data.friends.forEach(f => {
+                textContent += `• ${f.friend_pseudo}\n`;
+              });
+              textContent += "\n";
+            }
+            
+            // Journal
+            if (data.journal_entries && data.journal_entries.length > 0) {
+              textContent += "───────────────────────────────────────────────────────────────\n";
+              textContent += `                🦋 JOURNAL (${data.journal_entries.length} entrées)\n`;
+              textContent += "───────────────────────────────────────────────────────────────\n";
+              data.journal_entries.forEach(j => {
+                const moodStars = '⭐'.repeat(j.mood);
+                textContent += `${new Date(j.entry_date).toLocaleDateString('fr-FR')} : ${moodStars} - ${j.emotion}\n`;
+              });
+              textContent += "\n";
+            }
+            
+            textContent += "═══════════════════════════════════════════════════════════════\n";
+            textContent += "              Merci d'utiliser ToDoGame ! 🎮\n";
+            textContent += "═══════════════════════════════════════════════════════════════\n";
+            
+            // Télécharger le fichier
+            const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ToDoGame_Export_${new Date().toISOString().split('T')[0]}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+          } catch (error) {
+            console.error('Erreur export:', error);
+            alert('Erreur lors de l\'export des données');
+          }
+        }}
+        userId={supabaseUser?.id}
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
         onToggleUpgrade={toggleUpgrade}

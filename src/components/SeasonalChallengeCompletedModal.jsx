@@ -93,7 +93,7 @@ export const SeasonalChallengeCompletedModal = ({
           <p className="text-sm font-semibold text-amber-700 mb-3">Récompenses bonus :</p>
           <div className="flex justify-center gap-6">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">⚡</span>
+              <span className="text-2xl">⭐</span>
               <span className="font-black text-xl text-amber-600">+{bonusXP} XP</span>
             </div>
             <div className="flex items-center gap-2">
