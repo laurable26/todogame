@@ -26,6 +26,28 @@ export const SeasonalChallengeBanner = ({
   const tasksCompleted = challengeData?.tasks_completed || [false, false, false];
   const completedCount = tasksCompleted.filter(t => t).length;
 
+  // Calculer le temps restant
+  const getTimeRemaining = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    // Dernier jour du mois à 23:59:59
+    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59);
+    const diff = endOfMonth - now;
+    
+    if (diff <= 0) return "Terminé";
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 1) return `${days} jours restants`;
+    if (days === 1) return `1 jour et ${hours}h restants`;
+    if (hours > 1) return `${hours} heures restantes`;
+    return "Dernières heures !";
+  };
+
+  const timeRemaining = getTimeRemaining();
+
   const handleCompleteTask = async (index) => {
     await onCompleteTask(index);
     // Vérifier si toutes les tâches sont maintenant complétées
@@ -59,8 +81,8 @@ export const SeasonalChallengeBanner = ({
                   {challenge.name}
                 </h3>
                 <p className="text-white/80 text-xs sm:text-sm truncate">
-                  {challengeStatus === 'available' && "Nouveau défi !"}
-                  {challengeStatus === 'in_progress' && `${completedCount}/3 tâches`}
+                  {challengeStatus === 'available' && `Nouveau défi ! • ${timeRemaining}`}
+                  {challengeStatus === 'in_progress' && `${completedCount}/3 tâches • ${timeRemaining}`}
                   {challengeStatus === 'completed' && "🎉 Complété !"}
                 </p>
               </div>

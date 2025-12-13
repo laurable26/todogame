@@ -229,7 +229,8 @@ export const useGameData = (supabaseUser) => {
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      if (tasksData) {
+      if (tasksData && tasksData.length > 0) {
+        console.log(`[useGameData] Chargement de ${tasksData.length} tâches`);
         setTasks(tasksData.map(t => ({
           id: t.id,
           title: t.title,
@@ -244,6 +245,9 @@ export const useGameData = (supabaseUser) => {
           notes: t.notes || '',
           photos: t.photos || [],
         })));
+      } else if (tasksData) {
+        console.log('[useGameData] Aucune tâche trouvée');
+        setTasks([]);
       }
 
       // Charger les événements

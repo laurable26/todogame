@@ -181,15 +181,20 @@ const QuestApp = () => {
       
       console.log(`Report de ${tasksToReport.length} tâche(s) non terminée(s) à aujourd'hui`);
       
-      // Mettre à jour les tâches localement
+      // Mettre à jour les tâches localement (avec protection)
       const updatedTasks = tasks.map(task => {
-        if (tasksToReport.some(t => t.id === task.id)) {
+        if (!task) return task;
+        if (tasksToReport.some(t => t && t.id === task.id)) {
           return { ...task, date: today };
         }
         return task;
-      });
+      }).filter(t => t); // Filtrer les éventuels null
       
-      setTasks(updatedTasks);
+      if (updatedTasks.length > 0 || tasks.length === 0) {
+        setTasks(updatedTasks);
+      } else {
+        console.warn('[App] Tentative de setTasks avec tableau vide bloquée');
+      }
       
       // Mettre à jour dans Supabase
       if (supabaseUser) {
@@ -690,7 +695,7 @@ const QuestApp = () => {
         };
 
         // Marquer l'ancienne comme terminée et ajouter la nouvelle
-        setTasks(tasks.map(t => t.id === taskId ? { ...t, completed: true } : t).concat(newTask));
+        setTasks(prevTasks => prevTasks.map(t => t.id === taskId ? { ...t, completed: true } : t).concat(newTask));
 
         if (supabaseUser) {
           // Marquer l'ancienne comme terminée
@@ -713,14 +718,14 @@ const QuestApp = () => {
         }
       } else {
         // Pas de prochaine date, juste marquer comme terminée
-        setTasks(tasks.map(t => t.id === taskId ? { ...t, completed: true } : t));
+        setTasks(prevTasks => prevTasks.map(t => t.id === taskId ? { ...t, completed: true } : t));
         if (supabaseUser) {
           await supabase.from('tasks').update({ completed: true }).eq('id', taskId);
         }
       }
     } else {
       // Tâche normale - juste marquer comme terminée
-      setTasks(tasks.map(t => t.id === taskId ? { ...t, completed: true } : t));
+      setTasks(prevTasks => prevTasks.map(t => t.id === taskId ? { ...t, completed: true } : t));
       if (supabaseUser) {
         await supabase.from('tasks').update({ completed: true }).eq('id', taskId);
       }
@@ -753,7 +758,7 @@ const QuestApp = () => {
       completed: false,
     };
     
-    setTasks([...tasks, newTask]);
+    setTasks(prevTasks => [...prevTasks, newTask]);
     
     if (supabaseUser) {
       await supabase.from('tasks').insert({
@@ -775,7 +780,8 @@ const QuestApp = () => {
   };
 
   const updateTask = async (taskId, taskData) => {
-    setTasks(tasks.map(t => t.id === taskId ? { ...t, ...taskData } : t));
+    // Utiliser la forme fonctionnelle pour éviter les problèmes de closure
+    setTasks(prevTasks => prevTasks.map(t => t.id === taskId ? { ...t, ...taskData } : t));
     
     if (supabaseUser) {
       await supabase.from('tasks').update({
@@ -823,7 +829,7 @@ const QuestApp = () => {
       updateUser(newUser);
     }
     
-    setTasks(tasks.filter(t => t.id !== taskId));
+    setTasks(prevTasks => prevTasks.filter(t => t.id !== taskId));
     if (supabaseUser) {
       await supabase.from('tasks').delete().eq('id', taskId);
     }
@@ -1669,8 +1675,8 @@ const QuestApp = () => {
         }}
         onDeleteTask={deleteTask}
         onClearCompleted={() => {
-          const completedIds = tasks.filter(t => t.completed).map(t => t.id);
-          setTasks(tasks.filter(t => !t.completed));
+          const completedIds = tasks.filter(t => t && t.completed).map(t => t.id);
+          setTasks(prevTasks => prevTasks.filter(t => t && !t.completed));
           completedIds.forEach(id => supabaseUser && supabase.from('tasks').delete().eq('id', id));
         }}
         getStatusColor={getStatusColor}
