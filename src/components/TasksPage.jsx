@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { PageHelp } from './PageHelp';
+import { SeasonalChallengeBanner } from './SeasonalChallengeBanner';
 
 export const TasksPage = ({ 
   tasks, 
@@ -21,7 +22,10 @@ export const TasksPage = ({
   user,
   onCompleteMissionQuest,
   ownedItems = [],
-  activeUpgrades = {}
+  activeUpgrades = {},
+  seasonalChallenges,
+  onClaimSeasonalAvatar,
+  onCompleteSeasonalTask
 }) => {
   const [weekDaysCount, setWeekDaysCount] = useState(7);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -54,9 +58,11 @@ export const TasksPage = ({
     return Math.round(getDurationBase(duration) * getStatusMultiplier(status));
   };
 
-  // Fonction de filtrage
+  // Fonction de filtrage avec protection
   const filterTasks = (tasksList) => {
+    if (!tasksList || !Array.isArray(tasksList)) return [];
     return tasksList.filter(task => {
+      if (!task) return false;
       if (filterStatus !== 'all' && task.status !== filterStatus) return false;
       if (filterDuration !== 'all' && task.duration !== filterDuration) return false;
       return true;
@@ -67,11 +73,12 @@ export const TasksPage = ({
     return Math.round(getDurationBase(duration) * getStatusMultiplier(status));
   };
 
-  // Fonction de tri
+  // Fonction de tri avec protection
   const sortTasks = (taskList) => {
+    if (!taskList || !Array.isArray(taskList)) return [];
     if (!hasAdvancedSort) return taskList;
     
-    return [...taskList].sort((a, b) => {
+    return [...taskList].filter(t => t).sort((a, b) => {
       switch (sortMode) {
         case 'priority':
           const priorityOrder = { 'urgent': 0, 'important': 1, 'à faire': 2 };
@@ -160,9 +167,9 @@ export const TasksPage = ({
     return `${firstDay.getDate()} ${monthNames[firstDay.getMonth()]} - ${lastDay.getDate()} ${monthNames[lastDay.getMonth()]}`;
   }, [weekDates]);
 
-  // Séparer les tâches actives et archivées (terminées)
-  const activeTasks = tasks.filter(t => !t.completed);
-  const archivedTasks = tasks.filter(t => t.completed);
+  // Séparer les tâches actives et archivées (terminées) avec protection
+  const activeTasks = tasks.filter(t => t && !t.completed);
+  const archivedTasks = tasks.filter(t => t && t.completed);
   
   // Tâches d'aujourd'hui (incluant les tâches de mission)
   const todayTasks = useMemo(() => {
@@ -606,6 +613,19 @@ export const TasksPage = ({
         Plus la tâche est longue, plus elle rapporte ! Les tâches non terminées sont automatiquement reportées au lendemain.
       </PageHelp>
 
+      {/* Bannière défi saisonnier */}
+      {seasonalChallenges && seasonalChallenges.currentChallenge && (
+        <SeasonalChallengeBanner
+          challenge={seasonalChallenges.currentChallenge}
+          challengeData={seasonalChallenges.challengeData}
+          challengeStatus={seasonalChallenges.challengeStatus}
+          onAccept={seasonalChallenges.acceptChallenge}
+          onIgnore={seasonalChallenges.ignoreChallenge}
+          onCompleteTask={onCompleteSeasonalTask}
+          onClaimAvatar={onClaimSeasonalAvatar}
+        />
+      )}
+
       {/* Onglets avec Archive */}
       <div className="flex gap-1 sm:gap-2 bg-white p-1 sm:p-2 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
         <button
@@ -852,8 +872,7 @@ export const TasksPage = ({
                     </div>
                     <div className="flex-1">
                       <div className={`font-bold ${isToday ? 'text-indigo-600' : 'text-slate-900'}`}>
-                        {dayNames[date.getDay()]}
-                        {isToday && <span className="ml-2 text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">Aujourd'hui</span>}
+                        {isToday && <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">Aujourd'hui</span>}
                       </div>
                       <div className="text-sm text-slate-500">
                         {totalItems > 0 ? (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 
 // Modal de création/édition de tâche
@@ -15,6 +15,8 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [assignedTo, setAssignedTo] = useState(initialTask?.assignedTo || '');
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [enlargedPhoto, setEnlargedPhoto] = useState(null);
+  const cameraInputRef = useRef(null);
 
   const isEditing = !!initialTask;
   
@@ -386,6 +388,48 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                   {hasPhotoNotes && (
                     <>
                       <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                      {/* Bouton galerie */}
+                      <label className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer flex items-center gap-1">
+                        {uploadingPhoto ? (
+                          <span className="animate-spin">⏳</span>
+                        ) : (
+                          <>🖼️ Galerie</>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingPhoto}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file || !userId) return;
+                            
+                            setUploadingPhoto(true);
+                            try {
+                              const fileExt = file.name.split('.').pop();
+                              const fileName = `${userId}/${Date.now()}.${fileExt}`;
+                              
+                              const { data, error } = await supabase.storage
+                                .from('notes-photos')
+                                .upload(fileName, file);
+                              
+                              if (error) throw error;
+                              
+                              const { data: urlData } = supabase.storage
+                                .from('notes-photos')
+                                .getPublicUrl(fileName);
+                              
+                              setPhotos([...photos, urlData.publicUrl]);
+                            } catch (error) {
+                              console.error('Erreur upload:', error);
+                              alert('Erreur lors de l\'upload de la photo');
+                            }
+                            setUploadingPhoto(false);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                      {/* Bouton caméra */}
                       <label className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer flex items-center gap-1">
                         {uploadingPhoto ? (
                           <span className="animate-spin">⏳</span>
@@ -393,8 +437,10 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                           <>📷 Photo</>
                         )}
                         <input
+                          ref={cameraInputRef}
                           type="file"
                           accept="image/*"
+                          capture="environment"
                           className="hidden"
                           disabled={uploadingPhoto}
                           onChange={async (e) => {
@@ -439,7 +485,8 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                       <img 
                         src={url} 
                         alt={`Photo ${i + 1}`}
-                        className="w-20 h-20 object-cover rounded-lg border border-slate-200"
+                        className="w-20 h-20 object-cover rounded-lg border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => setEnlargedPhoto(url)}
                       />
                       <button
                         type="button"
@@ -450,6 +497,28 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                       </button>
                     </div>
                   ))}
+                </div>
+              )}
+              
+              {/* Modal photo agrandie */}
+              {enlargedPhoto && (
+                <div 
+                  className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
+                  onClick={() => setEnlargedPhoto(null)}
+                >
+                  <div className="relative max-w-4xl max-h-[90vh]">
+                    <img 
+                      src={enlargedPhoto} 
+                      alt="Photo agrandie"
+                      className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                    />
+                    <button
+                      onClick={() => setEnlargedPhoto(null)}
+                      className="absolute top-2 right-2 w-10 h-10 bg-black/50 text-white rounded-full text-xl hover:bg-black/70 transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
               )}
               
@@ -751,7 +820,7 @@ export const MissionCompletedModal = ({ mission, pqDistribution, onClose }) => {
 };
 
 // Modal paramètres
-export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateEmail, onUpdatePassword, onDeleteAccount, ownedItems = [], activeUpgrades = {}, onToggleUpgrade, shopItems = [], onCheckPseudo, notificationStatus, onEnableNotifications, onDisableNotifications, isNotificationSupported, calendarSync }) => {
+export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateEmail, onUpdatePassword, onDeleteAccount, ownedItems = [], activeUpgrades = {}, onToggleUpgrade, shopItems = [], onCheckPseudo, notificationStatus, onEnableNotifications, onDisableNotifications, isNotificationSupported }) => {
   const [pseudo, setPseudo] = useState(user.pseudo);
   const [email, setEmail] = useState(user.email || '');
   const [customTitle, setCustomTitle] = useState(user.customTitle || '');
@@ -1094,119 +1163,6 @@ Droit à la portabilité des données`;
 
             {/* Séparateur */}
             <hr className="border-slate-200" />
-
-            {/* Calendriers connectés */}
-            {calendarSync && (
-              <>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-slate-800">📅 Calendriers connectés</h3>
-                    {(calendarSync.google.isConnected || calendarSync.outlook.isConnected) && (
-                      <button
-                        onClick={calendarSync.syncAll}
-                        disabled={calendarSync.isSyncing}
-                        className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                          calendarSync.isSyncing 
-                            ? 'bg-slate-200 text-slate-500' 
-                            : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-                        }`}
-                      >
-                        {calendarSync.isSyncing ? '🔄 Sync...' : '🔄 Synchroniser'}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Google Calendar */}
-                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm">
-                        <svg className="w-6 h-6" viewBox="0 0 24 24">
-                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-slate-800">Google Calendar</h4>
-                        {calendarSync.google.isConnected && (
-                          <p className="text-xs text-green-600">
-                            ✅ {calendarSync.google.events.length} événement(s)
-                          </p>
-                        )}
-                      </div>
-                      {calendarSync.google.isLoading ? (
-                        <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                      ) : calendarSync.google.isConnected ? (
-                        <button
-                          onClick={calendarSync.google.disconnect}
-                          className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
-                        >
-                          Déconnecter
-                        </button>
-                      ) : (
-                        <button
-                          onClick={calendarSync.google.connect}
-                          className="px-3 py-1.5 text-sm bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
-                        >
-                          Connecter
-                        </button>
-                      )}
-                    </div>
-                    {calendarSync.google.error && (
-                      <p className="text-xs text-red-500 mt-2">⚠️ {calendarSync.google.error}</p>
-                    )}
-                  </div>
-
-                  {/* Outlook Calendar */}
-                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm">
-                        <svg className="w-6 h-6" viewBox="0 0 24 24">
-                          <path fill="#0078D4" d="M24 7.387v10.478c0 .23-.08.424-.238.576-.16.154-.353.23-.577.23h-8.186V6.58h8.186c.224 0 .418.077.577.23.158.153.238.347.238.577z"/>
-                          <path fill="#0364B8" d="M15 6.58v12.09L8.367 21l-6.129-1.363C1.583 19.483 1.163 19 1.163 18.343V5.656c0-.656.42-1.14 1.075-1.294L8.367 3 15 6.58z"/>
-                          <path fill="#0078D4" d="M15 6.58H8.367v12.09L15 21V6.58z"/>
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-slate-800">Outlook / Microsoft 365</h4>
-                        {calendarSync.outlook.isConnected && (
-                          <p className="text-xs text-green-600">
-                            ✅ {calendarSync.outlook.events.length} événement(s)
-                          </p>
-                        )}
-                      </div>
-                      {calendarSync.outlook.isLoading ? (
-                        <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                      ) : calendarSync.outlook.isConnected ? (
-                        <button
-                          onClick={calendarSync.outlook.disconnect}
-                          className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
-                        >
-                          Déconnecter
-                        </button>
-                      ) : (
-                        <button
-                          onClick={calendarSync.outlook.connect}
-                          className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                        >
-                          Connecter
-                        </button>
-                      )}
-                    </div>
-                    {calendarSync.outlook.error && (
-                      <p className="text-xs text-red-500 mt-2">⚠️ {calendarSync.outlook.error}</p>
-                    )}
-                  </div>
-
-                  <p className="text-xs text-slate-500">
-                    💡 Les événements de vos calendriers seront synchronisés automatiquement.
-                  </p>
-                </div>
-
-                <hr className="border-slate-200" />
-              </>
-            )}
 
             {/* Zone dangereuse */}
             <div className="space-y-3">

@@ -18,7 +18,7 @@ const CalendarSettings = ({ calendarSync, theme }) => {
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-slate-800">
-          📅 Calendriers connectés
+          Calendriers connectés
         </h3>
         {(google.isConnected || outlook.isConnected) && (
           <button
@@ -30,7 +30,7 @@ const CalendarSettings = ({ calendarSync, theme }) => {
                 : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
             }`}
           >
-            {isSyncing ? '🔄 Sync...' : '🔄 Synchroniser'}
+            {isSyncing ? 'Sync...' : 'Synchroniser'}
           </button>
         )}
       </div>

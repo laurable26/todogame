@@ -49,10 +49,22 @@ export const useGameData = (supabaseUser) => {
     return saved ? JSON.parse(saved) : {};
   });
   
-  // Thème et préférences
-  const [theme, setTheme] = useState({
-    darkMode: false,
-    colorTheme: 'default', // 'default', 'rose', 'vert', 'bleu', 'violet'
+  // Thème et préférences - initialisé depuis activeUpgrades
+  const [theme, setTheme] = useState(() => {
+    const savedUpgrades = localStorage.getItem('todogame_activeUpgrades');
+    const upgrades = savedUpgrades ? JSON.parse(savedUpgrades) : {};
+    
+    // Déterminer le mode sombre depuis activeUpgrades[78]
+    const darkMode = upgrades[78] === true;
+    
+    // Déterminer le thème de couleur
+    let colorTheme = 'default';
+    if (upgrades[73] === true) colorTheme = 'rose';
+    else if (upgrades[74] === true) colorTheme = 'vert';
+    else if (upgrades[75] === true) colorTheme = 'bleu';
+    else if (upgrades[76] === true) colorTheme = 'violet';
+    
+    return { darkMode, colorTheme };
   });
   
   // Boosts actifs (avec date d'expiration)
@@ -76,6 +88,7 @@ export const useGameData = (supabaseUser) => {
     { id: 14, name: 'Milliardaire', description: 'Richesse ultime', emoji: '💎', bronze: false, silver: false, gold: false, category: 'collection', requirements: { bronze: 'Dépense 50 000 patates', silver: 'Dépense 500 000 patates', gold: 'Dépense 5 000 000 patates' }, thresholds: { bronze: 50000, silver: 500000, gold: 5000000 }, stat: 'totalSpent' },
     { id: 15, name: 'Architecte', description: 'Créateur prolifique', emoji: '🏗️', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: '1000 quêtes créées', silver: '5000 quêtes créées', gold: '20 000 quêtes créées' }, thresholds: { bronze: 1000, silver: 5000, gold: 20000 }, stat: 'questsCreated' },
     { id: 16, name: 'Immortel', description: 'Persévérance', emoji: '♾️', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '1000 quêtes complétées', silver: '10 000 quêtes complétées', gold: '50 000 quêtes complétées' }, thresholds: { bronze: 1000, silver: 10000, gold: 50000 }, stat: 'tasksCompleted' },
+    { id: 17, name: 'Festivités', description: 'Défis saisonniers', emoji: '🎄', bronze: false, silver: false, gold: false, category: 'collection', requirements: { bronze: 'Complète 3 défis', silver: 'Complète 6 défis', gold: 'Complète 12 défis' }, thresholds: { bronze: 3, silver: 6, gold: 12 }, stat: 'seasonalChallenges' },
   ]);
 
   const [shopItems] = useState([
@@ -133,9 +146,10 @@ export const useGameData = (supabaseUser) => {
     { id: 77, name: 'Tri Avancé', price: 600, type: 'amelioration', image: '🔀', description: 'Options de tri supplémentaires', isAdvancedSort: true },
     { id: 84, name: 'Filtre de Tâches', price: 800, type: 'amelioration', image: '🔍', description: 'Filtre par statut et durée', isQuestFilter: true },
     { id: 78, name: 'Mode Sombre', price: 1000, type: 'amelioration', image: '🌙', description: 'Active le thème sombre', isDarkMode: true },
+    { id: 87, name: 'Journaling', price: 1200, type: 'amelioration', image: '🦋', description: 'Journal quotidien + bilan hebdo', isJournaling: true },
     { id: 79, name: 'Titre Personnalisé', price: 1500, type: 'amelioration', image: '🏷️', description: 'Affiche un titre sous ton pseudo', isCustomTitle: true },
     { id: 80, name: 'Animations +', price: 2000, type: 'amelioration', image: '💫', description: 'Animations améliorées', isAnimations: true },
-    { id: 81, name: 'Statistiques Pro', price: 2500, type: 'amelioration', image: '📊', description: 'Stats détaillées', unlocksStats: true },
+    { id: 81, name: 'Statistiques', price: 2500, type: 'amelioration', image: '📊', description: 'Stats détaillées', unlocksStats: true },
     { id: 82, name: 'Fond Animé', price: 3000, type: 'amelioration', image: '🌠', description: 'Fond avec particules animées', isAnimatedBg: true },
     { id: 83, name: 'Badge VIP', price: 5000, type: 'amelioration', image: '👑', description: 'Badge VIP à côté du pseudo', isVipBadge: true },
     // Boosts temporaires - consommables (prix élevés car réutilisables)

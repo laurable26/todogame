@@ -3,6 +3,8 @@ import { useAuth } from './hooks/useAuth';
 import { useGameData } from './hooks/useGameData';
 import { useNotifications } from './hooks/useNotifications';
 import { useCalendarSync } from './hooks/useCalendarSync';
+import { useJournaling } from './hooks/useJournaling';
+import { useSeasonalChallenges } from './hooks/useSeasonalChallenges';
 import { AuthScreen, OnboardingScreen, LoadingScreen } from './components/AuthScreens';
 import { Header, Navigation } from './components/Header';
 import { TasksPage } from './components/TasksPage';
@@ -12,6 +14,8 @@ import { BadgesPage } from './components/BadgesPage';
 import { ShopPage } from './components/ShopPage';
 import { StatsPage } from './components/StatsPage';
 import CalendarSettings from './components/CalendarSettings';
+import { JournalingButterfly } from './components/JournalingButterfly';
+import { SeasonalChallengeBanner } from './components/SeasonalChallengeBanner';
 import { 
   CreateTaskModal, 
   ChestOpenedModal, 
@@ -106,6 +110,13 @@ const QuestApp = () => {
 
   // Calendriers (Google, Outlook)
   const calendarSync = useCalendarSync(supabaseUser?.id);
+
+  // Journaling (si amélioration débloquée)
+  const journalingEnabled = ownedItems.includes(87) && isUpgradeActive(87);
+  const journaling = useJournaling(journalingEnabled ? supabaseUser?.id : null);
+
+  // Défis saisonniers
+  const seasonalChallenges = useSeasonalChallenges(supabaseUser?.id, user.avatar, user.avatarBg);
 
   // State pour l'animation de badge débloqué
   const [unlockedBadge, setUnlockedBadge] = useState(null);
@@ -1567,6 +1578,47 @@ const QuestApp = () => {
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
         calendarEvents={calendarSync?.calendarEvents || []}
+        seasonalChallenges={seasonalChallenges}
+        onClaimSeasonalAvatar={async () => {
+          if (seasonalChallenges.currentChallenge) {
+            const success = await seasonalChallenges.claimAvatar();
+            if (success) {
+              // Bonus XP et patates
+              const bonusXP = 150;
+              const bonusPotatoes = 200;
+              
+              const newXp = user.xp + bonusXP;
+              const newPotatoes = user.potatoes + bonusPotatoes;
+              
+              // Gérer le level up
+              let newLevel = user.level;
+              let remainingXp = newXp;
+              let xpToNext = user.xpToNext;
+              
+              while (remainingXp >= xpToNext) {
+                remainingXp -= xpToNext;
+                newLevel++;
+                xpToNext = Math.floor(100 * Math.pow(1.2, newLevel - 1));
+              }
+              
+              // Mettre à jour l'avatar et les récompenses
+              const newUser = {
+                ...user,
+                avatar: seasonalChallenges.currentChallenge.avatar,
+                avatarBg: seasonalChallenges.currentChallenge.avatarBg,
+                xp: remainingXp,
+                xpToNext,
+                level: newLevel,
+                potatoes: newPotatoes,
+                pqTotal: (user.pqTotal || 0) + bonusPotatoes
+              };
+              updateUser(newUser);
+            }
+          }
+        }}
+        onCompleteSeasonalTask={async (taskIndex) => {
+          await seasonalChallenges.completeTask(taskIndex);
+        }}
       />
     );
   } else if (currentPage === 'friends') {
@@ -1679,6 +1731,8 @@ const QuestApp = () => {
         chests={chests}
         badges={badges}
         friends={friends}
+        journalingEnabled={journalingEnabled}
+        userId={supabaseUser?.id}
       />
     );
   } else if (currentPage === 'shop') {
@@ -1755,6 +1809,10 @@ const QuestApp = () => {
           <div className="particle particle-6"></div>
           <div className="particle particle-7"></div>
           <div className="particle particle-8"></div>
+          <div className="particle particle-9"></div>
+          <div className="particle particle-10"></div>
+          <div className="particle particle-11"></div>
+          <div className="particle particle-12"></div>
         </div>
       )}
 
@@ -1821,26 +1879,30 @@ const QuestApp = () => {
         /* Particules animées */
         .particle {
           position: absolute;
-          width: 10px;
-          height: 10px;
+          width: 15px;
+          height: 15px;
           border-radius: 50%;
-          opacity: 0.6;
-          animation: float 15s infinite ease-in-out;
+          opacity: 0.7;
+          animation: float 6s infinite ease-in-out;
         }
-        .particle-1 { left: 10%; top: 20%; background: rgba(99, 102, 241, 0.4); animation-delay: 0s; }
-        .particle-2 { left: 20%; top: 80%; background: rgba(168, 85, 247, 0.4); animation-delay: 2s; }
-        .particle-3 { left: 60%; top: 10%; background: rgba(236, 72, 153, 0.4); animation-delay: 4s; }
-        .particle-4 { left: 80%; top: 50%; background: rgba(34, 211, 238, 0.4); animation-delay: 6s; }
-        .particle-5 { left: 40%; top: 60%; background: rgba(74, 222, 128, 0.4); animation-delay: 8s; }
-        .particle-6 { left: 90%; top: 30%; background: rgba(251, 191, 36, 0.4); animation-delay: 10s; }
-        .particle-7 { left: 5%; top: 70%; background: rgba(244, 114, 182, 0.4); animation-delay: 12s; }
-        .particle-8 { left: 70%; top: 90%; background: rgba(129, 140, 248, 0.4); animation-delay: 14s; }
+        .particle-1 { left: 10%; top: 20%; width: 18px; height: 18px; background: rgba(99, 102, 241, 0.5); animation-delay: 0s; animation-duration: 5s; }
+        .particle-2 { left: 20%; top: 80%; width: 12px; height: 12px; background: rgba(168, 85, 247, 0.5); animation-delay: 0.5s; animation-duration: 7s; }
+        .particle-3 { left: 60%; top: 10%; width: 20px; height: 20px; background: rgba(236, 72, 153, 0.5); animation-delay: 1s; animation-duration: 6s; }
+        .particle-4 { left: 80%; top: 50%; width: 14px; height: 14px; background: rgba(34, 211, 238, 0.5); animation-delay: 1.5s; animation-duration: 8s; }
+        .particle-5 { left: 40%; top: 60%; width: 16px; height: 16px; background: rgba(74, 222, 128, 0.5); animation-delay: 2s; animation-duration: 5.5s; }
+        .particle-6 { left: 90%; top: 30%; width: 10px; height: 10px; background: rgba(251, 191, 36, 0.5); animation-delay: 2.5s; animation-duration: 6.5s; }
+        .particle-7 { left: 5%; top: 70%; width: 22px; height: 22px; background: rgba(244, 114, 182, 0.5); animation-delay: 3s; animation-duration: 7.5s; }
+        .particle-8 { left: 70%; top: 90%; width: 13px; height: 13px; background: rgba(129, 140, 248, 0.5); animation-delay: 3.5s; animation-duration: 5s; }
+        .particle-9 { left: 30%; top: 40%; width: 17px; height: 17px; background: rgba(52, 211, 153, 0.5); animation-delay: 4s; animation-duration: 6s; }
+        .particle-10 { left: 85%; top: 75%; width: 11px; height: 11px; background: rgba(251, 146, 60, 0.5); animation-delay: 4.5s; animation-duration: 7s; }
+        .particle-11 { left: 15%; top: 45%; width: 19px; height: 19px; background: rgba(192, 132, 252, 0.5); animation-delay: 0.8s; animation-duration: 5.8s; }
+        .particle-12 { left: 55%; top: 35%; width: 14px; height: 14px; background: rgba(96, 165, 250, 0.5); animation-delay: 2.2s; animation-duration: 6.8s; }
         
         @keyframes float {
-          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
-          25% { transform: translate(50px, -30px) scale(1.5); opacity: 0.8; }
-          50% { transform: translate(-20px, -60px) scale(1.2); opacity: 0.4; }
-          75% { transform: translate(30px, -20px) scale(0.8); opacity: 0.7; }
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.7; }
+          25% { transform: translate(60px, -40px) scale(1.4); opacity: 0.9; }
+          50% { transform: translate(-30px, -80px) scale(1.1); opacity: 0.5; }
+          75% { transform: translate(40px, -30px) scale(0.9); opacity: 0.8; }
         }
         
         /* Thèmes de couleur */
@@ -1873,7 +1935,7 @@ const QuestApp = () => {
         [data-theme="violet"] .border-indigo-500 { border-color: rgb(168 85 247) !important; }
         
         /* Mode sombre - fond général */
-        [data-dark="true"] { background-color: rgb(15 23 42) !important; color: white !important; }
+        [data-dark="true"] { background-color: rgb(15 23 42) !important; color: rgb(248 250 252) !important; }
         [data-dark="true"] .bg-white { background-color: rgb(30 41 59) !important; }
         [data-dark="true"] .bg-slate-50 { background-color: rgb(30 41 59) !important; }
         [data-dark="true"] .bg-slate-100 { background-color: rgb(51 65 85) !important; }
@@ -1883,8 +1945,40 @@ const QuestApp = () => {
         [data-dark="true"] .text-slate-800 { color: rgb(241 245 249) !important; }
         [data-dark="true"] .text-slate-700 { color: rgb(226 232 240) !important; }
         [data-dark="true"] .text-slate-600 { color: rgb(203 213 225) !important; }
-        [data-dark="true"] .text-slate-500 { color: rgb(148 163 184) !important; }
-        [data-dark="true"] .text-slate-400 { color: rgb(148 163 184) !important; }
+        [data-dark="true"] .text-slate-500 { color: rgb(186 199 213) !important; }
+        [data-dark="true"] .text-slate-400 { color: rgb(186 199 213) !important; }
+        
+        /* Mode sombre - tous les textes doivent être lisibles */
+        [data-dark="true"] p, [data-dark="true"] span, [data-dark="true"] div, [data-dark="true"] label {
+          color: inherit;
+        }
+        [data-dark="true"] .text-gray-500, [data-dark="true"] .text-gray-600 { color: rgb(186 199 213) !important; }
+        
+        /* Mode sombre - textes colorés (meilleur contraste) */
+        [data-dark="true"] .text-indigo-600 { color: rgb(165 180 252) !important; }
+        [data-dark="true"] .text-indigo-700 { color: rgb(199 210 254) !important; }
+        [data-dark="true"] .text-indigo-500 { color: rgb(165 180 252) !important; }
+        [data-dark="true"] .bg-indigo-100 .text-indigo-600,
+        [data-dark="true"] .bg-indigo-50 .text-indigo-600,
+        [data-dark="true"] .border-indigo-500 .text-indigo-600 { color: rgb(224 231 255) !important; }
+        [data-dark="true"] .text-purple-600 { color: rgb(192 132 252) !important; }
+        [data-dark="true"] .text-purple-700 { color: rgb(216 180 254) !important; }
+        [data-dark="true"] .text-pink-600 { color: rgb(244 114 182) !important; }
+        [data-dark="true"] .text-pink-700 { color: rgb(249 168 212) !important; }
+        [data-dark="true"] .text-cyan-600 { color: rgb(34 211 238) !important; }
+        [data-dark="true"] .text-cyan-700 { color: rgb(103 232 249) !important; }
+        [data-dark="true"] .text-emerald-600 { color: rgb(52 211 153) !important; }
+        [data-dark="true"] .text-emerald-700 { color: rgb(110 231 183) !important; }
+        [data-dark="true"] .text-amber-600 { color: rgb(251 191 36) !important; }
+        [data-dark="true"] .text-amber-700 { color: rgb(252 211 77) !important; }
+        [data-dark="true"] .text-yellow-600 { color: rgb(250 204 21) !important; }
+        [data-dark="true"] .text-yellow-700 { color: rgb(253 224 71) !important; }
+        [data-dark="true"] .text-orange-600 { color: rgb(251 146 60) !important; }
+        [data-dark="true"] .text-orange-700 { color: rgb(253 186 116) !important; }
+        [data-dark="true"] .text-red-600 { color: rgb(248 113 113) !important; }
+        [data-dark="true"] .text-red-700 { color: rgb(252 165 165) !important; }
+        [data-dark="true"] .text-green-600 { color: rgb(74 222 128) !important; }
+        [data-dark="true"] .text-green-700 { color: rgb(134 239 172) !important; }
         
         /* Mode sombre - bordures */
         [data-dark="true"] .border-slate-200 { border-color: rgb(51 65 85) !important; }
@@ -1909,12 +2003,35 @@ const QuestApp = () => {
         [data-dark="true"] .hover\\:bg-slate-100:hover { background-color: rgb(71 85 105) !important; }
         
         /* Mode sombre - badges et chips colorés (garder la lisibilité) */
-        [data-dark="true"] .bg-red-50 { background-color: rgb(127 29 29 / 0.3) !important; }
-        [data-dark="true"] .bg-blue-50 { background-color: rgb(30 64 175 / 0.3) !important; }
-        [data-dark="true"] .bg-green-50 { background-color: rgb(22 101 52 / 0.3) !important; }
-        [data-dark="true"] .bg-amber-50 { background-color: rgb(146 64 14 / 0.3) !important; }
-        [data-dark="true"] .bg-purple-50 { background-color: rgb(88 28 135 / 0.3) !important; }
-        [data-dark="true"] .bg-indigo-50 { background-color: rgb(55 48 163 / 0.3) !important; }
+        [data-dark="true"] .bg-red-50 { background-color: rgb(127 29 29 / 0.4) !important; }
+        [data-dark="true"] .bg-blue-50 { background-color: rgb(30 64 175 / 0.4) !important; }
+        [data-dark="true"] .bg-green-50 { background-color: rgb(22 101 52 / 0.4) !important; }
+        [data-dark="true"] .bg-amber-50 { background-color: rgb(146 64 14 / 0.4) !important; }
+        [data-dark="true"] .bg-purple-50 { background-color: rgb(88 28 135 / 0.4) !important; }
+        [data-dark="true"] .bg-indigo-50 { background-color: rgb(55 48 163 / 0.4) !important; }
+        [data-dark="true"] .bg-pink-50 { background-color: rgb(131 24 67 / 0.4) !important; }
+        [data-dark="true"] .bg-cyan-50 { background-color: rgb(22 78 99 / 0.4) !important; }
+        [data-dark="true"] .bg-yellow-50 { background-color: rgb(113 63 18 / 0.4) !important; }
+        [data-dark="true"] .bg-emerald-50 { background-color: rgb(6 78 59 / 0.4) !important; }
+        [data-dark="true"] .bg-indigo-100 { background-color: rgb(55 48 163 / 0.5) !important; }
+        
+        /* Mode sombre - fonds colorés plus foncés */
+        [data-dark="true"] .bg-emerald-100 { background-color: rgb(6 78 59 / 0.5) !important; }
+        [data-dark="true"] .bg-amber-100 { background-color: rgb(146 64 14 / 0.5) !important; }
+        [data-dark="true"] .bg-purple-100 { background-color: rgb(88 28 135 / 0.5) !important; }
+        [data-dark="true"] .bg-cyan-100 { background-color: rgb(22 78 99 / 0.5) !important; }
+        [data-dark="true"] .bg-slate-200 { background-color: rgb(51 65 85) !important; }
+        
+        /* Mode sombre - cartes événements/tâches */
+        [data-dark="true"] .bg-emerald-50 .text-emerald-700,
+        [data-dark="true"] .bg-green-50 .text-green-700 { color: rgb(134 239 172) !important; }
+        [data-dark="true"] .bg-amber-50 .text-amber-700 { color: rgb(252 211 77) !important; }
+        [data-dark="true"] .bg-red-50 .text-red-700 { color: rgb(252 165 165) !important; }
+        [data-dark="true"] .bg-purple-50 .text-purple-700 { color: rgb(216 180 254) !important; }
+        [data-dark="true"] .bg-indigo-50 .text-indigo-700 { color: rgb(165 180 252) !important; }
+        [data-dark="true"] .bg-pink-50 .text-pink-700 { color: rgb(249 168 212) !important; }
+        [data-dark="true"] .bg-cyan-50 .text-cyan-700 { color: rgb(103 232 249) !important; }
+        [data-dark="true"] .bg-yellow-50 .text-yellow-700 { color: rgb(253 224 71) !important; }
         
         /* Mode sombre - cartes avec fond clair */
         [data-dark="true"] .bg-gradient-to-br.from-slate-50 { background: rgb(30 41 59) !important; }
@@ -1932,6 +2049,11 @@ const QuestApp = () => {
           badge={unlockedBadge} 
           onClose={() => setUnlockedBadge(null)} 
         />
+      )}
+
+      {/* Papillon de journaling (si activé et après 16h) */}
+      {journalingEnabled && journaling && (
+        <JournalingButterfly journaling={journaling} />
       )}
     </div>
   );
