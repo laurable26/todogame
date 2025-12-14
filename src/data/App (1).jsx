@@ -133,48 +133,15 @@ const QuestApp = () => {
   const [openingChest, setOpeningChest] = useState(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showRiddle, setShowRiddle] = useState(null); // { level: 1|2|3, riddle: {...} }
-  const [riddlesDoneToday, setRiddlesDoneToday] = useState([]);
-
-  // Charger l'historique des énigmes du jour depuis Supabase
-  useEffect(() => {
-    const loadRiddlesHistory = async () => {
-      if (!supabaseUser) return;
-      
-      const today = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
-      
-      const { data, error } = await supabase
-        .from('riddles_history')
-        .select('level')
-        .eq('user_id', supabaseUser.id)
-        .eq('riddle_date', today);
-      
-      if (!error && data) {
-        setRiddlesDoneToday(data.map(r => r.level));
-      }
-    };
-    
-    loadRiddlesHistory();
-  }, [supabaseUser]);
-
-  // Fonction pour marquer une énigme comme faite
-  const markRiddleDone = async (level, solved) => {
-    if (!supabaseUser) return;
-    
-    const today = new Date().toISOString().split('T')[0];
-    
-    await supabase
-      .from('riddles_history')
-      .upsert({
-        user_id: supabaseUser.id,
-        riddle_date: today,
-        level: level,
-        solved: solved
-      }, {
-        onConflict: 'user_id,riddle_date,level'
-      });
-    
-    setRiddlesDoneToday(prev => [...prev, level]);
-  };
+  const [riddlesSolvedToday, setRiddlesSolvedToday] = useState(() => {
+    const saved = localStorage.getItem('todogame_riddlesSolved');
+    if (saved) {
+      const { date, levels } = JSON.parse(saved);
+      const today = new Date().toDateString();
+      if (date === today) return levels;
+    }
+    return [];
+  });
 
   // Sauvegarder currentPage dans localStorage
   useEffect(() => {
@@ -1412,8 +1379,64 @@ const QuestApp = () => {
       />
     );
   } else if (currentPage === 'tasks') {
+    // Récupérer le niveau d'énigme le plus élevé disponible (le niveau sup remplace l'inf)
+    let activeRiddleLevel = null;
+    if (ownedItems.includes(89) && activeUpgrades[89] !== false) activeRiddleLevel = 3;
+    else if (ownedItems.includes(88) && activeUpgrades[88] !== false) activeRiddleLevel = 2;
+    else if (ownedItems.includes(87) && activeUpgrades[87] !== false) activeRiddleLevel = 1;
+
+    const riddleConfig = {
+      1: { icon: '🧩', label: 'Facile', xp: 25, color: 'from-green-400 to-emerald-500', bgColor: 'bg-green-500' },
+      2: { icon: '🧠', label: 'Moyen', xp: 50, color: 'from-amber-400 to-orange-500', bgColor: 'bg-amber-500' },
+      3: { icon: '🎓', label: 'Difficile', xp: 100, color: 'from-purple-500 to-pink-500', bgColor: 'bg-purple-500' }
+    };
+
+    // L'énigme est indisponible si résolue OU échouée/abandonnée
+    const isDoneToday = activeRiddleLevel && riddlesSolvedToday.includes(activeRiddleLevel);
+
     pageContent = (
-      <TasksPage 
+      <>
+        {/* Widget Énigme du jour - seulement si pas encore faite */}
+        {activeRiddleLevel && !isDoneToday && (
+          <div className="max-w-7xl mx-auto px-4 pt-4">
+            <div className={`bg-gradient-to-r ${riddleConfig[activeRiddleLevel].color} rounded-2xl p-4 shadow-lg relative overflow-hidden`}>
+              {/* Pièces de puzzle flottantes avec animation float */}
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <span className="particle text-3xl" style={{ left: '5%', top: '10%', background: 'none', width: 'auto', height: 'auto', animationDelay: '0s' }}>🧩</span>
+                <span className="particle text-2xl" style={{ left: '85%', top: '60%', background: 'none', width: 'auto', height: 'auto', animationDelay: '3s' }}>🧩</span>
+                <span className="particle text-3xl" style={{ left: '70%', top: '15%', background: 'none', width: 'auto', height: 'auto', animationDelay: '6s' }}>🧩</span>
+                <span className="particle text-2xl" style={{ left: '20%', top: '70%', background: 'none', width: 'auto', height: 'auto', animationDelay: '9s' }}>🧩</span>
+              </div>
+              
+              <div className="relative z-10 flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-4xl">{riddleConfig[activeRiddleLevel].icon}</span>
+                  <div>
+                    <h3 className="text-white font-bold text-lg">Énigme du jour</h3>
+                    <p className="text-white/80 text-sm">
+                      Niveau {riddleConfig[activeRiddleLevel].label} • +{riddleConfig[activeRiddleLevel].xp} XP
+                    </p>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={() => {
+                    const riddle = getDailyRiddle(activeRiddleLevel);
+                    setShowRiddle({ level: activeRiddleLevel, riddle });
+                  }}
+                  className="px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 bg-white text-slate-800 hover:scale-105 shadow-lg"
+                >
+                  <span>Jouer</span>
+                  <span className="text-xs bg-yellow-400 text-yellow-900 px-2 py-1 rounded-full font-bold">
+                    +{riddleConfig[activeRiddleLevel].xp} XP
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        <TasksPage 
         tasks={tasks}
         events={events}
         tasksView={tasksView}
@@ -1542,6 +1565,7 @@ const QuestApp = () => {
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
       />
+      </>
     );
   } else if (currentPage === 'friends') {
     pageContent = (
@@ -1892,111 +1916,7 @@ const QuestApp = () => {
           font-family: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif;
           font-style: normal;
         }
-        
-        /* Animation puzzle flottant */
-        @keyframes puzzleFloat {
-          0%, 100% { transform: translateY(0) rotate(0deg); }
-          25% { transform: translateY(-8px) rotate(5deg); }
-          50% { transform: translateY(-4px) rotate(-3deg); }
-          75% { transform: translateY(-10px) rotate(3deg); }
-        }
-        .puzzle-float {
-          animation: puzzleFloat 4s ease-in-out infinite;
-        }
-        .puzzle-float:active {
-          animation: none;
-          cursor: grabbing;
-        }
       `}</style>
-
-      {/* Icône flottante énigme du jour - déplaçable */}
-      {(() => {
-        // Récupérer le niveau d'énigme le plus élevé disponible
-        let activeRiddleLevel = null;
-        if (ownedItems.includes(89) && activeUpgrades[89] !== false) activeRiddleLevel = 3;
-        else if (ownedItems.includes(88) && activeUpgrades[88] !== false) activeRiddleLevel = 2;
-        else if (ownedItems.includes(87) && activeUpgrades[87] !== false) activeRiddleLevel = 1;
-        
-        const isDoneToday = activeRiddleLevel && riddlesDoneToday.includes(activeRiddleLevel);
-        
-        if (!activeRiddleLevel || isDoneToday) return null;
-        
-        const config = {
-          1: { xp: 25 },
-          2: { xp: 50 },
-          3: { xp: 100 }
-        }[activeRiddleLevel];
-        
-        return (
-          <div
-            id="puzzle-floating-icon"
-            draggable="false"
-            style={{
-              position: 'fixed',
-              bottom: '100px',
-              right: '20px',
-              zIndex: 40,
-              touchAction: 'none'
-            }}
-            onMouseDown={(e) => {
-              const el = e.currentTarget;
-              const startX = e.clientX - el.offsetLeft;
-              const startY = e.clientY - el.offsetTop;
-              
-              const onMouseMove = (e) => {
-                el.style.left = (e.clientX - startX) + 'px';
-                el.style.top = (e.clientY - startY) + 'px';
-                el.style.right = 'auto';
-                el.style.bottom = 'auto';
-              };
-              
-              const onMouseUp = () => {
-                document.removeEventListener('mousemove', onMouseMove);
-                document.removeEventListener('mouseup', onMouseUp);
-              };
-              
-              document.addEventListener('mousemove', onMouseMove);
-              document.addEventListener('mouseup', onMouseUp);
-            }}
-            onTouchStart={(e) => {
-              const el = e.currentTarget;
-              const touch = e.touches[0];
-              const startX = touch.clientX - el.offsetLeft;
-              const startY = touch.clientY - el.offsetTop;
-              
-              const onTouchMove = (e) => {
-                const touch = e.touches[0];
-                el.style.left = (touch.clientX - startX) + 'px';
-                el.style.top = (touch.clientY - startY) + 'px';
-                el.style.right = 'auto';
-                el.style.bottom = 'auto';
-              };
-              
-              const onTouchEnd = () => {
-                document.removeEventListener('touchmove', onTouchMove);
-                document.removeEventListener('touchend', onTouchEnd);
-              };
-              
-              document.addEventListener('touchmove', onTouchMove);
-              document.addEventListener('touchend', onTouchEnd);
-            }}
-          >
-            <button
-              onClick={() => {
-                const riddle = getDailyRiddle(activeRiddleLevel);
-                setShowRiddle({ level: activeRiddleLevel, riddle });
-              }}
-              className="puzzle-float cursor-grab active:cursor-grabbing relative"
-              title={`Énigme du jour (+${config.xp} XP)`}
-            >
-              <span className="text-5xl drop-shadow-lg">🧩</span>
-              <span className="absolute -top-1 -right-1 bg-yellow-400 text-yellow-900 text-xs font-bold px-1.5 py-0.5 rounded-full shadow">
-                +{config.xp}
-              </span>
-            </button>
-          </div>
-        );
-      })()}
 
       {/* Modal d'animation de badge débloqué */}
       {unlockedBadge && (
@@ -2013,38 +1933,24 @@ const QuestApp = () => {
           level={showRiddle.level}
           onClose={() => setShowRiddle(null)}
           onSuccess={(xpReward) => {
-            // 1. Marquer comme fait dans Supabase
-            markRiddleDone(showRiddle.level, true);
-            
-            // 2. Ajouter les XP (même logique que pour les tâches)
-            let newXp = user.xp + xpReward;
-            let newLevel = user.level;
-            let newXpToNext = user.xpToNext;
-
-            while (newXp >= newXpToNext) {
-              newXp -= newXpToNext;
-              newLevel += 1;
-              newXpToNext = getXpForLevel(newLevel);
-            }
-
-            const newUser = {
-              ...user,
-              xp: newXp,
-              level: newLevel,
-              xpToNext: newXpToNext,
-            };
-
-            setUser(newUser);
-            
-            if (supabaseUser) {
-              saveProfile(newUser);
-            }
-            
-            // 3. Fermer le modal
-            setShowRiddle(null);
+            // Marquer comme fait aujourd'hui (succès)
+            const newSolved = [...riddlesSolvedToday, showRiddle.level];
+            setRiddlesSolvedToday(newSolved);
+            localStorage.setItem('todogame_riddlesSolved', JSON.stringify({
+              date: new Date().toDateString(),
+              levels: newSolved
+            }));
+            // Ajouter les XP
+            gainXP(xpReward);
           }}
           onFail={() => {
-            markRiddleDone(showRiddle.level, false);
+            // Marquer comme fait aujourd'hui (échec/abandon)
+            const newSolved = [...riddlesSolvedToday, showRiddle.level];
+            setRiddlesSolvedToday(newSolved);
+            localStorage.setItem('todogame_riddlesSolved', JSON.stringify({
+              date: new Date().toDateString(),
+              levels: newSolved
+            }));
           }}
         />
       )}

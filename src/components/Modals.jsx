@@ -1,6 +1,28 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 
+// Style pour le placeholder de l'éditeur
+const editorStyles = `
+  [contenteditable]:empty:before {
+    content: attr(data-placeholder);
+    color: #9ca3af;
+    pointer-events: none;
+  }
+  [contenteditable]:focus {
+    outline: none;
+  }
+  .checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 0;
+  }
+  .checkbox-box {
+    cursor: pointer;
+    user-select: none;
+  }
+`;
+
 // Modal de création/édition de tâche
 export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getStatusColor, missionMode, ownedItems = [], activeUpgrades = {}, existingTags = [], userId }) => {
   const [title, setTitle] = useState(initialTask?.title || '');
@@ -15,13 +37,11 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [assignedTo, setAssignedTo] = useState(initialTask?.assignedTo || '');
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
-  const [enlargedPhoto, setEnlargedPhoto] = useState(null);
 
   const isEditing = !!initialTask;
   
   // Notes étendues : 2000 caractères au lieu de 500 (possédé ET actif)
   const hasExtendedNotes = ownedItems.includes(72) && activeUpgrades[72] !== false;
-  const hasRichTextEditor = ownedItems.includes(85) && activeUpgrades[85] !== false;
   const hasPhotoNotes = ownedItems.includes(86) && activeUpgrades[86] !== false;
   const notesMaxLength = hasExtendedNotes ? 2000 : 500;
 
@@ -64,8 +84,9 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto">
+      <style>{editorStyles}</style>
       {/* Overlay bleu pour les tâches */}
-      <div className="fixed inset-0 bg-blue-500" onClick={onClose}></div>
+      <div className="fixed inset-0 bg-indigo-500" onClick={onClose}></div>
       
       {/* Conteneur centré */}
       <div className="min-h-full flex items-center justify-center p-4">
@@ -92,7 +113,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                 value={title}
                 onChange={(e) => setTitle(e.target.value.slice(0, 100))}
                 placeholder="Ex: Finir le rapport"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
               />
               <div className="text-xs text-slate-400 text-right mt-1">{title.length}/100</div>
             </div>
@@ -109,7 +130,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                       status === s 
                         ? s === 'urgent' ? 'bg-red-50 border-red-300 text-red-700' 
                           : s === 'à faire' ? 'bg-blue-50 border-blue-300 text-blue-700'
-                          : 'bg-teal-50 border-teal-300 text-teal-700'
+                          : 'bg-purple-50 border-purple-300 text-purple-700'
                         : 'border-slate-200 text-slate-600 hover:border-slate-300'
                     }`}
                   >
@@ -129,7 +150,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                     onClick={() => setDuration(d)}
                     className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all ${
                       duration === d 
-                        ? 'bg-blue-500 text-white border-blue-500' 
+                        ? 'bg-indigo-500 text-white border-indigo-500' 
                         : 'border-slate-200 text-slate-600 hover:border-slate-300'
                     }`}
                   >
@@ -147,7 +168,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
                 />
               </div>
             )}
@@ -173,7 +194,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                       }}
                       className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all ${
                         recurrence === r.value 
-                          ? 'bg-blue-500 text-white border-blue-500' 
+                          ? 'bg-purple-500 text-white border-purple-500' 
                           : 'border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
                     >
@@ -193,8 +214,8 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                           onClick={() => toggleDay(day.value)}
                           className={`py-2 rounded-lg border-2 font-semibold text-xs transition-all ${
                             recurrenceDays.includes(day.value)
-                              ? 'bg-blue-500 text-white border-blue-500'
-                              : 'border-slate-200 text-slate-600 hover:border-blue-300'
+                              ? 'bg-purple-500 text-white border-purple-500'
+                              : 'border-slate-200 text-slate-600 hover:border-purple-300'
                           }`}
                         >
                           {day.label}
@@ -215,8 +236,8 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                           onClick={() => toggleDay(day)}
                           className={`py-2 rounded-lg border-2 font-semibold text-xs transition-all ${
                             recurrenceDays.includes(day)
-                              ? 'bg-blue-500 text-white border-blue-500'
-                              : 'border-slate-200 text-slate-600 hover:border-blue-300'
+                              ? 'bg-purple-500 text-white border-purple-500'
+                              : 'border-slate-200 text-slate-600 hover:border-purple-300'
                           }`}
                         >
                           {day}
@@ -235,7 +256,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                 <select
                   value={assignedTo}
                   onChange={(e) => setAssignedTo(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
                 >
                   <option value="">Non assignée</option>
                   {missionMode.participants.map(p => (
@@ -253,7 +274,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
                 />
               </div>
             )}
@@ -271,7 +292,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                 onFocus={() => setShowTagSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
                 placeholder="Ex: BTS, Site web"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
               />
               
               {/* Suggestions de tags */}
@@ -323,46 +344,28 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
               {/* Barre d'outils éditeur - si amélioration achetée et active */}
               {(ownedItems.includes(85) && activeUpgrades[85] !== false) || hasPhotoNotes ? (
                 <div className="flex items-center gap-1 mb-2 p-2 bg-slate-100 rounded-lg flex-wrap">
+                  {/* Outils de formatage */}
                   {ownedItems.includes(85) && activeUpgrades[85] !== false && (
                     <>
                       <button
                         type="button"
-                        onClick={() => {
-                          const textarea = document.getElementById('notes-textarea');
-                          const start = textarea.selectionStart;
-                          const end = textarea.selectionEnd;
-                          const selectedText = notes.substring(start, end);
-                          const newText = notes.substring(0, start) + '**' + selectedText + '**' + notes.substring(end);
-                          setNotes(newText.slice(0, notesMaxLength));
-                        }}
+                        onClick={() => document.execCommand('bold', false, null)}
                         className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50"
-                        title="Gras"
+                        title="Gras (Ctrl+B)"
                       >
                         G
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          const textarea = document.getElementById('notes-textarea');
-                          const start = textarea.selectionStart;
-                          const end = textarea.selectionEnd;
-                          const selectedText = notes.substring(start, end);
-                          const newText = notes.substring(0, start) + '_' + selectedText + '_' + notes.substring(end);
-                          setNotes(newText.slice(0, notesMaxLength));
-                        }}
+                        onClick={() => document.execCommand('italic', false, null)}
                         className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm italic hover:bg-slate-50"
-                        title="Italique"
+                        title="Italique (Ctrl+I)"
                       >
                         I
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          const textarea = document.getElementById('notes-textarea');
-                          const start = textarea.selectionStart;
-                          const newText = notes.substring(0, start) + '\n• ' + notes.substring(start);
-                          setNotes(newText.slice(0, notesMaxLength));
-                        }}
+                        onClick={() => document.execCommand('insertUnorderedList', false, null)}
                         className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
                         title="Liste à puces"
                       >
@@ -371,67 +374,71 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                       <button
                         type="button"
                         onClick={() => {
-                          const textarea = document.getElementById('notes-textarea');
-                          const start = textarea.selectionStart;
-                          const newText = notes.substring(0, start) + '\n☐ ' + notes.substring(start);
-                          setNotes(newText.slice(0, notesMaxLength));
+                          const editor = document.getElementById('notes-editor');
+                          if (editor) {
+                            const selection = window.getSelection();
+                            const range = selection.getRangeAt(0);
+                            
+                            // Créer une checkbox
+                            const checkbox = document.createElement('div');
+                            checkbox.className = 'checkbox-item';
+                            checkbox.innerHTML = '<span class="checkbox-box" data-checked="false">☐</span> <span class="checkbox-text">Tâche</span>';
+                            
+                            range.insertNode(checkbox);
+                            range.collapse(false);
+                          }
                         }}
                         className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
                         title="Checklist"
                       >
                         ☐ Check
                       </button>
+                      <div className="w-px h-6 bg-slate-300 mx-1"></div>
                     </>
                   )}
                   
                   {/* Bouton photo */}
                   {hasPhotoNotes && (
-                    <>
-                      {/* Séparateur seulement si l'éditeur est aussi actif */}
-                      {ownedItems.includes(85) && activeUpgrades[85] !== false && (
-                        <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                    <label className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer flex items-center gap-1">
+                      {uploadingPhoto ? (
+                        <span className="animate-spin">⏳</span>
+                      ) : (
+                        <>📷 Photo</>
                       )}
-                      <label className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer flex items-center gap-1">
-                        {uploadingPhoto ? (
-                          <span className="animate-spin">⏳</span>
-                        ) : (
-                          <>📷 Photo</>
-                        )}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={uploadingPhoto}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file || !userId) return;
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingPhoto}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file || !userId) return;
+                          
+                          setUploadingPhoto(true);
+                          try {
+                            const fileExt = file.name.split('.').pop();
+                            const fileName = `${userId}/${Date.now()}.${fileExt}`;
                             
-                            setUploadingPhoto(true);
-                            try {
-                              const fileExt = file.name.split('.').pop();
-                              const fileName = `${userId}/${Date.now()}.${fileExt}`;
-                              
-                              const { data, error } = await supabase.storage
-                                .from('notes-photos')
-                                .upload(fileName, file);
-                              
-                              if (error) throw error;
-                              
-                              const { data: urlData } = supabase.storage
-                                .from('notes-photos')
-                                .getPublicUrl(fileName);
-                              
-                              setPhotos([...photos, urlData.publicUrl]);
-                            } catch (error) {
-                              console.error('Erreur upload:', error);
-                              alert('Erreur lors de l\'upload de la photo');
-                            }
-                            setUploadingPhoto(false);
-                            e.target.value = '';
-                          }}
-                        />
-                      </label>
-                    </>
+                            const { data, error } = await supabase.storage
+                              .from('notes-photos')
+                              .upload(fileName, file);
+                            
+                            if (error) throw error;
+                            
+                            const { data: urlData } = supabase.storage
+                              .from('notes-photos')
+                              .getPublicUrl(fileName);
+                            
+                            setPhotos([...photos, urlData.publicUrl]);
+                          } catch (error) {
+                            console.error('Erreur upload:', error);
+                            alert('Erreur lors de l\'upload de la photo');
+                          }
+                          setUploadingPhoto(false);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
                   )}
                 </div>
               ) : null}
@@ -444,8 +451,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                       <img 
                         src={url} 
                         alt={`Photo ${i + 1}`}
-                        className="w-20 h-20 object-cover rounded-lg border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => setEnlargedPhoto(url)}
+                        className="w-20 h-20 object-cover rounded-lg border border-slate-200"
                       />
                       <button
                         type="button"
@@ -458,38 +464,71 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                   ))}
                 </div>
               )}
-              
-              {/* Modal photo agrandie */}
-              {enlargedPhoto && (
-                <div 
-                  className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
-                  onClick={() => setEnlargedPhoto(null)}
-                >
-                  <div className="relative max-w-4xl max-h-[90vh]">
-                    <img 
-                      src={enlargedPhoto} 
-                      alt="Photo agrandie"
-                      className="max-w-full max-h-[90vh] object-contain rounded-lg"
-                    />
-                    <button
-                      onClick={() => setEnlargedPhoto(null)}
-                      className="absolute top-2 right-2 w-10 h-10 bg-black/50 text-white rounded-full text-xl hover:bg-black/70 transition-colors"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
+
+              {/* Zone de notes - Éditeur WYSIWYG */}
+              {ownedItems.includes(85) && activeUpgrades[85] !== false ? (
+                <div
+                  id="notes-editor"
+                  contentEditable
+                  suppressContentEditableWarning
+                  onKeyDown={(e) => {
+                    // Gérer la touche Entrée pour créer un vrai saut de ligne
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      document.execCommand('insertLineBreak');
+                    }
+                  }}
+                  onInput={(e) => {
+                    const html = e.currentTarget.innerHTML;
+                    // Limiter la longueur
+                    if (e.currentTarget.innerText.length <= notesMaxLength) {
+                      setNotes(html);
+                    } else {
+                      e.currentTarget.innerHTML = notes;
+                    }
+                  }}
+                  onBlur={(e) => {
+                    setNotes(e.currentTarget.innerHTML);
+                  }}
+                  onClick={(e) => {
+                    // Gestion des checkboxes cliquables
+                    const target = e.target;
+                    if (target.classList.contains('checkbox-box')) {
+                      e.preventDefault();
+                      const isChecked = target.dataset.checked === 'true';
+                      target.dataset.checked = isChecked ? 'false' : 'true';
+                      target.textContent = isChecked ? '☐' : '☑';
+                      target.className = isChecked 
+                        ? 'checkbox-box cursor-pointer' 
+                        : 'checkbox-box cursor-pointer text-green-600';
+                      
+                      // Mettre à jour le texte barré
+                      const textSpan = target.nextElementSibling;
+                      if (textSpan) {
+                        textSpan.style.textDecoration = isChecked ? 'none' : 'line-through';
+                        textSpan.style.color = isChecked ? 'inherit' : '#9ca3af';
+                      }
+                      
+                      setNotes(e.currentTarget.innerHTML);
+                    }
+                  }}
+                  dangerouslySetInnerHTML={{ __html: notes || '' }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 min-h-[100px] max-h-[200px] overflow-y-auto"
+                  style={{ minHeight: hasExtendedNotes ? '150px' : '100px' }}
+                  data-placeholder="Écris tes notes ici..."
+                />
+              ) : (
+                // Mode simple sans éditeur enrichi
+                <textarea
+                  id="notes-textarea"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value.slice(0, notesMaxLength))}
+                  placeholder="Ajouter des notes ou détails..."
+                  rows={hasExtendedNotes ? 6 : 4}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 resize-none"
+                />
               )}
-              
-              <textarea
-                id="notes-textarea"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value.slice(0, notesMaxLength))}
-                placeholder="Ajouter des notes ou détails..."
-                rows={hasExtendedNotes ? 6 : 4}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 resize-none"
-              />
-              <div className="text-xs text-slate-400 text-right mt-1">{notes.length}/{notesMaxLength}</div>
+              <div className="text-xs text-slate-400 text-right mt-1">{(typeof notes === 'string' ? notes.replace(/<[^>]*>/g, '').length : 0)}/{notesMaxLength}</div>
             </div>
           </div>
 
@@ -497,7 +536,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
             <button
               onClick={handleSubmit}
               disabled={!title.trim()}
-              className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50"
+              className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-500 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50"
             >
               Enregistrer
             </button>
@@ -541,10 +580,10 @@ export const ChestOpenedModal = ({ chest, onClose }) => {
             <div className="mb-6">
               <p className="text-sm text-slate-500 mb-3">Item bonus :</p>
               {chest.rewards.items.map((item, i) => (
-                <div key={i} className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+                <div key={i} className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4">
                   <div className="text-4xl mb-2">{item.image}</div>
-                  <div className="font-bold text-blue-900">{item.name}</div>
-                  <div className="text-xs text-blue-600">{item.type}</div>
+                  <div className="font-bold text-purple-900">{item.name}</div>
+                  <div className="text-xs text-purple-600">{item.type}</div>
                 </div>
               ))}
             </div>
@@ -552,7 +591,7 @@ export const ChestOpenedModal = ({ chest, onClose }) => {
 
           <button
             onClick={onClose}
-            className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform"
+            className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform"
           >
             Super ! 🎉
           </button>
@@ -581,7 +620,7 @@ export const TaskCompletedModal = ({ task, onClose }) => {
   return (
     <div className="fixed inset-0 z-[9999] overflow-hidden">
       {/* Overlay bleu pour les tâches */}
-      <div className="fixed inset-0 bg-blue-500"></div>
+      <div className="fixed inset-0 bg-indigo-500"></div>
       
       {/* Confettis animés */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -615,7 +654,7 @@ export const TaskCompletedModal = ({ task, onClose }) => {
       {/* Cercles de célébration */}
       <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-10">
         <div className="w-64 h-64 rounded-full border-4 border-yellow-400 animate-ping opacity-20"></div>
-        <div className="absolute w-48 h-48 rounded-full border-4 border-blue-400 animate-ping opacity-30" style={{ animationDelay: '0.2s' }}></div>
+        <div className="absolute w-48 h-48 rounded-full border-4 border-purple-400 animate-ping opacity-30" style={{ animationDelay: '0.2s' }}></div>
         <div className="absolute w-32 h-32 rounded-full border-4 border-green-400 animate-ping opacity-40" style={{ animationDelay: '0.4s' }}></div>
       </div>
 
@@ -630,7 +669,7 @@ export const TaskCompletedModal = ({ task, onClose }) => {
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="bg-gradient-to-br from-indigo-50 to-blue-100 rounded-2xl p-4 border-2 border-indigo-200">
               <div className="text-3xl sm:text-4xl font-black text-indigo-600">+{task.xp}</div>
-              <div className="text-3xl mt-1">⭐</div>
+              <div className="text-3xl mt-1">⚡</div>
             </div>
             <div className="bg-gradient-to-br from-amber-50 to-yellow-100 rounded-2xl p-4 border-2 border-amber-200">
               <div className="text-3xl sm:text-4xl font-black text-amber-600">+{task.points}</div>
@@ -779,7 +818,7 @@ export const MissionCompletedModal = ({ mission, pqDistribution, onClose }) => {
 };
 
 // Modal paramètres
-export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateEmail, onUpdatePassword, onDeleteAccount, ownedItems = [], activeUpgrades = {}, onToggleUpgrade, shopItems = [], onCheckPseudo, notificationStatus, onEnableNotifications, onDisableNotifications, isNotificationSupported, userId, onExportData }) => {
+export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateEmail, onUpdatePassword, onDeleteAccount, ownedItems = [], activeUpgrades = {}, onToggleUpgrade, shopItems = [], onCheckPseudo, notificationStatus, onEnableNotifications, onDisableNotifications, isNotificationSupported }) => {
   const [pseudo, setPseudo] = useState(user.pseudo);
   const [email, setEmail] = useState(user.email || '');
   const [customTitle, setCustomTitle] = useState(user.customTitle || '');
@@ -792,7 +831,6 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
   const [pseudoError, setPseudoError] = useState('');
   const [notifLoading, setNotifLoading] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
-  const [exporting, setExporting] = useState(false);
 
   // Filtrer les améliorations possédées (pas les boosts)
   const ownedUpgrades = shopItems.filter(item => 
@@ -923,7 +961,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                   setPseudoError('');
                 }}
                 className={`w-full bg-slate-50 border rounded-xl px-4 py-3 focus:outline-none ${
-                  pseudoError ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-blue-500'
+                  pseudoError ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-indigo-500'
                 }`}
               />
               {pseudoError && (
@@ -943,7 +981,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                   onChange={(e) => setCustomTitle(e.target.value.slice(0, 30))}
                   placeholder="Ex: Aventurier Légendaire"
                   maxLength={30}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
                 />
                 <p className="text-xs text-slate-400 mt-1">{customTitle.length}/30 caractères</p>
               </div>
@@ -956,7 +994,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value.trim().toLowerCase())}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
               />
             </div>
 
@@ -1029,7 +1067,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
@@ -1040,7 +1078,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
                 />
               </div>
             </div>
@@ -1068,6 +1106,50 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
             {/* Mes données - RGPD */}
             <div className="space-y-4">
               <h3 className="font-bold text-slate-900">Mes données</h3>
+              
+              <button
+                onClick={async () => {
+                  try {
+                    // Créer un fichier texte lisible
+                    const date = new Date().toLocaleDateString('fr-FR');
+                    const textContent = `=== MES DONNÉES TODOGAME ===
+Date d'export : ${date}
+
+PROFIL
+- Pseudo : ${user?.pseudo || 'Non défini'}
+- Email : ${email || 'Non défini'}
+- Niveau : ${user?.level || 1}
+- XP : ${user?.xp || 0}
+- Patates : ${user?.potatoes || 0}
+- Avatar : ${user?.avatar || '🎮'}
+
+STATISTIQUES
+- Tâches complétées : ${user?.tasksCompleted || 0}
+- Événements complétés : ${user?.eventsCompleted || 0}
+- Missions complétées : ${user?.missionsCompleted || 0}
+
+---
+Données exportées conformément au RGPD
+Droit à la portabilité des données`;
+                    
+                    // Créer et télécharger le fichier texte
+                    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `todogame-export-${new Date().toISOString().split('T')[0]}.txt`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  } catch (error) {
+                    console.error('Erreur export:', error);
+                  }
+                }}
+                className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-600 py-3 rounded-xl font-semibold border border-indigo-200 transition-all"
+              >
+                Exporter mes données
+              </button>
               
               <button
                 onClick={() => setShowPrivacyModal(true)}
@@ -1173,36 +1255,11 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
               
               <h3 className="font-bold text-slate-900">6. Vos droits</h3>
               <p>Conformément au RGPD, vous disposez des droits suivants :</p>
-              <ul className="list-disc pl-5 space-y-2">
-                <li>
-                  <strong>Droit d'accès et portabilité :</strong> exporter vos données
-                  <button
-                    onClick={async () => {
-                      setExporting(true);
-                      try {
-                        await onExportData();
-                      } catch (e) {
-                        console.error(e);
-                      }
-                      setExporting(false);
-                    }}
-                    disabled={exporting}
-                    className="ml-2 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold hover:bg-indigo-200 transition-colors disabled:opacity-50"
-                  >
-                    {exporting ? '⏳ Export...' : '📥 Télécharger mes données'}
-                  </button>
-                </li>
-                <li><strong>Droit de rectification :</strong> modifier vos informations dans les paramètres</li>
-                <li>
-                  <strong>Droit à l'effacement :</strong> supprimer votre compte
-                  <button
-                    onClick={() => { setShowPrivacyModal(false); }}
-                    className="ml-2 px-3 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-200 transition-colors"
-                  >
-                    🗑️ Supprimer mon compte
-                  </button>
-                  <span className="block text-xs text-slate-500 mt-1">(Voir "Zone dangereuse" dans les paramètres)</span>
-                </li>
+              <ul className="list-disc pl-5 space-y-1">
+                <li><strong>Droit d'accès :</strong> exporter vos données depuis les paramètres</li>
+                <li><strong>Droit de rectification :</strong> modifier vos informations dans l'app</li>
+                <li><strong>Droit à l'effacement :</strong> supprimer votre compte dans les paramètres</li>
+                <li><strong>Droit à la portabilité :</strong> exporter vos données au format JSON</li>
               </ul>
               
               <h3 className="font-bold text-slate-900">7. Sécurité</h3>
@@ -1238,7 +1295,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
             <div className="p-4 border-t border-slate-200">
               <button
                 onClick={() => setShowPrivacyModal(false)}
-                className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-3 rounded-xl font-bold hover:opacity-90 transition-all"
+                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-bold hover:opacity-90 transition-all"
               >
                 Fermer
               </button>
@@ -1593,7 +1650,7 @@ export const MissionDetailModal = ({
                           {!quest.completed && (
                             <div className="flex items-center gap-1 flex-shrink-0">
                               <span className="px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
-                                ⭐+{quest.xp || 10}
+                                ⚡+{quest.xp || 10}
                               </span>
                               <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
                                 🥔+{quest.xp || 10}
@@ -2256,7 +2313,7 @@ export const EventCompletedModal = ({ event, onClose }) => {
           <div className={`grid ${pqGained > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-3 mb-6`}>
             <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-4 border-2 border-blue-200">
               <div className="text-2xl font-black text-blue-600">+{xpGained}</div>
-              <div className="text-2xl mt-1">⭐</div>
+              <div className="text-2xl mt-1">⚡</div>
             </div>
             <div className="bg-gradient-to-br from-amber-50 to-yellow-100 rounded-2xl p-4 border-2 border-amber-200">
               <div className="text-2xl font-black text-amber-600">+{pointsGained}</div>
@@ -2289,6 +2346,247 @@ export const EventCompletedModal = ({ event, onClose }) => {
           >
             Super ! 🎉
           </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Modal Énigme quotidienne
+export const RiddleModal = ({ riddle, level, onClose, onSuccess, onFail }) => {
+  const [answer, setAnswer] = useState('');
+  const [result, setResult] = useState(null); // 'success', 'failed', null
+  const [showExplanation, setShowExplanation] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const [hasStarted, setHasStarted] = useState(false);
+  const maxAttempts = 3;
+
+  const levelConfig = {
+    1: { name: 'Facile', color: 'from-green-400 to-emerald-500', icon: '🧩', xp: 25 },
+    2: { name: 'Moyen', color: 'from-amber-400 to-orange-500', icon: '🧠', xp: 50 },
+    3: { name: 'Difficile', color: 'from-purple-500 to-pink-500', icon: '🎓', xp: 100 }
+  };
+
+  const config = levelConfig[level] || levelConfig[1];
+  const canStillTry = attempts < maxAttempts && result !== 'success' && result !== 'failed';
+
+  const handleSubmit = () => {
+    if (!answer.trim() || !canStillTry) return;
+    
+    setHasStarted(true);
+    
+    const normalizedAnswer = answer.toLowerCase().trim()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    
+    const isCorrect = riddle.acceptedAnswers.some(accepted => {
+      const normalizedAccepted = accepted.toLowerCase().trim()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return normalizedAnswer === normalizedAccepted;
+    });
+
+    const newAttempts = attempts + 1;
+    setAttempts(newAttempts);
+
+    if (isCorrect) {
+      setResult('success');
+      setShowExplanation(true);
+    } else if (newAttempts >= maxAttempts) {
+      setResult('failed');
+      setShowExplanation(true);
+      onFail();
+    } else {
+      setAnswer('');
+    }
+  };
+
+  const handleShowAnswer = () => {
+    setResult('failed');
+    setShowExplanation(true);
+    onFail();
+  };
+
+  const handleClose = () => {
+    if (hasStarted && !result) {
+      if (window.confirm('Tu as déjà commencé ! Si tu quittes maintenant, tu perdras cette énigme pour aujourd\'hui.')) {
+        onFail();
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={handleClose}></div>
+      
+      <div className="min-h-full flex items-center justify-center p-4">
+        <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+          {/* Bouton fermer */}
+          <button
+            type="button"
+            onClick={handleClose}
+            className="absolute top-4 right-4 z-20 w-8 h-8 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center text-white font-bold transition-colors"
+          >
+            ✕
+          </button>
+
+          {/* Header */}
+          <div className={`bg-gradient-to-r ${config.color} p-6 text-white text-center relative overflow-hidden`}>
+            <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-30">
+              <span className="absolute text-3xl animate-pulse" style={{ top: '10%', left: '10%' }}>🧩</span>
+              <span className="absolute text-2xl animate-pulse" style={{ top: '60%', left: '80%' }}>🧩</span>
+              <span className="absolute text-2xl animate-pulse" style={{ top: '30%', left: '85%' }}>🧩</span>
+              <span className="absolute text-3xl animate-pulse" style={{ top: '70%', left: '15%' }}>🧩</span>
+            </div>
+            
+            <div className="relative z-10">
+              <div className="text-4xl mb-2">{config.icon}</div>
+              <h2 className="text-2xl font-black">Énigme du jour</h2>
+              <div className="inline-block mt-2 px-3 py-1 bg-white/20 rounded-full text-sm font-semibold">
+                Niveau {config.name} • +{config.xp} XP
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-4">
+            {/* Compteur de tentatives */}
+            <div className="flex justify-center gap-2">
+              {[...Array(maxAttempts)].map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-3 h-3 rounded-full transition-all ${
+                    i < attempts
+                      ? result === 'success' && i === attempts - 1
+                        ? 'bg-green-500'
+                        : 'bg-red-400'
+                      : 'bg-slate-200'
+                  }`}
+                />
+              ))}
+              <span className="text-xs text-slate-500 ml-2">
+                {canStillTry ? `${maxAttempts - attempts} essai${maxAttempts - attempts > 1 ? 's' : ''} restant${maxAttempts - attempts > 1 ? 's' : ''}` : ''}
+              </span>
+            </div>
+
+            {/* Question */}
+            <div className="bg-slate-50 rounded-2xl p-4 border-2 border-slate-200">
+              <p className="text-lg text-slate-800 font-medium leading-relaxed">
+                {riddle.question}
+              </p>
+            </div>
+
+            {/* Résultat succès */}
+            {result === 'success' && (
+              <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-4 text-center">
+                <div className="text-4xl mb-2">🎉</div>
+                <p className="text-green-700 font-bold text-lg">Bravo ! Bonne réponse !</p>
+                <p className="text-green-600 text-sm mt-1">
+                  Tu as trouvé en {attempts} essai{attempts > 1 ? 's' : ''}
+                </p>
+              </div>
+            )}
+
+            {/* Résultat échec */}
+            {result === 'failed' && (
+              <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 text-center">
+                <div className="text-4xl mb-2">😔</div>
+                <p className="text-red-700 font-bold text-lg">Dommage !</p>
+                <p className="text-red-600 text-sm mt-1">
+                  Tu pourras réessayer demain
+                </p>
+              </div>
+            )}
+
+            {/* Mauvaise réponse mais encore des essais */}
+            {attempts > 0 && canStillTry && (
+              <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-3 text-center">
+                <p className="text-amber-700 font-semibold">❌ Mauvaise réponse, réessaie !</p>
+              </div>
+            )}
+
+            {/* Champ de réponse */}
+            {canStillTry && (
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={answer}
+                  onChange={(e) => {
+                    setAnswer(e.target.value);
+                    if (e.target.value) setHasStarted(true);
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                  placeholder="Ta réponse..."
+                  className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-indigo-500"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={!answer.trim()}
+                  className={`w-full bg-gradient-to-r ${config.color} text-white py-3 rounded-xl font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50`}
+                >
+                  Valider ({maxAttempts - attempts} restant{maxAttempts - attempts > 1 ? 's' : ''})
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={handleShowAnswer}
+                  className="w-full text-slate-500 text-sm hover:text-slate-700 py-2"
+                >
+                  Voir la réponse (abandon)
+                </button>
+              </div>
+            )}
+
+            {/* Explication */}
+            {showExplanation && (
+              <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4">
+                <p className="text-sm text-indigo-600 font-semibold mb-1">💡 Explication :</p>
+                <p className="text-indigo-800">{riddle.explanation}</p>
+                <p className="text-indigo-600 mt-2 font-medium">
+                  Réponse : <span className="font-bold">{riddle.answer}</span>
+                </p>
+              </div>
+            )}
+
+            {/* BOUTON RÉCUPÉRER XP - SUCCÈS */}
+            {result === 'success' && (
+              <button
+                type="button"
+                onClick={() => onSuccess(riddle.xpReward)}
+                style={{ 
+                  width: '100%',
+                  padding: '16px',
+                  backgroundColor: '#f59e0b',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '18px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                <span>Récupérer +{config.xp} XP</span>
+                <span style={{ fontSize: '24px' }}>⚡</span>
+              </button>
+            )}
+
+            {/* Bouton fermer si échec */}
+            {result === 'failed' && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-semibold hover:bg-slate-200"
+              >
+                Fermer
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

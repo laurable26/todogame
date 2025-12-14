@@ -49,22 +49,10 @@ export const useGameData = (supabaseUser) => {
     return saved ? JSON.parse(saved) : {};
   });
   
-  // Thème et préférences - initialisé depuis activeUpgrades
-  const [theme, setTheme] = useState(() => {
-    const savedUpgrades = localStorage.getItem('todogame_activeUpgrades');
-    const upgrades = savedUpgrades ? JSON.parse(savedUpgrades) : {};
-    
-    // Déterminer le mode sombre depuis activeUpgrades[78]
-    const darkMode = upgrades[78] === true;
-    
-    // Déterminer le thème de couleur
-    let colorTheme = 'default';
-    if (upgrades[73] === true) colorTheme = 'rose';
-    else if (upgrades[74] === true) colorTheme = 'vert';
-    else if (upgrades[75] === true) colorTheme = 'bleu';
-    else if (upgrades[76] === true) colorTheme = 'violet';
-    
-    return { darkMode, colorTheme };
+  // Thème et préférences
+  const [theme, setTheme] = useState({
+    darkMode: false,
+    colorTheme: 'default', // 'default', 'rose', 'vert', 'bleu', 'violet'
   });
   
   // Boosts actifs (avec date d'expiration)
@@ -88,7 +76,6 @@ export const useGameData = (supabaseUser) => {
     { id: 14, name: 'Milliardaire', description: 'Richesse ultime', emoji: '💎', bronze: false, silver: false, gold: false, category: 'collection', requirements: { bronze: 'Dépense 50 000 patates', silver: 'Dépense 500 000 patates', gold: 'Dépense 5 000 000 patates' }, thresholds: { bronze: 50000, silver: 500000, gold: 5000000 }, stat: 'totalSpent' },
     { id: 15, name: 'Architecte', description: 'Créateur prolifique', emoji: '🏗️', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: '1000 quêtes créées', silver: '5000 quêtes créées', gold: '20 000 quêtes créées' }, thresholds: { bronze: 1000, silver: 5000, gold: 20000 }, stat: 'questsCreated' },
     { id: 16, name: 'Immortel', description: 'Persévérance', emoji: '♾️', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '1000 quêtes complétées', silver: '10 000 quêtes complétées', gold: '50 000 quêtes complétées' }, thresholds: { bronze: 1000, silver: 10000, gold: 50000 }, stat: 'tasksCompleted' },
-    { id: 17, name: 'Festivités', description: 'Défis saisonniers', emoji: '🎄', bronze: false, silver: false, gold: false, category: 'collection', requirements: { bronze: 'Complète 3 défis', silver: 'Complète 6 défis', gold: 'Complète 12 défis' }, thresholds: { bronze: 3, silver: 6, gold: 12 }, stat: 'seasonalChallenges' },
   ]);
 
   const [shopItems] = useState([
@@ -146,13 +133,14 @@ export const useGameData = (supabaseUser) => {
     { id: 77, name: 'Tri Avancé', price: 600, type: 'amelioration', image: '🔀', description: 'Options de tri supplémentaires', isAdvancedSort: true },
     { id: 84, name: 'Filtre de Tâches', price: 800, type: 'amelioration', image: '🔍', description: 'Filtre par statut et durée', isQuestFilter: true },
     { id: 78, name: 'Mode Sombre', price: 1000, type: 'amelioration', image: '🌙', description: 'Active le thème sombre', isDarkMode: true },
-    { id: 87, name: 'Journaling', price: 1200, type: 'amelioration', image: '🦋', description: 'Journal quotidien + bilan hebdo', isJournaling: true },
-    { id: 88, name: 'Citations', price: 200, type: 'amelioration', image: '🎴', description: 'Citation inspirante quotidienne', isDailyQuote: true },
     { id: 79, name: 'Titre Personnalisé', price: 1500, type: 'amelioration', image: '🏷️', description: 'Affiche un titre sous ton pseudo', isCustomTitle: true },
     { id: 80, name: 'Animations +', price: 2000, type: 'amelioration', image: '💫', description: 'Animations améliorées', isAnimations: true },
-    { id: 81, name: 'Statistiques', price: 2500, type: 'amelioration', image: '📊', description: 'Stats détaillées', unlocksStats: true },
+    { id: 81, name: 'Statistiques Pro', price: 2500, type: 'amelioration', image: '📊', description: 'Stats détaillées', unlocksStats: true },
     { id: 82, name: 'Fond Animé', price: 3000, type: 'amelioration', image: '🌠', description: 'Fond avec particules animées', isAnimatedBg: true },
     { id: 83, name: 'Badge VIP', price: 5000, type: 'amelioration', image: '👑', description: 'Badge VIP à côté du pseudo', isVipBadge: true },
+    { id: 87, name: 'Énigmes Faciles', price: 300, type: 'amelioration', image: '🧩', description: 'Énigme quotidienne niveau facile (+25 XP)', riddleLevel: 1 },
+    { id: 88, name: 'Énigmes Moyennes', price: 600, type: 'amelioration', image: '🧠', description: 'Énigme quotidienne niveau moyen (+50 XP)', riddleLevel: 2 },
+    { id: 89, name: 'Énigmes Difficiles', price: 1000, type: 'amelioration', image: '🎓', description: 'Énigme quotidienne niveau difficile (+100 XP)', riddleLevel: 3 },
     // Boosts temporaires - consommables (prix élevés car réutilisables)
     { id: 2, name: 'Lucky Chest', price: 150, type: 'boost', duration: 'Instantané', image: '🍀', description: 'Coffre aléatoire (chance de rare)', boostType: 'lucky_chest', instant: true },
     { id: 3, name: 'Coffre Splendide', price: 300, type: 'boost', duration: 'Instantané', image: '🎀', description: 'Reçois un coffre splendide', boostType: 'instant_silver_chest', instant: true },
@@ -166,16 +154,12 @@ export const useGameData = (supabaseUser) => {
     { id: 11, name: 'Super Combo', price: 1500, type: 'boost', duration: '24h', image: '🌟', description: 'x2 XP + x2 Patates pendant 24h', boostType: 'super_combo', durationMs: 24 * 60 * 60 * 1000, multiplier: 2 },
   ]);
 
-  // Flag pour éviter les rechargements multiples
-  const [dataLoaded, setDataLoaded] = useState(false);
-
-  // Charger les données au montage (une seule fois)
+  // Charger les données au montage
   useEffect(() => {
-    if (supabaseUser && !dataLoaded) {
+    if (supabaseUser) {
       loadUserData(supabaseUser.id);
-      setDataLoaded(true);
     }
-  }, [supabaseUser, dataLoaded]);
+  }, [supabaseUser]);
 
   const loadUserData = async (userId) => {
     try {
@@ -234,8 +218,7 @@ export const useGameData = (supabaseUser) => {
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      if (tasksData && tasksData.length > 0) {
-        console.log(`[useGameData] Chargement de ${tasksData.length} tâches`);
+      if (tasksData) {
         setTasks(tasksData.map(t => ({
           id: t.id,
           title: t.title,
@@ -250,9 +233,6 @@ export const useGameData = (supabaseUser) => {
           notes: t.notes || '',
           photos: t.photos || [],
         })));
-      } else if (tasksData) {
-        console.log('[useGameData] Aucune tâche trouvée');
-        setTasks([]);
       }
 
       // Charger les événements
@@ -403,30 +383,6 @@ export const useGameData = (supabaseUser) => {
       ]);
     } catch (error) {
       console.error('Erreur sauvegarde ami:', error);
-    }
-  };
-
-  // Supprimer un ami
-  const deleteFriend = async (userPseudo, friendPseudo) => {
-    if (!supabaseUser) return;
-    
-    try {
-      // Supprimer la relation dans les deux sens
-      await supabase
-        .from('friends')
-        .delete()
-        .eq('user_pseudo', userPseudo)
-        .eq('friend_pseudo', friendPseudo);
-      
-      await supabase
-        .from('friends')
-        .delete()
-        .eq('user_pseudo', friendPseudo)
-        .eq('friend_pseudo', userPseudo);
-        
-      console.log(`Ami supprimé: ${friendPseudo}`);
-    } catch (error) {
-      console.error('Erreur suppression ami:', error);
     }
   };
 
@@ -606,98 +562,10 @@ export const useGameData = (supabaseUser) => {
   };
 
   // Mettre à jour l'utilisateur et sauvegarder
-  const updateUser = async (newUserData) => {
-    const oldPseudo = user.pseudo;
-    const newPseudo = newUserData.pseudo;
-    
+  const updateUser = (newUserData) => {
     // Créer un nouvel objet pour forcer le re-render
     setUser({ ...newUserData });
-    await saveProfile(newUserData);
-    
-    // Si le pseudo a changé, mettre à jour partout
-    if (oldPseudo && newPseudo && oldPseudo !== newPseudo) {
-      await updatePseudoEverywhere(oldPseudo, newPseudo);
-    }
-  };
-
-  // Mettre à jour le pseudo dans toutes les tables
-  const updatePseudoEverywhere = async (oldPseudo, newPseudo) => {
-    if (!supabaseUser) return;
-    
-    try {
-      console.log(`Mise à jour pseudo: ${oldPseudo} → ${newPseudo}`);
-      
-      // 1. Mettre à jour friends (user_pseudo)
-      await supabase
-        .from('friends')
-        .update({ user_pseudo: newPseudo })
-        .eq('user_pseudo', oldPseudo);
-      
-      // 2. Mettre à jour friends (friend_pseudo) - quand d'autres nous ont en ami
-      await supabase
-        .from('friends')
-        .update({ friend_pseudo: newPseudo })
-        .eq('friend_pseudo', oldPseudo);
-      
-      // 3. Mettre à jour friend_requests (from_user)
-      await supabase
-        .from('friend_requests')
-        .update({ from_user: newPseudo })
-        .eq('from_user', oldPseudo);
-      
-      // 4. Mettre à jour friend_requests (to_user)
-      await supabase
-        .from('friend_requests')
-        .update({ to_user: newPseudo })
-        .eq('to_user', oldPseudo);
-      
-      // 5. Mettre à jour missions (created_by)
-      await supabase
-        .from('missions')
-        .update({ created_by: newPseudo })
-        .eq('created_by', oldPseudo);
-      
-      // 6. Mettre à jour missions (participant_pseudos et participants)
-      // Récupérer toutes les missions où l'utilisateur est participant
-      const { data: missionsWithUser } = await supabase
-        .from('missions')
-        .select('*')
-        .contains('participant_pseudos', [oldPseudo]);
-      
-      if (missionsWithUser) {
-        for (const mission of missionsWithUser) {
-          // Mettre à jour participant_pseudos
-          const newParticipantPseudos = mission.participant_pseudos.map(p => 
-            p === oldPseudo ? newPseudo : p
-          );
-          
-          // Mettre à jour participants (array d'objets avec pseudo)
-          const newParticipants = (mission.participants || []).map(p => 
-            p.pseudo === oldPseudo ? { ...p, pseudo: newPseudo } : p
-          );
-          
-          // Mettre à jour les quests (assignedTo, completedBy)
-          const newQuests = (mission.quests || []).map(q => ({
-            ...q,
-            assignedTo: q.assignedTo === oldPseudo ? newPseudo : q.assignedTo,
-            completedBy: q.completedBy === oldPseudo ? newPseudo : q.completedBy,
-          }));
-          
-          await supabase
-            .from('missions')
-            .update({
-              participant_pseudos: newParticipantPseudos,
-              participants: newParticipants,
-              quests: newQuests,
-            })
-            .eq('id', mission.id);
-        }
-      }
-      
-      console.log('Pseudo mis à jour partout avec succès');
-    } catch (error) {
-      console.error('Erreur mise à jour pseudo:', error);
-    }
+    saveProfile(newUserData);
   };
 
   // Mettre à jour les coffres et sauvegarder
@@ -1015,7 +883,6 @@ export const useGameData = (supabaseUser) => {
     saveOwnedItems,
     saveEquippedItems,
     saveFriend,
-    deleteFriend,
     saveMission,
     deleteMission,
     saveEvent,

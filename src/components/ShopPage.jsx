@@ -26,6 +26,22 @@ export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippe
     return activeBoosts.some(b => b.type === boostType && new Date(b.expiresAt) > now);
   };
 
+  // Vérifier le niveau d'énigme le plus élevé possédé et actif
+  const getHighestRiddleLevel = () => {
+    if (ownedItems.includes(89) && activeUpgrades[89] !== false) return 3;
+    if (ownedItems.includes(88) && activeUpgrades[88] !== false) return 2;
+    if (ownedItems.includes(87) && activeUpgrades[87] !== false) return 1;
+    return 0;
+  };
+  
+  const highestRiddleLevel = getHighestRiddleLevel();
+  
+  // Vérifier si un item d'énigme est remplacé par un niveau supérieur
+  const isRiddleDisabled = (item) => {
+    if (!item.riddleLevel) return false;
+    return item.riddleLevel < highestRiddleLevel;
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
       <h1 className="text-3xl font-black text-slate-900">Boutique</h1>
@@ -77,22 +93,25 @@ export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippe
           const canBuy = userPoints >= item.price;
           const boostActive = item.type === 'boost' && item.boostType && isBoostActive(item.boostType);
           const upgradeActive = item.type === 'amelioration' && owned && isUpgradeActive(item.id);
+          const riddleDisabled = isRiddleDisabled(item);
 
           return (
             <div 
               key={item.id}
               className={`bg-white rounded-2xl p-4 border-2 shadow-sm transition-all ${
-                boostActive
-                  ? 'border-amber-400 bg-amber-50'
-                  : upgradeActive
-                    ? 'border-green-400 bg-green-50'
-                    : item.type === 'amelioration' && owned
-                      ? 'border-slate-300 bg-slate-50 opacity-75'
-                      : equipped 
-                        ? 'border-green-400 bg-green-50' 
-                        : owned 
-                          ? 'border-indigo-300' 
-                          : 'border-slate-200'
+                riddleDisabled
+                  ? 'border-slate-200 bg-slate-100 opacity-50'
+                  : boostActive
+                    ? 'border-amber-400 bg-amber-50'
+                    : upgradeActive
+                      ? 'border-green-400 bg-green-50'
+                      : item.type === 'amelioration' && owned
+                        ? 'border-slate-300 bg-slate-50 opacity-75'
+                        : equipped 
+                          ? 'border-green-400 bg-green-50' 
+                          : owned 
+                            ? 'border-indigo-300' 
+                            : 'border-slate-200'
               }`}
             >
               <div className="text-center">
@@ -151,7 +170,12 @@ export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippe
                   </button>
                 ) : item.type === 'amelioration' ? (
                   // Améliorations - activables/désactivables après achat
-                  owned ? (
+                  riddleDisabled ? (
+                    // Énigme remplacée par niveau supérieur
+                    <div className="w-full py-2 rounded-lg font-bold text-sm bg-slate-300 text-slate-500 text-center">
+                      Remplacé
+                    </div>
+                  ) : owned ? (
                     <button
                       onClick={() => onToggleUpgrade && onToggleUpgrade(item.id, shopItems)}
                       className={`w-full py-2 rounded-lg font-bold text-sm transition-all ${
