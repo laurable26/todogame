@@ -68,6 +68,7 @@ const QuestApp = () => {
     sendSharedRequests,
     acceptSharedRequest,
     rejectSharedRequest,
+    refreshSharedRequests,
     ownedItems,
     setOwnedItems,
     equippedItems,
@@ -156,6 +157,17 @@ const QuestApp = () => {
   
   // Vérifier si l'amélioration Journaling est active
   const hasJournaling = ownedItems.includes(91) && activeUpgrades[91] !== false;
+
+  // Polling pour les demandes de partage (toutes les 30 secondes)
+  useEffect(() => {
+    if (!supabaseUser || !user.pseudo) return;
+    
+    const interval = setInterval(() => {
+      refreshSharedRequests();
+    }, 30000); // 30 secondes
+    
+    return () => clearInterval(interval);
+  }, [supabaseUser, user.pseudo, refreshSharedRequests]);
 
   // Charger et écouter les notifications en temps réel
   useEffect(() => {
@@ -943,7 +955,12 @@ const QuestApp = () => {
 
       // Envoyer les demandes de partage aux participants
       if (newTask.participants && newTask.participants.length > 0) {
-        await sendSharedRequests('task', newTask.id, newTask.participants);
+        await sendSharedRequests('task', newTask.id, newTask.participants, {
+          title: newTask.title,
+          date: newTask.date?.toISOString(),
+          duration: newTask.duration,
+          status: newTask.status,
+        });
       }
     }
   };
@@ -973,7 +990,12 @@ const QuestApp = () => {
           p => !oldParticipants.includes(p.pseudo)
         );
         if (newParticipants.length > 0) {
-          await sendSharedRequests('task', taskId, newParticipants);
+          await sendSharedRequests('task', taskId, newParticipants, {
+            title: taskData.title,
+            date: taskData.date?.toISOString(),
+            duration: taskData.duration,
+            status: taskData.status,
+          });
         }
       }
     }
@@ -1074,7 +1096,13 @@ const QuestApp = () => {
 
       // Envoyer les demandes de partage aux participants
       if (newEvent.participants && newEvent.participants.length > 0) {
-        await sendSharedRequests('event', newEvent.id, newEvent.participants);
+        await sendSharedRequests('event', newEvent.id, newEvent.participants, {
+          title: newEvent.title,
+          date: newEvent.date?.toISOString(),
+          duration: newEvent.duration,
+          time: newEvent.time,
+          location: newEvent.location,
+        });
       }
     }
   };
@@ -1094,7 +1122,13 @@ const QuestApp = () => {
           p => !oldParticipants.includes(p.pseudo)
         );
         if (newParticipants.length > 0) {
-          await sendSharedRequests('event', eventId, newParticipants);
+          await sendSharedRequests('event', eventId, newParticipants, {
+            title: eventData.title,
+            date: eventData.date?.toISOString(),
+            duration: eventData.duration,
+            time: eventData.time,
+            location: eventData.location,
+          });
         }
       }
     }

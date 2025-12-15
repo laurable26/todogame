@@ -519,63 +519,114 @@ export const TasksPage = ({
         </div>
       </div>
 
-      <PageHelp pageId="tasks" color="blue">
-        <strong>📋 Organise ton quotidien !</strong> Crée des tâches avec une durée estimée pour gagner des XP et des patates. 
-
-      {/* Invitations à participer - Bandeau compact et responsive */}
+      {/* Invitations à participer */}
       {sharedRequests && sharedRequests.length > 0 && (
-        <div className="bg-gradient-to-r from-violet-500 to-indigo-500 rounded-xl p-3 shadow-lg">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                {sharedRequests.length}
-              </span>
-              <span className="text-white font-medium text-sm truncate">
-                {sharedRequests.length === 1 ? 'Invitation' : 'Invitations'}
-              </span>
-            </div>
-            
-            {/* Sur mobile : afficher juste le premier, sur desktop : tous */}
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-              {sharedRequests.slice(0, 3).map((request) => (
-                <div 
-                  key={request.id} 
-                  className="flex items-center gap-2 bg-white/95 rounded-lg px-2 py-1.5 flex-shrink-0"
-                >
-                  <span className="text-lg">{request.fromAvatar}</span>
-                  <div className="hidden sm:block">
-                    <p className="text-xs font-medium text-slate-700 truncate max-w-[100px]">
-                      {request.itemTitle}
-                    </p>
-                    <p className="text-xs text-slate-500">{request.fromPseudo}</p>
+        <div className="bg-gradient-to-r from-violet-500 to-indigo-500 rounded-xl p-4 shadow-lg">
+          <h2 className="text-white font-bold text-lg mb-3 flex items-center gap-2">
+            <span className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center text-sm">
+              {sharedRequests.length}
+            </span>
+            {sharedRequests.length === 1 ? 'Invitation à participer' : 'Invitations à participer'}
+          </h2>
+          
+          <div className="space-y-3">
+            {sharedRequests.map((request) => (
+              <div 
+                key={request.id} 
+                className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-violet-400"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    {/* Titre avec icône */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">{request.itemType === 'task' ? '📝' : '📅'}</span>
+                      <h3 className="font-bold text-slate-800 text-base">
+                        {request.itemTitle || (request.itemType === 'task' ? 'Tâche sans titre' : 'Événement sans titre')}
+                      </h3>
+                    </div>
+                    
+                    {/* Infos : statut/heure, durée, date, lieu */}
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                      {/* Pour les tâches : statut */}
+                      {request.itemType === 'task' && request.itemStatus && (
+                        <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                          request.itemStatus === 'urgent' 
+                            ? 'bg-red-50 border border-red-200 text-red-600' 
+                            : request.itemStatus === 'important'
+                            ? 'bg-orange-50 border border-orange-200 text-orange-600'
+                            : 'bg-slate-100 border border-slate-200 text-slate-600'
+                        }`}>
+                          {request.itemStatus}
+                        </span>
+                      )}
+                      
+                      {/* Pour les événements : heure */}
+                      {request.itemType === 'event' && request.itemTime && (
+                        <span className="px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 text-xs font-medium">
+                          🕐 {request.itemTime}
+                        </span>
+                      )}
+                      
+                      {/* Durée */}
+                      {request.itemDuration && (
+                        <span className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                          ⏱️ {request.itemDuration}
+                        </span>
+                      )}
+                      
+                      {/* Date */}
+                      {request.itemDate && (
+                        <span className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                          📆 {new Date(request.itemDate).toLocaleDateString('fr-FR', {
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short'
+                          })}
+                        </span>
+                      )}
+                      
+                      {/* Lieu (événements) */}
+                      {request.itemType === 'event' && request.itemLocation && (
+                        <span className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                          📍 {request.itemLocation}
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Envoyeur */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{request.fromAvatar}</span>
+                      <span className="text-sm text-violet-600 font-medium">
+                        Invitation de <strong>{request.fromPseudo}</strong>
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex gap-1">
+                  
+                  {/* Boutons */}
+                  <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
                     <button
                       onClick={() => onAcceptSharedRequest(request.id)}
-                      className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center hover:bg-green-600 transition-colors text-sm font-bold"
+                      className="px-4 py-2 rounded-xl bg-green-500 text-white font-semibold text-sm hover:bg-green-600 transition-colors shadow-md"
                     >
-                      ✓
+                      ✓ Accepter
                     </button>
                     <button
                       onClick={() => onDeclineSharedRequest(request.id)}
-                      className="w-7 h-7 rounded-full bg-slate-300 text-slate-600 flex items-center justify-center hover:bg-slate-400 transition-colors text-sm"
+                      className="px-4 py-2 rounded-xl bg-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-300 transition-colors"
                     >
-                      ✕
+                      Refuser
                     </button>
                   </div>
                 </div>
-              ))}
-              {sharedRequests.length > 3 && (
-                <span className="text-white/80 text-xs flex-shrink-0">
-                  +{sharedRequests.length - 3}
-                </span>
-              )}
-            </div>
+              </div>
+            ))}
           </div>
         </div>
-      )} 
-        Les <strong>événements</strong> sont des activités planifiées avec heure et lieu. 
-        Plus la tâche est longue, plus elle rapporte ! Les tâches non terminées sont automatiquement reportées au lendemain.
+      )}
+
+      <PageHelp pageId="tasks" color="blue">
+        <strong>📋 Organise ton quotidien !</strong> Crée des tâches avec une durée estimée pour gagner des XP et des patates. 
+        Les <strong>événements</strong> sont des activités planifiées avec heure et lieu. Plus la tâche est longue, plus elle rapporte ! Les tâches non terminées sont automatiquement reportées au lendemain.
       </PageHelp>
 
       {/* Onglets avec Archive */}
