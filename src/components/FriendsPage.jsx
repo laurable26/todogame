@@ -4,40 +4,36 @@ import { PageHelp } from './PageHelp';
 export const FriendsPage = ({ 
   user,
   friends, 
-  missions, 
+  tasks = [],
+  events = [],
   searchQuery, 
   setSearchQuery, 
   searchResults, 
-  addFriend, 
-  setSelectedMission, 
-  setCreatingMission, 
-  getModeLabel,
+  addFriend,
+  removeFriend,
   friendRequests,
   onAcceptRequest,
   onDeclineRequest,
-  onRemoveFriend,
+  onEditTask,
+  onEditEvent,
   ownedItems = []
 }) => {
-  const [activeTab, setActiveTab] = useState('missions'); // Missions par défaut
-  const [showArchived, setShowArchived] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState(null); // pseudo de l'ami à supprimer
+  const [selectedFriend, setSelectedFriend] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
-  // Séparer missions actives et terminées
-  const activeMissions = missions.filter(m => {
-    if (!m.quests || m.quests.length === 0) return true;
-    return !m.quests.every(q => q.completed);
-  });
-  
-  const archivedMissions = missions.filter(m => {
-    if (!m.quests || m.quests.length === 0) return false;
-    return m.quests.every(q => q.completed);
-  });
+  // Filtrer les tâches et événements partagés avec un ami
+  const getSharedWithFriend = (friendPseudo) => {
+    const sharedTasks = tasks.filter(t => 
+      t.participants?.some(p => p.pseudo === friendPseudo)
+    );
+    const sharedEvents = events.filter(e => 
+      e.participants?.some(p => p.pseudo === friendPseudo)
+    );
+    return { sharedTasks, sharedEvents };
+  };
 
-  // Classement des amis par PQ (inclut l'utilisateur)
-  const leaderboard = [
-    { pseudo: user.pseudo, avatar: user.avatar, avatarBg: user.avatarBg, level: user.level, pqSeason: user.pqSeason || 0, isMe: true, ownedItems: ownedItems || [], customTitle: user.customTitle || '' },
-    ...friends.map(f => ({ ...f, isMe: false }))
-  ].sort((a, b) => (b.pqSeason || 0) - (a.pqSeason || 0));
+  // Liste des amis (triée par niveau)
+  const sortedFriends = [...friends].sort((a, b) => (b.level || 1) - (a.level || 1));
 
   // Vérifier les améliorations d'un joueur
   const hasGoldenBorder = (player) => player.ownedItems?.includes(71);
@@ -45,169 +41,87 @@ export const FriendsPage = ({
   const hasCustomTitle = (player) => player.ownedItems?.includes(79) && player.customTitle;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-black text-slate-900">Amis & Missions</h1>
-        <button 
-          onClick={() => setCreatingMission(true)}
-          className="bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-3 rounded-xl font-bold text-white hover:scale-105 transition-transform shadow-lg"
-        >
-          + Nouvelle Mission
-        </button>
+        <h1 className="text-3xl font-black text-slate-900">Amis</h1>
       </div>
 
       <PageHelp pageId="friends" color="purple">
-        <strong>🤝 Joue en équipe !</strong> Ajoute des amis et crée des <strong>missions collaboratives</strong>. 
-        Chaque participant gagne des <strong>Points de Quête (PQ)</strong> proportionnellement à sa contribution. 
-        Consulte le classement pour voir qui domine la saison !
+        <strong>🤝 Joue en équipe !</strong> Ajoute des amis et partage des <strong>tâches et événements</strong> avec eux. 
+        Quand vous complétez une tâche partagée, vous gagnez <strong>tous les deux le double de points</strong> !
       </PageHelp>
 
-      {/* Onglets */}
-      <div className="flex gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
-        <button
-          onClick={() => setActiveTab('missions')}
-          className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
-            activeTab === 'missions'
-              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          Missions
-        </button>
-        <button
-          onClick={() => setActiveTab('friends')}
-          className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
-            activeTab === 'friends'
-              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          Amis
-        </button>
-        <button
-          onClick={() => setActiveTab('requests')}
-          className={`flex-1 py-3 rounded-lg font-semibold transition-all relative ${
-            activeTab === 'requests'
-              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          Demandes
-          {friendRequests.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+      {/* Demandes d'amis en attente - affiché en haut si il y en a */}
+      {friendRequests && friendRequests.length > 0 && (
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
+          <h2 className="text-lg font-bold text-purple-900 mb-3 flex items-center gap-2">
+            <span className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm">
               {friendRequests.length}
             </span>
-          )}
-        </button>
-      </div>
-
-      {/* Tab Missions */}
-      {activeTab === 'missions' && (
-        <div className="space-y-4">
-          {/* Sous-onglets En cours / Archive */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowArchived(false)}
-              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
-                !showArchived
-                  ? 'bg-purple-100 text-purple-700'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              En cours
-            </button>
-            <button
-              onClick={() => setShowArchived(true)}
-              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
-                showArchived
-                  ? 'bg-purple-100 text-purple-700'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Terminées
-            </button>
-          </div>
-
-          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">
-              {showArchived ? 'Missions terminées' : 'Missions en cours'}
-            </h2>
-          
-            {(showArchived ? archivedMissions : activeMissions).length > 0 ? (
-            <div className="space-y-3">
-              {(showArchived ? archivedMissions : activeMissions).map(mission => {
-                const completedQuests = mission.quests?.filter(q => q.completed).length || 0;
-                const totalQuests = mission.quests?.length || 0;
-                const progress = totalQuests > 0 ? (completedQuests / totalQuests) * 100 : 0;
-                const isCompleted = totalQuests > 0 && completedQuests === totalQuests;
-                
-                return (
-                  <div 
-                    key={mission.id} 
-                    onClick={() => setSelectedMission(mission)}
-                    className={`p-4 rounded-xl cursor-pointer hover:shadow-md transition-all border-2 ${
-                      isCompleted 
-                        ? 'bg-green-50 border-green-200 hover:border-green-300' 
-                        : 'bg-slate-50 border-transparent hover:border-purple-300'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h3 className="font-bold text-slate-900">
-                          {isCompleted && '✅ '}{mission.title}
-                        </h3>
-                        {mission.description && (
-                          <p className="text-sm text-slate-600 mt-0.5">{mission.description}</p>
-                        )}
-                        <p className="text-xs text-slate-500 mt-1">{mission.participants?.length || 0} participants</p>
-                      </div>
-                      <span className={`text-xs px-2 py-1 rounded-lg font-medium ${
-                        isCompleted ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
-                      }`}>
-                        {completedQuests}/{totalQuests} tâches
-                      </span>
-                    </div>
-                    
-                    <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full transition-all ${
-                          isCompleted ? 'bg-green-500' : 'bg-gradient-to-r from-purple-500 to-pink-500'
-                        }`}
-                        style={{ width: `${progress}%` }}
-                      ></div>
-                    </div>
+            Demandes d'amis
+          </h2>
+          <div className="space-y-2">
+            {friendRequests.map((request) => (
+              <div key={request.pseudo} className="flex items-center justify-between bg-white p-3 rounded-xl border border-purple-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center text-xl">
+                    <span className="emoji-display">{request.avatar}</span>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-10 bg-slate-50 rounded-xl">
-              <p className="text-slate-500">
-                {showArchived ? 'Aucune mission terminée' : 'Aucune mission en cours'}
-              </p>
-              {!showArchived && <p className="text-sm text-slate-400">Crée une mission avec tes amis !</p>}
-            </div>
-          )}
-        </div>
+                  <div>
+                    <div className="font-bold text-slate-900">{request.pseudo}</div>
+                    <div className="text-xs text-slate-500">Niveau {request.level}</div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => onAcceptRequest(request.pseudo)}
+                    className="bg-green-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-green-600"
+                  >
+                    ✓ Accepter
+                  </button>
+                  <button
+                    onClick={() => onDeclineRequest(request.pseudo)}
+                    className="bg-slate-200 text-slate-600 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-slate-300"
+                  >
+                    Refuser
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Tab Amis */}
-      {activeTab === 'friends' && (
-        <div className="space-y-4">
-          {/* Recherche */}
-          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 Rechercher un joueur..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500"
-            />
-            
-            {searchQuery && searchResults.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {searchResults.map(result => (
+      {/* Recherche d'amis */}
+      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-900 mb-4">Ajouter un ami</h2>
+        <div className="relative mb-4">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Rechercher par pseudo..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500"
+          />
+          {searchQuery.length > 0 && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Résultats de recherche */}
+        {searchQuery.length >= 2 && (
+          <div className="space-y-2">
+            {searchResults.length > 0 ? (
+              searchResults.map((result) => {
+                const isAlreadyFriend = friends.some(f => f.pseudo === result.pseudo);
+                const isMe = result.pseudo === user.pseudo;
+                
+                return (
                   <div key={result.pseudo} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl flex items-center justify-center text-xl">
@@ -218,103 +132,117 @@ export const FriendsPage = ({
                         <div className="text-xs text-slate-500">Niveau {result.level}</div>
                       </div>
                     </div>
+                    {!isMe && !isAlreadyFriend && (
+                      <button
+                        onClick={() => addFriend(result.pseudo)}
+                        className="bg-purple-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-purple-600"
+                      >
+                        + Ajouter
+                      </button>
+                    )}
+                    {isAlreadyFriend && (
+                      <span className="text-green-500 text-sm font-medium">✓ Ami</span>
+                    )}
+                    {isMe && (
+                      <span className="text-slate-400 text-sm">C'est toi</span>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center py-4 text-slate-500">
+                Aucun utilisateur trouvé
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Liste des amis */}
+      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-900 mb-4">Mes amis ({friends.length})</h2>
+        
+        {sortedFriends.length > 0 ? (
+          <div className="space-y-2">
+            {sortedFriends.map((friend) => {
+              const { sharedTasks, sharedEvents } = getSharedWithFriend(friend.pseudo);
+              const sharedCount = sharedTasks.length + sharedEvents.length;
+              
+              return (
+                <div 
+                  key={friend.pseudo} 
+                  className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-all"
+                >
+                  <div 
+                    className="flex items-center gap-3 flex-1 cursor-pointer"
+                    onClick={() => setSelectedFriend(friend)}
+                  >
+                    <div className={`w-10 h-10 bg-gradient-to-br ${friend.avatarBg || 'from-indigo-400 to-purple-500'} rounded-xl flex items-center justify-center text-xl ${hasGoldenBorder(friend) ? 'ring-2 ring-yellow-400 ring-offset-1' : ''}`}>
+                      <span className="emoji-display">{friend.avatar}</span>
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900 flex items-center gap-1">
+                        {friend.pseudo}
+                        {hasVipBadge(friend) && <span className="text-yellow-500 text-xs">👑</span>}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Niv. {friend.level}
+                        {hasCustomTitle(friend) && <span className="ml-1">• {friend.customTitle}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {sharedCount > 0 && (
+                      <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium">
+                        {sharedCount} partagé{sharedCount > 1 ? 's' : ''}
+                      </span>
+                    )}
                     <button
-                      onClick={() => addFriend(result.pseudo)}
-                      className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-90"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDelete(friend.pseudo);
+                      }}
+                      className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      title="Supprimer cet ami"
                     >
-                      Demander
+                      🗑️
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              );
+            })}
           </div>
-
-          {/* Classement */}
-          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">Amis</h2>
-            
-            {leaderboard.length > 0 ? (
-              <div className="space-y-2">
-                {leaderboard.map((player, index) => (
-                  <div 
-                    key={player.pseudo} 
-                    className={`flex items-center justify-between p-3 rounded-xl ${
-                      player.isMe ? 'bg-purple-50 border-2 border-purple-200' : 'bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                        index === 0 ? 'bg-yellow-400 text-yellow-900' :
-                        index === 1 ? 'bg-slate-300 text-slate-700' :
-                        index === 2 ? 'bg-amber-600 text-amber-100' :
-                        'bg-slate-200 text-slate-600'
-                      }`}>
-                        {index + 1}
-                      </div>
-                      <div className={`w-10 h-10 bg-gradient-to-br ${player.avatarBg || 'from-indigo-400 to-purple-500'} rounded-xl flex items-center justify-center text-xl ${hasGoldenBorder(player) ? 'ring-2 ring-yellow-400 ring-offset-1' : ''}`}>
-                        <span className="emoji-display">{player.avatar}</span>
-                      </div>
-                      <div>
-                        <div className="font-bold text-slate-900 flex items-center gap-1">
-                          {player.pseudo} 
-                          {hasVipBadge(player) && <span className="text-yellow-500 text-xs">👑</span>}
-                          {player.isMe && <span className="text-purple-500 text-sm">(moi)</span>}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          Niv. {player.level}
-                          {hasCustomTitle(player) && <span className="ml-1">• {player.customTitle}</span>}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1">
-                        <span>🧻</span>
-                        <span className="font-bold text-pink-600">{player.pqSeason || 0}</span>
-                      </div>
-                      {!player.isMe && onRemoveFriend && (
-                        <button
-                          onClick={() => setConfirmRemove(player.pseudo)}
-                          className="ml-2 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Supprimer cet ami"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-10 bg-slate-50 rounded-xl">
-                <p className="text-slate-500">Ajoute des amis pour voir le classement !</p>
-              </div>
-            )}
+        ) : (
+          <div className="text-center py-10 bg-slate-50 rounded-xl">
+            <div className="text-4xl mb-2">🤝</div>
+            <p className="text-slate-500">Pas encore d'amis</p>
+            <p className="text-sm text-slate-400 mt-1">Utilise la recherche pour en ajouter !</p>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Modal de confirmation de suppression */}
-      {confirmRemove && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setConfirmRemove(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setConfirmDelete(null)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold text-slate-900 mb-2">Supprimer cet ami ?</h3>
             <p className="text-slate-600 mb-4">
-              Es-tu sûr de vouloir retirer <strong>{confirmRemove}</strong> de ta liste d'amis ?
+              Tu ne pourras plus voir les tâches partagées avec <strong>{confirmDelete}</strong>.
             </p>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <button
-                onClick={() => setConfirmRemove(null)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold transition-colors"
+                onClick={() => setConfirmDelete(null)}
+                className="flex-1 py-3 bg-slate-100 text-slate-700 rounded-xl font-semibold hover:bg-slate-200"
               >
                 Annuler
               </button>
               <button
                 onClick={() => {
-                  onRemoveFriend(confirmRemove);
-                  setConfirmRemove(null);
+                  removeFriend && removeFriend(confirmDelete);
+                  setConfirmDelete(null);
                 }}
-                className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold transition-colors"
+                className="flex-1 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600"
               >
                 Supprimer
               </button>
@@ -323,47 +251,115 @@ export const FriendsPage = ({
         </div>
       )}
 
-      {/* Tab Demandes */}
-      {activeTab === 'requests' && (
-        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-900 mb-4">Demandes d'amis reçues</h2>
-          
-          {friendRequests.length > 0 ? (
-            <div className="space-y-3">
-              {friendRequests.map(request => (
-                <div key={request.pseudo} className="p-4 bg-purple-50 rounded-xl border border-purple-100">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
-                      <span className="emoji-display">{request.avatar}</span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-slate-900 truncate">{request.pseudo}</div>
-                      <div className="text-sm text-slate-500">Niv. {request.level} • {request.pqSeason || 0} PQ</div>
-                    </div>
+      {/* Modal tâches partagées avec un ami */}
+      {selectedFriend && (
+        <div className="fixed inset-0 z-[9999] overflow-y-auto">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setSelectedFriend(null)}></div>
+          <div className="min-h-full flex items-center justify-center p-4">
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+              {/* Header */}
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className={`w-12 h-12 bg-gradient-to-br ${selectedFriend.avatarBg || 'from-indigo-400 to-purple-500'} rounded-xl flex items-center justify-center text-2xl`}>
+                    {selectedFriend.avatar}
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => onAcceptRequest(request.pseudo)}
-                      className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-3 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90"
-                    >
-                      Accepter
-                    </button>
-                    <button
-                      onClick={() => onDeclineRequest(request.pseudo)}
-                      className="flex-1 bg-slate-200 text-slate-600 px-3 py-2.5 rounded-lg font-semibold text-sm hover:bg-slate-300"
-                    >
-                      Refuser
-                    </button>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">{selectedFriend.pseudo}</h2>
+                    <p className="text-sm text-slate-500">Niveau {selectedFriend.level}</p>
                   </div>
                 </div>
-              ))}
+                <button onClick={() => setSelectedFriend(null)} className="text-2xl text-slate-400 hover:text-slate-600">✕</button>
+              </div>
+
+              {/* Contenu */}
+              <div className="p-5 overflow-y-auto flex-1">
+                {(() => {
+                  const { sharedTasks, sharedEvents } = getSharedWithFriend(selectedFriend.pseudo);
+                  const hasShared = sharedTasks.length > 0 || sharedEvents.length > 0;
+
+                  if (!hasShared) {
+                    return (
+                      <div className="text-center py-10">
+                        <div className="text-4xl mb-3">🤝</div>
+                        <p className="text-slate-500">Aucune tâche ou événement partagé avec {selectedFriend.pseudo}</p>
+                        <p className="text-sm text-slate-400 mt-2">Crée une tâche et ajoute cet ami comme participant !</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Tâches partagées */}
+                      {sharedTasks.length > 0 && (
+                        <div>
+                          <h3 className="font-semibold text-slate-700 mb-2">📋 Tâches partagées ({sharedTasks.length})</h3>
+                          <div className="space-y-2">
+                            {sharedTasks.map(task => (
+                              <div 
+                                key={task.id} 
+                                onClick={() => {
+                                  setSelectedFriend(null);
+                                  onEditTask && onEditTask(task);
+                                }}
+                                className={`p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md ${task.completed ? 'bg-slate-50 border-slate-200' : 'bg-indigo-50 border-indigo-200 hover:border-indigo-400'}`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className={`font-medium ${task.completed ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                                    {task.title}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    {task.completed && <span className="text-green-500">✓</span>}
+                                    <span className="text-slate-400">→</span>
+                                  </div>
+                                </div>
+                                {task.date && (
+                                  <p className="text-xs text-slate-500 mt-1">
+                                    {new Date(task.date).toLocaleDateString('fr-FR')}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Événements partagés */}
+                      {sharedEvents.length > 0 && (
+                        <div>
+                          <h3 className="font-semibold text-slate-700 mb-2">📅 Événements partagés ({sharedEvents.length})</h3>
+                          <div className="space-y-2">
+                            {sharedEvents.map(event => (
+                              <div 
+                                key={event.id} 
+                                onClick={() => {
+                                  setSelectedFriend(null);
+                                  onEditEvent && onEditEvent(event);
+                                }}
+                                className={`p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md ${event.completed ? 'bg-slate-50 border-slate-200' : 'bg-emerald-50 border-emerald-200 hover:border-emerald-400'}`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className={`font-medium ${event.completed ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                                    {event.title || 'Événement sans titre'}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    {event.completed && <span className="text-green-500">✓</span>}
+                                    <span className="text-slate-400">→</span>
+                                  </div>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">
+                                  {event.date && new Date(event.date).toLocaleDateString('fr-FR')} • {event.time}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
-          ) : (
-            <div className="text-center py-10 bg-slate-50 rounded-xl">
-              <div className="text-4xl mb-2">📬</div>
-              <p className="text-slate-500">Aucune demande en attente</p>
-            </div>
-          )}
+          </div>
         </div>
       )}
     </div>

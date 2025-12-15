@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useGameData } from './hooks/useGameData';
 import { useNotifications } from './hooks/useNotifications';
+import { useJournaling } from './hooks/useJournaling';
+import { useCalendarSync } from './hooks/useCalendarSync';
 import { AuthScreen, OnboardingScreen, LoadingScreen } from './components/AuthScreens';
 import { Header, Navigation } from './components/Header';
 import { TasksPage } from './components/TasksPage';
@@ -10,6 +12,8 @@ import { ChestsPage, ChestOpeningModal } from './components/ChestsPage';
 import { BadgesPage } from './components/BadgesPage';
 import { ShopPage } from './components/ShopPage';
 import { StatsPage } from './components/StatsPage';
+import { DailyQuoteCard, DailyQuoteButton } from './components/DailyQuote';
+import { JournalingButterfly } from './components/JournalingButterfly';
 import { 
   CreateTaskModal, 
   ChestOpenedModal, 
@@ -134,6 +138,74 @@ const QuestApp = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showRiddle, setShowRiddle] = useState(null); // { level: 1|2|3, riddle: {...} }
   const [riddlesDoneToday, setRiddlesDoneToday] = useState([]);
+  const [showDailyQuote, setShowDailyQuote] = useState(false);
+  const [pendingNotification, setPendingNotification] = useState(null);
+
+  // Hook pour le journaling
+  const journaling = useJournaling(supabaseUser?.id);
+
+  // Hook pour la synchronisation des calendriers
+  const calendarSync = useCalendarSync(supabaseUser?.id);
+
+  // Vérifier si l'amélioration Citation du Jour est active
+  const hasDailyQuote = ownedItems.includes(90) && activeUpgrades[90] !== false;
+  
+  // Vérifier si l'amélioration Journaling est active
+  const hasJournaling = ownedItems.includes(91) && activeUpgrades[91] !== false;
+
+  // Charger et écouter les notifications en temps réel
+  useEffect(() => {
+    if (!supabaseUser) return;
+
+    // Charger les notifications non lues au démarrage
+    const loadNotifications = async () => {
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', supabaseUser.id)
+        .eq('read', false)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (data && data.length > 0) {
+        setPendingNotification(data[0]);
+      }
+    };
+    
+    loadNotifications();
+
+    // Écouter les nouvelles notifications en temps réel
+    const channel = supabase
+      .channel('notifications-channel')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${supabaseUser.id}`,
+        },
+        (payload) => {
+          setPendingNotification(payload.new);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabaseUser]);
+
+  // Marquer une notification comme lue
+  const dismissNotification = async () => {
+    if (pendingNotification && supabaseUser) {
+      await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', pendingNotification.id);
+    }
+    setPendingNotification(null);
+  };
 
   // Charger l'historique des énigmes du jour depuis Supabase
   useEffect(() => {
@@ -612,11 +684,15 @@ const QuestApp = () => {
     const xpMultiplier = getXpMultiplier();
     const potatoesMultiplier = getPotatoesMultiplier();
     
+    // Bonus x2 si tâche partagée avec des amis
+    const hasParticipants = task.participants && task.participants.length > 0;
+    const sharingBonus = hasParticipants ? 2 : 1;
+    
     const baseXp = getDurationXP(task.duration, task.status);
     const basePoints = getDurationPoints(task.duration, task.status);
     
-    const xpGained = Math.round(baseXp * xpMultiplier);
-    const pointsGained = Math.round(basePoints * potatoesMultiplier);
+    const xpGained = Math.round(baseXp * xpMultiplier * sharingBonus);
+    const pointsGained = Math.round(basePoints * potatoesMultiplier * sharingBonus);
 
     let newXp = user.xp + xpGained;
     let newLevel = user.level;
@@ -754,7 +830,67 @@ const QuestApp = () => {
       }
     }
 
-    setCompletingTask({ task, xp: xpGained, points: pointsGained });
+    setCompletingTask({ task, xp: xpGained, points: pointsGained, shared: hasParticipants });
+
+    // Si tâche partagée, notifier les autres participants et leur donner des points
+    if (hasParticipants && supabaseUser) {
+      const participantPseudos = task.participants.map(p => p.pseudo);
+      
+      // Créer une notification pour chaque participant
+      for (const participant of task.participants) {
+        try {
+          // Récupérer le profil du participant
+          const { data: participantProfile } = await supabase
+            .from('profiles')
+            .select('id, xp, level, xp_to_next, potatoes, tasks_completed')
+            .eq('pseudo', participant.pseudo)
+            .single();
+          
+          if (participantProfile) {
+            // Calculer les points pour le participant (même bonus)
+            let participantNewXp = participantProfile.xp + xpGained;
+            let participantNewLevel = participantProfile.level;
+            let participantNewXpToNext = participantProfile.xp_to_next;
+            
+            while (participantNewXp >= participantNewXpToNext) {
+              participantNewXp -= participantNewXpToNext;
+              participantNewLevel += 1;
+              participantNewXpToNext = Math.floor(participantNewXpToNext * 1.15);
+            }
+            
+            // Mettre à jour le profil du participant
+            await supabase
+              .from('profiles')
+              .update({
+                xp: participantNewXp,
+                level: participantNewLevel,
+                xp_to_next: participantNewXpToNext,
+                potatoes: participantProfile.potatoes + pointsGained,
+                tasks_completed: participantProfile.tasks_completed + 1,
+              })
+              .eq('id', participantProfile.id);
+            
+            // Créer une notification
+            await supabase.from('notifications').insert({
+              user_id: participantProfile.id,
+              type: 'task_completed',
+              title: 'Tâche partagée terminée !',
+              message: `${user.pseudo} a terminé "${task.title}"`,
+              data: {
+                taskId: task.id,
+                taskTitle: task.title,
+                completedBy: user.pseudo,
+                xpGained,
+                pointsGained,
+              },
+              read: false,
+            });
+          }
+        } catch (error) {
+          console.error('Erreur notification participant:', error);
+        }
+      }
+    }
 
     // Vérifier les badges
     const newlyUnlocked = checkAndUpdateBadges({
@@ -796,6 +932,7 @@ const QuestApp = () => {
         tags: newTask.tags || [],
         notes: newTask.notes || '',
         photos: newTask.photos || [],
+        participants: newTask.participants || [],
         category: taskData.date ? 'today' : 'bucketlist',
         completed: false,
       });
@@ -816,17 +953,22 @@ const QuestApp = () => {
         tags: taskData.tags,
         notes: taskData.notes,
         photos: taskData.photos || [],
+        participants: taskData.participants || [],
       }).eq('id', taskId);
     }
   };
 
   const deleteTask = async (taskId) => {
     const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    const isShared = task.participants && task.participants.length > 0;
+    const sharingBonus = isShared ? 2 : 1;
     
     // Si la tâche était terminée, retirer les points gagnés
-    if (task && task.completed) {
-      const xpLost = getDurationXP(task.duration, task.status);
-      const pointsLost = getDurationPoints(task.duration, task.status);
+    if (task.completed) {
+      const xpLost = getDurationXP(task.duration, task.status) * sharingBonus;
+      const pointsLost = getDurationPoints(task.duration, task.status) * sharingBonus;
       
       let newXp = user.xp - xpLost;
       let newLevel = user.level;
@@ -849,6 +991,45 @@ const QuestApp = () => {
         tasksCompleted: Math.max(0, user.tasksCompleted - 1),
       };
       updateUser(newUser);
+      
+      // Si tâche partagée, retirer les points aux autres participants aussi
+      if (isShared && supabaseUser) {
+        for (const participant of task.participants) {
+          try {
+            const { data: participantProfile } = await supabase
+              .from('profiles')
+              .select('id, xp, level, xp_to_next, potatoes, tasks_completed')
+              .eq('pseudo', participant.pseudo)
+              .single();
+            
+            if (participantProfile) {
+              let pNewXp = participantProfile.xp - xpLost;
+              let pNewLevel = participantProfile.level;
+              let pNewXpToNext = participantProfile.xp_to_next;
+              
+              while (pNewXp < 0 && pNewLevel > 1) {
+                pNewLevel -= 1;
+                pNewXpToNext = Math.floor(pNewXpToNext / 1.15);
+                pNewXp += pNewXpToNext;
+              }
+              if (pNewXp < 0) pNewXp = 0;
+              
+              await supabase
+                .from('profiles')
+                .update({
+                  xp: pNewXp,
+                  level: pNewLevel,
+                  xp_to_next: pNewXpToNext,
+                  potatoes: Math.max(0, participantProfile.potatoes - pointsLost),
+                  tasks_completed: Math.max(0, participantProfile.tasks_completed - 1),
+                })
+                .eq('id', participantProfile.id);
+            }
+          } catch (error) {
+            console.error('Erreur retrait points participant:', error);
+          }
+        }
+      }
     }
     
     setTasks(tasks.filter(t => t.id !== taskId));
@@ -882,6 +1063,76 @@ const QuestApp = () => {
   };
 
   const deleteEvent = async (eventId) => {
+    const event = events.find(e => e.id === eventId);
+    if (!event) return;
+    
+    const isShared = event.participants && event.participants.length > 0;
+    const sharingBonus = isShared ? 2 : 1;
+    
+    // Si l'événement était complété, retirer les points
+    if (event.completed || (event.completedBy && event.completedBy.includes(user.pseudo))) {
+      const xpLost = 5 * sharingBonus;
+      const pointsLost = 5 * sharingBonus;
+      
+      let newXp = user.xp - xpLost;
+      let newLevel = user.level;
+      let newXpToNext = user.xpToNext;
+      
+      while (newXp < 0 && newLevel > 1) {
+        newLevel -= 1;
+        newXpToNext = getXpForLevel(newLevel);
+        newXp += newXpToNext;
+      }
+      if (newXp < 0) newXp = 0;
+      
+      const newUser = {
+        ...user,
+        xp: newXp,
+        level: newLevel,
+        xpToNext: newXpToNext,
+        potatoes: Math.max(0, user.potatoes - pointsLost),
+      };
+      updateUser(newUser);
+      
+      // Si événement partagé, retirer les points aux autres participants aussi
+      if (isShared && supabaseUser) {
+        for (const participant of event.participants) {
+          try {
+            const { data: participantProfile } = await supabase
+              .from('profiles')
+              .select('id, xp, level, xp_to_next, potatoes')
+              .eq('pseudo', participant.pseudo)
+              .single();
+            
+            if (participantProfile) {
+              let pNewXp = participantProfile.xp - xpLost;
+              let pNewLevel = participantProfile.level;
+              let pNewXpToNext = participantProfile.xp_to_next;
+              
+              while (pNewXp < 0 && pNewLevel > 1) {
+                pNewLevel -= 1;
+                pNewXpToNext = Math.floor(pNewXpToNext / 1.15);
+                pNewXp += pNewXpToNext;
+              }
+              if (pNewXp < 0) pNewXp = 0;
+              
+              await supabase
+                .from('profiles')
+                .update({
+                  xp: pNewXp,
+                  level: pNewLevel,
+                  xp_to_next: pNewXpToNext,
+                  potatoes: Math.max(0, participantProfile.potatoes - pointsLost),
+                })
+                .eq('id', participantProfile.id);
+            }
+          } catch (error) {
+            console.error('Erreur retrait points participant:', error);
+          }
+        }
+      }
+    }
+    
     setEvents(events.filter(e => e.id !== eventId));
     if (supabaseUser) {
       await deleteEventFromDB(eventId);
@@ -890,14 +1141,22 @@ const QuestApp = () => {
 
   const completeEvent = async (eventId) => {
     const event = events.find(e => e.id === eventId);
-    if (!event || event.completed) return;
+    if (!event) return;
+    
+    // Vérifier si l'utilisateur a déjà complété cet événement
+    const completedBy = event.completedBy || [];
+    if (completedBy.includes(user.pseudo)) return; // Déjà complété par cet utilisateur
     
     // Récompenses fixes : 5 XP, 5 patates
-    // + 5 PQ par participant SI au moins 1 participant en plus du créateur
-    const xpGained = 5;
-    const pointsGained = 5;
+    // Bonus x2 si événement partagé avec des amis
     const participantCount = event.participants?.length || 0;
-    const pqGained = participantCount > 0 ? participantCount * 5 : 0;
+    const hasParticipants = participantCount > 0;
+    const sharingBonus = hasParticipants ? 2 : 1;
+    
+    const baseXp = 5;
+    const basePoints = 5;
+    const xpGained = baseXp * sharingBonus;
+    const pointsGained = basePoints * sharingBonus;
     
     // Appliquer les multiplicateurs de boost
     const finalXp = Math.round(xpGained * getXpMultiplier());
@@ -919,22 +1178,86 @@ const QuestApp = () => {
       level: newLevel,
       xpToNext: newXpToNext,
       potatoes: user.potatoes + finalPoints,
-      pqSeason: (user.pqSeason || 0) + pqGained,
-      pqTotal: (user.pqTotal || 0) + pqGained,
     };
     
     updateUser(newUser);
     
-    // Marquer comme complété
-    const updatedEvent = { ...event, completed: true };
+    // Ajouter l'utilisateur à la liste des personnes ayant complété
+    const newCompletedBy = [...completedBy, user.pseudo];
+    const updatedEvent = { 
+      ...event, 
+      completedBy: newCompletedBy,
+      // Marquer comme totalement complété si tous les participants + créateur ont complété
+      completed: event.missionId ? false : true // Pour événements normaux, marquer complété directement
+    };
+    
     setEvents(events.map(e => e.id === eventId ? updatedEvent : e));
     
     if (supabaseUser) {
       await saveEvent(updatedEvent);
+      
+      // Si événement partagé, notifier les autres participants et leur donner des points
+      if (hasParticipants) {
+        for (const participant of event.participants) {
+          // Ne pas notifier soi-même
+          if (participant.pseudo === user.pseudo) continue;
+          
+          try {
+            // Récupérer le profil du participant
+            const { data: participantProfile } = await supabase
+              .from('profiles')
+              .select('id, xp, level, xp_to_next, potatoes')
+              .eq('pseudo', participant.pseudo)
+              .single();
+            
+            if (participantProfile) {
+              // Calculer les points pour le participant
+              let participantNewXp = participantProfile.xp + finalXp;
+              let participantNewLevel = participantProfile.level;
+              let participantNewXpToNext = participantProfile.xp_to_next;
+              
+              while (participantNewXp >= participantNewXpToNext) {
+                participantNewXp -= participantNewXpToNext;
+                participantNewLevel += 1;
+                participantNewXpToNext = Math.floor(participantNewXpToNext * 1.15);
+              }
+              
+              // Mettre à jour le profil du participant
+              await supabase
+                .from('profiles')
+                .update({
+                  xp: participantNewXp,
+                  level: participantNewLevel,
+                  xp_to_next: participantNewXpToNext,
+                  potatoes: participantProfile.potatoes + finalPoints,
+                })
+                .eq('id', participantProfile.id);
+              
+              // Créer une notification
+              await supabase.from('notifications').insert({
+                user_id: participantProfile.id,
+                type: 'event_completed',
+                title: 'Événement partagé terminé !',
+                message: `${user.pseudo} a terminé "${event.title}"`,
+                data: {
+                  eventId: event.id,
+                  eventTitle: event.title,
+                  completedBy: user.pseudo,
+                  xpGained: finalXp,
+                  pointsGained: finalPoints,
+                },
+                read: false,
+              });
+            }
+          } catch (error) {
+            console.error('Erreur notification participant:', error);
+          }
+        }
+      }
     }
     
     // Afficher le modal de célébration
-    setCompletingEvent({ ...event, xp: finalXp, points: finalPoints, pq: pqGained });
+    setCompletingEvent({ ...event, xp: finalXp, points: finalPoints, shared: hasParticipants });
   };
 
   // Loading
@@ -1041,6 +1364,7 @@ const QuestApp = () => {
         onEnableNotifications={enableNotifications}
         onDisableNotifications={disableNotifications}
         isNotificationSupported={isNotificationSupported}
+        calendarSync={calendarSync}
       />
     );
   } else if (openingChest) {
@@ -1063,6 +1387,7 @@ const QuestApp = () => {
         activeUpgrades={activeUpgrades}
         existingTags={existingTags}
         userId={supabaseUser?.id}
+        friends={friends}
       />
     );
   } else if (creatingTask) {
@@ -1075,6 +1400,7 @@ const QuestApp = () => {
         activeUpgrades={activeUpgrades}
         existingTags={existingTags}
         userId={supabaseUser?.id}
+        friends={friends}
       />
     );
   } else if (editingEvent) {
@@ -1085,6 +1411,10 @@ const QuestApp = () => {
         onDelete={() => { deleteEvent(editingEvent.id); setEditingEvent(null); }}
         initialEvent={editingEvent}
         friends={friends}
+        ownedItems={ownedItems}
+        activeUpgrades={activeUpgrades}
+        existingTags={existingTags}
+        userId={supabaseUser?.id}
       />
     );
   } else if (creatingEvent) {
@@ -1093,6 +1423,10 @@ const QuestApp = () => {
         onClose={() => setCreatingEvent(false)}
         onCreate={(eventData) => { addEvent(eventData); setCreatingEvent(false); }}
         friends={friends}
+        ownedItems={ownedItems}
+        activeUpgrades={activeUpgrades}
+        existingTags={existingTags}
+        userId={supabaseUser?.id}
       />
     );
   } else if (creatingMissionQuest) {
@@ -1329,6 +1663,20 @@ const QuestApp = () => {
               pqDistribution[pseudo] = basePQ + bonusPQ;
             });
             
+            // Ajouter les PQ à l'utilisateur courant
+            const myPQ = pqDistribution[user.pseudo] || 0;
+            if (myPQ > 0) {
+              const newUserWithPQ = {
+                ...user,
+                pqSeason: (user.pqSeason || 0) + myPQ,
+                pqTotal: (user.pqTotal || 0) + myPQ,
+              };
+              setUser(newUserWithPQ);
+              if (supabaseUser) {
+                saveProfile(newUserWithPQ);
+              }
+            }
+            
             setCompletingMission({ mission: updatedMission, pqDistribution });
           }
           
@@ -1398,11 +1746,96 @@ const QuestApp = () => {
           }
         }}
         onDeleteMission={async (missionId) => {
+          const mission = missions.find(m => m.id === missionId);
+          
+          if (mission) {
+            // Calculer ce que l'utilisateur doit perdre
+            let xpToRemove = 0;
+            let potatoesToRemove = 0;
+            let pqToRemove = 0;
+            let tasksToRemove = 0;
+            
+            // Compter les tâches complétées par l'utilisateur
+            const userCompletedQuests = mission.quests?.filter(q => q.completedBy === user.pseudo) || [];
+            
+            userCompletedQuests.forEach(quest => {
+              // XP et patates pour chaque tâche complétée
+              xpToRemove += getDurationXP(quest.duration, quest.status || 'à faire');
+              potatoesToRemove += getDurationPoints(quest.duration, quest.status || 'à faire');
+              tasksToRemove += 1;
+            });
+            
+            // Compter les événements de cette mission complétés par l'utilisateur
+            const missionEvents = events.filter(e => e.missionId === missionId);
+            missionEvents.forEach(event => {
+              if (event.completedBy?.includes(user.pseudo) || event.completed) {
+                // Récompenses fixes des événements : 5 XP, 5 patates
+                xpToRemove += 5;
+                potatoesToRemove += 5;
+                // PQ des événements : 5 PQ par participant
+                const participantCount = event.participants?.length || 0;
+                if (participantCount > 0) {
+                  pqToRemove += participantCount * 5;
+                }
+              }
+            });
+            
+            // Si la mission était terminée, retirer les PQ gagnés
+            const isMissionCompleted = mission.quests?.every(q => q.completed);
+            if (isMissionCompleted) {
+              // Recalculer les PQ que l'utilisateur avait gagnés
+              const totalMissionPQ = 100;
+              const questsByParticipant = {};
+              const bonusByParticipant = {};
+              
+              mission.quests?.forEach(q => {
+                const completedBy = q.completedBy;
+                if (completedBy) {
+                  questsByParticipant[completedBy] = (questsByParticipant[completedBy] || 0) + 1;
+                  if (q.takenWhenUnassigned) {
+                    bonusByParticipant[completedBy] = (bonusByParticipant[completedBy] || 0) + 10;
+                  }
+                }
+              });
+              
+              const totalQuestsCompleted = Object.values(questsByParticipant).reduce((a, b) => a + b, 0);
+              if (totalQuestsCompleted > 0) {
+                const userQuestsCount = questsByParticipant[user.pseudo] || 0;
+                const basePQ = Math.round((userQuestsCount / totalQuestsCompleted) * totalMissionPQ);
+                const bonusPQ = bonusByParticipant[user.pseudo] || 0;
+                pqToRemove += basePQ + bonusPQ;
+              }
+            }
+            
+            // Appliquer les retraits
+            if (xpToRemove > 0 || potatoesToRemove > 0 || pqToRemove > 0 || tasksToRemove > 0) {
+              const newUser = {
+                ...user,
+                xp: Math.max(0, user.xp - xpToRemove),
+                potatoes: Math.max(0, user.potatoes - potatoesToRemove),
+                pqSeason: Math.max(0, (user.pqSeason || 0) - pqToRemove),
+                pqTotal: Math.max(0, (user.pqTotal || 0) - pqToRemove),
+                tasksCompleted: Math.max(0, user.tasksCompleted - tasksToRemove),
+              };
+              
+              setUser(newUser);
+              if (supabaseUser) {
+                saveProfile(newUser);
+              }
+            }
+            
+            // Supprimer aussi les événements liés à cette mission
+            const remainingEvents = events.filter(e => e.missionId !== missionId);
+            setEvents(remainingEvents);
+          }
+          
           setMissions(missions.filter(m => m.id !== missionId));
           setSelectedMission(null);
           // Supprimer de Supabase
           if (supabaseUser) {
             await deleteMissionFromDB(missionId);
+            // Supprimer les événements de la mission dans Supabase
+            await supabase.from('events').delete().eq('mission_id', missionId);
           }
         }}
         currentUser={user.pseudo}
@@ -1500,6 +1933,20 @@ const QuestApp = () => {
               pqDistribution[pseudo] = basePQ + bonusPQ;
             });
             
+            // Ajouter les PQ à l'utilisateur courant
+            const myPQ2 = pqDistribution[user.pseudo] || 0;
+            if (myPQ2 > 0) {
+              const newUserWithPQ2 = {
+                ...user,
+                pqSeason: (user.pqSeason || 0) + myPQ2,
+                pqTotal: (user.pqTotal || 0) + myPQ2,
+              };
+              setUser(newUserWithPQ2);
+              if (supabaseUser) {
+                saveProfile(newUserWithPQ2);
+              }
+            }
+            
             setCompletingMission({ mission: updatedMission, pqDistribution });
           }
           
@@ -1520,14 +1967,21 @@ const QuestApp = () => {
             
             const newTasksCompleted = user.tasksCompleted + 1;
             
-            setUser({
+            const newUser = {
               ...user,
               xp: newXp,
               level: newLevel,
               xpToNext: newXpToNext,
               potatoes: user.potatoes + pointsGained,
               tasksCompleted: newTasksCompleted,
-            });
+            };
+            
+            setUser(newUser);
+            
+            // Sauvegarder dans Supabase
+            if (supabaseUser) {
+              saveProfile(newUser);
+            }
             
             // Coffre toutes les 8 tâches (tâches de mission incluses)
             if (newTasksCompleted % 8 === 0) {
@@ -1548,7 +2002,8 @@ const QuestApp = () => {
       <FriendsPage 
         user={user}
         friends={friends}
-        missions={missions}
+        tasks={tasks}
+        events={events}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         searchResults={searchResults}
@@ -1602,9 +2057,6 @@ const QuestApp = () => {
             console.error('Erreur envoi demande:', err);
           }
         }}
-        setSelectedMission={setSelectedMission}
-        setCreatingMission={setCreatingMission}
-        getModeLabel={getModeLabel}
         friendRequests={friendRequests}
         onAcceptRequest={async (pseudo) => {
           const request = friendRequests.find(r => r.pseudo === pseudo);
@@ -1618,7 +2070,7 @@ const QuestApp = () => {
                 .eq('from_user', pseudo)
                 .eq('to_user', user.pseudo);
             }
-            setFriends([...friends, { ...request, missions: 0 }]);
+            setFriends([...friends, { ...request }]);
             setFriendRequests(friendRequests.filter(r => r.pseudo !== pseudo));
           }
         }}
@@ -1631,6 +2083,22 @@ const QuestApp = () => {
           }
           setFriendRequests(friendRequests.filter(r => r.pseudo !== pseudo));
         }}
+        removeFriend={async (pseudo) => {
+          if (supabaseUser) {
+            // Supprimer des deux côtés
+            await supabase.from('friends')
+              .delete()
+              .eq('user_pseudo', user.pseudo)
+              .eq('friend_pseudo', pseudo);
+            await supabase.from('friends')
+              .delete()
+              .eq('user_pseudo', pseudo)
+              .eq('friend_pseudo', user.pseudo);
+          }
+          setFriends(friends.filter(f => f.pseudo !== pseudo));
+        }}
+        onEditTask={(task) => setEditingTask(task)}
+        onEditEvent={(event) => setEditingEvent(event)}
         ownedItems={ownedItems}
       />
     );
@@ -1643,10 +2111,12 @@ const QuestApp = () => {
       <StatsPage 
         user={user}
         tasks={tasks}
-        missions={missions}
+        events={events}
         chests={chests}
         badges={badges}
         friends={friends}
+        journaling={journaling}
+        hasJournaling={hasJournaling}
       />
     );
   } else if (currentPage === 'shop') {
@@ -1845,19 +2315,20 @@ const QuestApp = () => {
         [data-dark="true"] .bg-white { background-color: rgb(30 41 59) !important; }
         [data-dark="true"] .bg-slate-50 { background-color: rgb(30 41 59) !important; }
         [data-dark="true"] .bg-slate-100 { background-color: rgb(51 65 85) !important; }
+        [data-dark="true"] .bg-slate-200 { background-color: rgb(71 85 105) !important; }
         
         /* Mode sombre - texte (amélioration du contraste) */
         [data-dark="true"] .text-slate-900 { color: rgb(248 250 252) !important; }
         [data-dark="true"] .text-slate-800 { color: rgb(241 245 249) !important; }
         [data-dark="true"] .text-slate-700 { color: rgb(226 232 240) !important; }
         [data-dark="true"] .text-slate-600 { color: rgb(203 213 225) !important; }
-        [data-dark="true"] .text-slate-500 { color: rgb(148 163 184) !important; }
-        [data-dark="true"] .text-slate-400 { color: rgb(148 163 184) !important; }
+        [data-dark="true"] .text-slate-500 { color: rgb(168 185 208) !important; }
+        [data-dark="true"] .text-slate-400 { color: rgb(168 185 208) !important; }
         
         /* Mode sombre - bordures */
-        [data-dark="true"] .border-slate-200 { border-color: rgb(51 65 85) !important; }
+        [data-dark="true"] .border-slate-200 { border-color: rgb(71 85 105) !important; }
         [data-dark="true"] .border-slate-100 { border-color: rgb(51 65 85) !important; }
-        [data-dark="true"] .border-slate-300 { border-color: rgb(71 85 105) !important; }
+        [data-dark="true"] .border-slate-300 { border-color: rgb(100 116 139) !important; }
         
         /* Mode sombre - inputs et formulaires */
         [data-dark="true"] input, 
@@ -1865,7 +2336,7 @@ const QuestApp = () => {
         [data-dark="true"] select { 
           background-color: rgb(51 65 85) !important; 
           color: rgb(248 250 252) !important;
-          border-color: rgb(71 85 105) !important;
+          border-color: rgb(100 116 139) !important;
         }
         [data-dark="true"] input::placeholder,
         [data-dark="true"] textarea::placeholder { 
@@ -1877,15 +2348,79 @@ const QuestApp = () => {
         [data-dark="true"] .hover\\:bg-slate-100:hover { background-color: rgb(71 85 105) !important; }
         
         /* Mode sombre - badges et chips colorés (garder la lisibilité) */
-        [data-dark="true"] .bg-red-50 { background-color: rgb(127 29 29 / 0.3) !important; }
-        [data-dark="true"] .bg-blue-50 { background-color: rgb(30 64 175 / 0.3) !important; }
-        [data-dark="true"] .bg-green-50 { background-color: rgb(22 101 52 / 0.3) !important; }
-        [data-dark="true"] .bg-amber-50 { background-color: rgb(146 64 14 / 0.3) !important; }
-        [data-dark="true"] .bg-purple-50 { background-color: rgb(88 28 135 / 0.3) !important; }
-        [data-dark="true"] .bg-indigo-50 { background-color: rgb(55 48 163 / 0.3) !important; }
+        [data-dark="true"] .bg-red-50 { background-color: rgb(127 29 29 / 0.4) !important; }
+        [data-dark="true"] .bg-blue-50 { background-color: rgb(30 64 175 / 0.4) !important; }
+        [data-dark="true"] .bg-green-50 { background-color: rgb(22 101 52 / 0.4) !important; }
+        [data-dark="true"] .bg-amber-50 { background-color: rgb(146 64 14 / 0.4) !important; }
+        [data-dark="true"] .bg-purple-50 { background-color: rgb(88 28 135 / 0.4) !important; }
+        [data-dark="true"] .bg-indigo-50 { background-color: rgb(55 48 163 / 0.4) !important; }
+        [data-dark="true"] .bg-emerald-50 { background-color: rgb(6 78 59 / 0.4) !important; }
+        [data-dark="true"] .bg-orange-50 { background-color: rgb(154 52 18 / 0.4) !important; }
+        
+        /* Mode sombre - couleurs de texte sur fond coloré */
+        [data-dark="true"] .text-red-700 { color: rgb(252 165 165) !important; }
+        [data-dark="true"] .text-blue-700 { color: rgb(147 197 253) !important; }
+        [data-dark="true"] .text-green-700 { color: rgb(134 239 172) !important; }
+        [data-dark="true"] .text-amber-700 { color: rgb(252 211 77) !important; }
+        [data-dark="true"] .text-purple-700 { color: rgb(216 180 254) !important; }
+        [data-dark="true"] .text-indigo-700 { color: rgb(165 180 252) !important; }
+        [data-dark="true"] .text-emerald-700 { color: rgb(110 231 183) !important; }
+        [data-dark="true"] .text-orange-700 { color: rgb(253 186 116) !important; }
+        
+        /* Mode sombre - couleurs du texte indigo/purple */
+        [data-dark="true"] .text-indigo-600 { color: rgb(165 180 252) !important; }
+        [data-dark="true"] .text-purple-600 { color: rgb(216 180 254) !important; }
+        [data-dark="true"] .text-emerald-600 { color: rgb(110 231 183) !important; }
+        
+        /* Mode sombre - fonds colorés légers */
+        [data-dark="true"] .bg-indigo-100 { background-color: rgb(55 48 163 / 0.3) !important; }
+        [data-dark="true"] .bg-purple-100 { background-color: rgb(88 28 135 / 0.3) !important; }
+        [data-dark="true"] .bg-emerald-100 { background-color: rgb(6 78 59 / 0.3) !important; }
+        [data-dark="true"] .bg-green-100 { background-color: rgb(22 101 52 / 0.3) !important; }
+        [data-dark="true"] .bg-amber-100 { background-color: rgb(146 64 14 / 0.3) !important; }
+        [data-dark="true"] .bg-orange-100 { background-color: rgb(154 52 18 / 0.3) !important; }
+        
+        /* Mode sombre - boutons actifs onglets */
+        [data-dark="true"] .bg-gradient-to-r.from-blue-500 { 
+          background: linear-gradient(to right, rgb(59 130 246), rgb(6 182 212)) !important; 
+        }
         
         /* Mode sombre - cartes avec fond clair */
         [data-dark="true"] .bg-gradient-to-br.from-slate-50 { background: rgb(30 41 59) !important; }
+        
+        /* Mode sombre - ombres plus prononcées */
+        [data-dark="true"] .shadow-lg { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.3) !important; }
+        [data-dark="true"] .shadow-xl { box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.3) !important; }
+        
+        /* Mode sombre - encarts d'aide (PageHelp) */
+        [data-dark="true"] .bg-gradient-to-r.from-purple-50,
+        [data-dark="true"] .bg-gradient-to-r.from-indigo-50,
+        [data-dark="true"] .bg-gradient-to-r.from-emerald-50,
+        [data-dark="true"] .bg-gradient-to-r.from-blue-50,
+        [data-dark="true"] .bg-gradient-to-r.from-amber-50 { 
+          background: rgb(51 65 85) !important; 
+        }
+        [data-dark="true"] .border-purple-200,
+        [data-dark="true"] .border-indigo-200,
+        [data-dark="true"] .border-emerald-200,
+        [data-dark="true"] .border-blue-200,
+        [data-dark="true"] .border-amber-200 { 
+          border-color: rgb(100 116 139) !important; 
+        }
+        [data-dark="true"] .text-purple-800,
+        [data-dark="true"] .text-indigo-800,
+        [data-dark="true"] .text-emerald-800,
+        [data-dark="true"] .text-blue-800,
+        [data-dark="true"] .text-amber-800 { 
+          color: rgb(248 250 252) !important; 
+        }
+        
+        /* Mode sombre - Header patates */
+        [data-dark="true"] .text-amber-600 { color: rgb(251 191 36) !important; }
+        [data-dark="true"] .text-amber-900 { color: rgb(255 255 255) !important; }
+        [data-dark="true"] .border-amber-300 { border-color: rgb(180 83 9) !important; }
+        [data-dark="true"] .bg-amber-50 { background-color: rgb(120 53 15 / 0.5) !important; }
+        [data-dark="true"] .bg-amber-50\\/80 { background-color: rgb(120 53 15 / 0.4) !important; }
         
         /* Emojis - affichage correct */
         .emoji-display {
@@ -1990,7 +2525,7 @@ const QuestApp = () => {
               title={`Énigme du jour (+${config.xp} XP)`}
             >
               <span className="text-5xl drop-shadow-lg">🧩</span>
-              <span className="absolute -top-1 -right-1 bg-yellow-400 text-yellow-900 text-xs font-bold px-1.5 py-0.5 rounded-full shadow">
+              <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full shadow">
                 +{config.xp}
               </span>
             </button>
@@ -2047,6 +2582,58 @@ const QuestApp = () => {
             markRiddleDone(showRiddle.level, false);
           }}
         />
+      )}
+
+      {/* Bouton flottant Citation du Jour */}
+      {hasDailyQuote && (
+        <DailyQuoteButton onClick={() => setShowDailyQuote(true)} />
+      )}
+
+      {/* Modal Citation du Jour */}
+      {showDailyQuote && (
+        <DailyQuoteCard onClose={() => setShowDailyQuote(false)} />
+      )}
+
+      {/* Journaling - Papillon flottant */}
+      {hasJournaling && (
+        <JournalingButterfly journaling={journaling} />
+      )}
+
+      {/* Modal de notification (tâche/événement complété par un ami) */}
+      {pendingNotification && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-bounce-in">
+            <div className={`p-6 text-center ${pendingNotification.type === 'task_completed' ? 'bg-gradient-to-r from-indigo-500 to-purple-500' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`}>
+              <div className="text-6xl mb-3">
+                {pendingNotification.type === 'task_completed' ? '✅' : '📅'}
+              </div>
+              <h2 className="text-xl font-bold text-white">{pendingNotification.title}</h2>
+            </div>
+            <div className="p-6">
+              <p className="text-slate-700 text-center mb-4">{pendingNotification.message}</p>
+              
+              <div className="bg-slate-50 rounded-xl p-4 mb-4">
+                <div className="flex justify-center gap-6">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-yellow-500">+{pendingNotification.data?.xpGained || 0}</div>
+                    <div className="text-xs text-slate-500">XP gagnés</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-amber-600">+{pendingNotification.data?.pointsGained || 0}</div>
+                    <div className="text-xs text-slate-500">🥔 gagnées</div>
+                  </div>
+                </div>
+              </div>
+              
+              <button
+                onClick={dismissNotification}
+                className={`w-full py-3 rounded-xl font-bold text-white ${pendingNotification.type === 'task_completed' ? 'bg-gradient-to-r from-indigo-500 to-purple-500' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`}
+              >
+                Super ! 🎉
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

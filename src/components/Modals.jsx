@@ -1,30 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 
-// Style pour le placeholder de l'éditeur
-const editorStyles = `
-  [contenteditable]:empty:before {
-    content: attr(data-placeholder);
-    color: #9ca3af;
-    pointer-events: none;
-  }
-  [contenteditable]:focus {
-    outline: none;
-  }
-  .checkbox-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 2px 0;
-  }
-  .checkbox-box {
-    cursor: pointer;
-    user-select: none;
-  }
-`;
-
 // Modal de création/édition de tâche
-export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getStatusColor, missionMode, ownedItems = [], activeUpgrades = {}, existingTags = [], userId }) => {
+export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getStatusColor, missionMode, ownedItems = [], activeUpgrades = {}, existingTags = [], userId, friends = [] }) => {
   const [title, setTitle] = useState(initialTask?.title || '');
   const [status, setStatus] = useState(initialTask?.status || 'à faire');
   const [duration, setDuration] = useState(initialTask?.duration || '1h-2h');
@@ -35,8 +13,11 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
   const [notes, setNotes] = useState(initialTask?.notes || '');
   const [photos, setPhotos] = useState(initialTask?.photos || []);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState(null);
   const [assignedTo, setAssignedTo] = useState(initialTask?.assignedTo || '');
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [participants, setParticipants] = useState(initialTask?.participants || []);
+  const [showFriendsList, setShowFriendsList] = useState(false);
 
   const isEditing = !!initialTask;
   
@@ -79,14 +60,14 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
       notes: notes.trim(),
       photos: photos,
       assignedTo: assignedTo || null,
+      participants: participants,
     });
   };
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto">
-      <style>{editorStyles}</style>
       {/* Overlay bleu pour les tâches */}
-      <div className="fixed inset-0 bg-indigo-500" onClick={onClose}></div>
+      <div className="fixed inset-0 bg-blue-500" onClick={onClose}></div>
       
       {/* Conteneur centré */}
       <div className="min-h-full flex items-center justify-center p-4">
@@ -113,7 +94,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                 value={title}
                 onChange={(e) => setTitle(e.target.value.slice(0, 100))}
                 placeholder="Ex: Finir le rapport"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
               />
               <div className="text-xs text-slate-400 text-right mt-1">{title.length}/100</div>
             </div>
@@ -150,7 +131,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                     onClick={() => setDuration(d)}
                     className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all ${
                       duration === d 
-                        ? 'bg-indigo-500 text-white border-indigo-500' 
+                        ? 'bg-blue-500 text-white border-blue-500' 
                         : 'border-slate-200 text-slate-600 hover:border-slate-300'
                     }`}
                   >
@@ -168,7 +149,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
                 />
               </div>
             )}
@@ -194,7 +175,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                       }}
                       className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all ${
                         recurrence === r.value 
-                          ? 'bg-purple-500 text-white border-purple-500' 
+                          ? 'bg-blue-500 text-white border-blue-500' 
                           : 'border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
                     >
@@ -214,8 +195,8 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                           onClick={() => toggleDay(day.value)}
                           className={`py-2 rounded-lg border-2 font-semibold text-xs transition-all ${
                             recurrenceDays.includes(day.value)
-                              ? 'bg-purple-500 text-white border-purple-500'
-                              : 'border-slate-200 text-slate-600 hover:border-purple-300'
+                              ? 'bg-blue-500 text-white border-blue-500'
+                              : 'border-slate-200 text-slate-600 hover:border-blue-300'
                           }`}
                         >
                           {day.label}
@@ -236,14 +217,80 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                           onClick={() => toggleDay(day)}
                           className={`py-2 rounded-lg border-2 font-semibold text-xs transition-all ${
                             recurrenceDays.includes(day)
-                              ? 'bg-purple-500 text-white border-purple-500'
-                              : 'border-slate-200 text-slate-600 hover:border-purple-300'
+                              ? 'bg-blue-500 text-white border-blue-500'
+                              : 'border-slate-200 text-slate-600 hover:border-blue-300'
                           }`}
                         >
                           {day}
                         </button>
                       ))}
                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Participants (amis) - pas en mode mission */}
+            {!missionMode && friends.length > 0 && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Participants ({participants.length}) <span className="text-xs text-green-500 font-normal">points x2 !</span>
+                </label>
+                
+                {/* Participants sélectionnés */}
+                {participants.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {participants.map((p, i) => (
+                      <div 
+                        key={i}
+                        onClick={() => setParticipants(participants.filter(pp => pp.pseudo !== p.pseudo))}
+                        className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-full cursor-pointer hover:bg-indigo-100"
+                      >
+                        <span className="emoji-display">{p.avatar}</span>
+                        <span className="text-sm font-medium text-indigo-700">{p.pseudo}</span>
+                        <span className="text-indigo-400">✕</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Bouton ajouter */}
+                <button
+                  type="button"
+                  onClick={() => setShowFriendsList(!showFriendsList)}
+                  className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-all"
+                >
+                  + Ajouter des participants
+                </button>
+                
+                {/* Liste des amis */}
+                {showFriendsList && (
+                  <div className="mt-3 bg-slate-50 rounded-xl p-3 max-h-40 overflow-y-auto">
+                    {friends.map((friend, i) => (
+                      <div
+                        key={i}
+                        onClick={() => {
+                          if (participants.some(p => p.pseudo === friend.pseudo)) {
+                            setParticipants(participants.filter(p => p.pseudo !== friend.pseudo));
+                          } else {
+                            setParticipants([...participants, { pseudo: friend.pseudo, avatar: friend.avatar }]);
+                          }
+                        }}
+                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                          participants.some(p => p.pseudo === friend.pseudo)
+                            ? 'bg-indigo-100 border border-indigo-300'
+                            : 'hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="w-8 h-8 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-lg flex items-center justify-center">
+                          <span className="emoji-display text-sm">{friend.avatar}</span>
+                        </div>
+                        <span className="font-medium text-slate-700">{friend.pseudo}</span>
+                        {participants.some(p => p.pseudo === friend.pseudo) && (
+                          <span className="ml-auto text-indigo-500">✓</span>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -256,7 +303,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                 <select
                   value={assignedTo}
                   onChange={(e) => setAssignedTo(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
                 >
                   <option value="">Non assignée</option>
                   {missionMode.participants.map(p => (
@@ -274,7 +321,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
                 />
               </div>
             )}
@@ -292,7 +339,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                 onFocus={() => setShowTagSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
                 placeholder="Ex: BTS, Site web"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
               />
               
               {/* Suggestions de tags */}
@@ -343,29 +390,16 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
               
               {/* Barre d'outils éditeur - si amélioration achetée et active */}
               {(ownedItems.includes(85) && activeUpgrades[85] !== false) || hasPhotoNotes ? (
-                <div className="flex items-center gap-1 mb-2 p-2 bg-slate-100 rounded-lg flex-wrap">
-                  {/* Outils de formatage */}
+                <div className="flex items-center gap-1 p-2 bg-slate-100 rounded-t-lg flex-wrap border border-b-0 border-slate-200">
+                  {/* Outils liste et checkbox */}
                   {ownedItems.includes(85) && activeUpgrades[85] !== false && (
                     <>
                       <button
                         type="button"
-                        onClick={() => document.execCommand('bold', false, null)}
-                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50"
-                        title="Gras (Ctrl+B)"
-                      >
-                        G
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => document.execCommand('italic', false, null)}
-                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm italic hover:bg-slate-50"
-                        title="Italique (Ctrl+I)"
-                      >
-                        I
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => document.execCommand('insertUnorderedList', false, null)}
+                        onClick={() => {
+                          // Ajouter une nouvelle ligne avec puce
+                          setNotes(notes ? notes + '\n• ' : '• ');
+                        }}
                         className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
                         title="Liste à puces"
                       >
@@ -374,22 +408,11 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                       <button
                         type="button"
                         onClick={() => {
-                          const editor = document.getElementById('notes-editor');
-                          if (editor) {
-                            const selection = window.getSelection();
-                            const range = selection.getRangeAt(0);
-                            
-                            // Créer une checkbox
-                            const checkbox = document.createElement('div');
-                            checkbox.className = 'checkbox-item';
-                            checkbox.innerHTML = '<span class="checkbox-box" data-checked="false">☐</span> <span class="checkbox-text">Tâche</span>';
-                            
-                            range.insertNode(checkbox);
-                            range.collapse(false);
-                          }
+                          // Ajouter une nouvelle ligne avec checkbox
+                          setNotes(notes ? notes + '\n[ ] ' : '[ ] ');
                         }}
                         className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
-                        title="Checklist"
+                        title="Checkbox"
                       >
                         ☐ Check
                       </button>
@@ -412,29 +435,21 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                         disabled={uploadingPhoto}
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
-                          if (!file || !userId) return;
+                          if (!file) return;
                           
                           setUploadingPhoto(true);
                           try {
-                            const fileExt = file.name.split('.').pop();
-                            const fileName = `${userId}/${Date.now()}.${fileExt}`;
-                            
-                            const { data, error } = await supabase.storage
-                              .from('notes-photos')
-                              .upload(fileName, file);
-                            
-                            if (error) throw error;
-                            
-                            const { data: urlData } = supabase.storage
-                              .from('notes-photos')
-                              .getPublicUrl(fileName);
-                            
-                            setPhotos([...photos, urlData.publicUrl]);
+                            // Convertir en base64 pour stockage simple
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setPhotos([...photos, reader.result]);
+                              setUploadingPhoto(false);
+                            };
+                            reader.readAsDataURL(file);
                           } catch (error) {
                             console.error('Erreur upload:', error);
-                            alert('Erreur lors de l\'upload de la photo');
+                            setUploadingPhoto(false);
                           }
-                          setUploadingPhoto(false);
                           e.target.value = '';
                         }}
                       />
@@ -445,17 +460,21 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
               
               {/* Photos uploadées */}
               {photos.length > 0 && (
-                <div className="flex gap-2 mb-2 flex-wrap">
+                <div className="flex gap-2 mb-2 flex-wrap p-2 bg-slate-50 border-x border-slate-200">
                   {photos.map((url, i) => (
                     <div key={i} className="relative group">
                       <img 
                         src={url} 
                         alt={`Photo ${i + 1}`}
-                        className="w-20 h-20 object-cover rounded-lg border border-slate-200"
+                        className="w-20 h-20 object-cover rounded-lg border border-slate-200 cursor-pointer hover:opacity-80"
+                        onClick={() => setFullscreenPhoto(url)}
                       />
                       <button
                         type="button"
-                        onClick={() => setPhotos(photos.filter((_, idx) => idx !== i))}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPhotos(photos.filter((_, idx) => idx !== i));
+                        }}
                         className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                       >
                         ✕
@@ -465,58 +484,170 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                 </div>
               )}
 
-              {/* Zone de notes - Éditeur WYSIWYG */}
+              {/* Zone de notes */}
               {ownedItems.includes(85) && activeUpgrades[85] !== false ? (
-                <div
-                  id="notes-editor"
-                  contentEditable
-                  suppressContentEditableWarning
-                  onKeyDown={(e) => {
-                    // Gérer la touche Entrée pour créer un vrai saut de ligne
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      document.execCommand('insertLineBreak');
-                    }
-                  }}
-                  onInput={(e) => {
-                    const html = e.currentTarget.innerHTML;
-                    // Limiter la longueur
-                    if (e.currentTarget.innerText.length <= notesMaxLength) {
-                      setNotes(html);
-                    } else {
-                      e.currentTarget.innerHTML = notes;
-                    }
-                  }}
-                  onBlur={(e) => {
-                    setNotes(e.currentTarget.innerHTML);
-                  }}
-                  onClick={(e) => {
-                    // Gestion des checkboxes cliquables
-                    const target = e.target;
-                    if (target.classList.contains('checkbox-box')) {
-                      e.preventDefault();
-                      const isChecked = target.dataset.checked === 'true';
-                      target.dataset.checked = isChecked ? 'false' : 'true';
-                      target.textContent = isChecked ? '☐' : '☑';
-                      target.className = isChecked 
-                        ? 'checkbox-box cursor-pointer' 
-                        : 'checkbox-box cursor-pointer text-green-600';
+                // Mode éditeur enrichi - zone unique avec checkboxes cliquables
+                <div 
+                  className={`w-full bg-slate-50 border border-slate-200 ${(ownedItems.includes(85) && activeUpgrades[85] !== false) || hasPhotoNotes ? 'rounded-b-xl rounded-t-none' : 'rounded-xl'} px-4 py-3 min-h-[100px] max-h-[200px] overflow-y-auto`}
+                  style={{ minHeight: hasExtendedNotes ? '150px' : '100px' }}
+                >
+                  {notes ? (
+                    notes.split('\n').map((line, i) => {
+                      const trimmed = line.trimStart();
                       
-                      // Mettre à jour le texte barré
-                      const textSpan = target.nextElementSibling;
-                      if (textSpan) {
-                        textSpan.style.textDecoration = isChecked ? 'none' : 'line-through';
-                        textSpan.style.color = isChecked ? 'inherit' : '#9ca3af';
+                      // Checkbox non cochée
+                      if (trimmed.startsWith('[ ] ')) {
+                        const text = trimmed.substring(4);
+                        return (
+                          <div key={i} className="flex items-center gap-2 py-1">
+                            <span 
+                              className="w-5 h-5 border-2 border-slate-300 rounded cursor-pointer hover:border-green-400 flex-shrink-0 transition-colors"
+                              onClick={() => {
+                                const lines = notes.split('\n');
+                                lines[i] = line.replace('[ ] ', '[x] ');
+                                setNotes(lines.join('\n'));
+                              }}
+                            />
+                            <input
+                              type="text"
+                              value={text}
+                              onChange={(e) => {
+                                const lines = notes.split('\n');
+                                lines[i] = '[ ] ' + e.target.value;
+                                setNotes(lines.join('\n'));
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const lines = notes.split('\n');
+                                  lines.splice(i + 1, 0, '[ ] ');
+                                  setNotes(lines.join('\n'));
+                                }
+                                if (e.key === 'Backspace' && text === '') {
+                                  e.preventDefault();
+                                  const lines = notes.split('\n');
+                                  lines.splice(i, 1);
+                                  setNotes(lines.join('\n') || '');
+                                }
+                              }}
+                              className="flex-1 bg-transparent border-none outline-none text-slate-700"
+                              placeholder="Tâche..."
+                            />
+                          </div>
+                        );
                       }
                       
-                      setNotes(e.currentTarget.innerHTML);
-                    }
-                  }}
-                  dangerouslySetInnerHTML={{ __html: notes || '' }}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 min-h-[100px] max-h-[200px] overflow-y-auto"
-                  style={{ minHeight: hasExtendedNotes ? '150px' : '100px' }}
-                  data-placeholder="Écris tes notes ici..."
-                />
+                      // Checkbox cochée
+                      if (trimmed.startsWith('[x] ') || trimmed.startsWith('[X] ')) {
+                        const text = trimmed.substring(4);
+                        return (
+                          <div key={i} className="flex items-center gap-2 py-1">
+                            <span 
+                              className="w-5 h-5 bg-green-500 border-2 border-green-500 rounded flex items-center justify-center text-white text-xs cursor-pointer flex-shrink-0"
+                              onClick={() => {
+                                const lines = notes.split('\n');
+                                lines[i] = line.replace(/\[x\] /i, '[ ] ');
+                                setNotes(lines.join('\n'));
+                              }}
+                            >
+                              ✓
+                            </span>
+                            <input
+                              type="text"
+                              value={text}
+                              onChange={(e) => {
+                                const lines = notes.split('\n');
+                                lines[i] = '[x] ' + e.target.value;
+                                setNotes(lines.join('\n'));
+                              }}
+                              className="flex-1 bg-transparent border-none outline-none text-slate-400 line-through"
+                            />
+                          </div>
+                        );
+                      }
+                      
+                      // Puce
+                      if (trimmed.startsWith('• ')) {
+                        const text = trimmed.substring(2);
+                        return (
+                          <div key={i} className="flex items-center gap-2 py-1">
+                            <span className="text-indigo-500 font-bold flex-shrink-0">•</span>
+                            <input
+                              type="text"
+                              value={text}
+                              onChange={(e) => {
+                                const lines = notes.split('\n');
+                                lines[i] = '• ' + e.target.value;
+                                setNotes(lines.join('\n'));
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const lines = notes.split('\n');
+                                  lines.splice(i + 1, 0, '• ');
+                                  setNotes(lines.join('\n'));
+                                }
+                                if (e.key === 'Backspace' && text === '') {
+                                  e.preventDefault();
+                                  const lines = notes.split('\n');
+                                  lines.splice(i, 1);
+                                  setNotes(lines.join('\n') || '');
+                                }
+                              }}
+                              className="flex-1 bg-transparent border-none outline-none text-slate-700"
+                              placeholder="Élément..."
+                            />
+                          </div>
+                        );
+                      }
+                      
+                      // Texte normal
+                      return (
+                        <div key={i} className="py-1">
+                          <input
+                            type="text"
+                            value={line}
+                            onChange={(e) => {
+                              const lines = notes.split('\n');
+                              lines[i] = e.target.value;
+                              setNotes(lines.join('\n'));
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const lines = notes.split('\n');
+                                lines.splice(i + 1, 0, '');
+                                setNotes(lines.join('\n'));
+                              }
+                              if (e.key === 'Backspace' && line === '' && notes.split('\n').length > 1) {
+                                e.preventDefault();
+                                const lines = notes.split('\n');
+                                lines.splice(i, 1);
+                                setNotes(lines.join('\n'));
+                              }
+                            }}
+                            className="w-full bg-transparent border-none outline-none text-slate-700"
+                            placeholder="Note..."
+                          />
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <input
+                      type="text"
+                      value=""
+                      onChange={(e) => setNotes(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          setNotes(notes + '\n');
+                        }
+                      }}
+                      className="w-full bg-transparent border-none outline-none text-slate-700"
+                      placeholder="Écris tes notes ici..."
+                    />
+                  )}
+                </div>
               ) : (
                 // Mode simple sans éditeur enrichi
                 <textarea
@@ -525,10 +656,10 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                   onChange={(e) => setNotes(e.target.value.slice(0, notesMaxLength))}
                   placeholder="Ajouter des notes ou détails..."
                   rows={hasExtendedNotes ? 6 : 4}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 resize-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 resize-none"
                 />
               )}
-              <div className="text-xs text-slate-400 text-right mt-1">{(typeof notes === 'string' ? notes.replace(/<[^>]*>/g, '').length : 0)}/{notesMaxLength}</div>
+              <div className="text-xs text-slate-400 text-right mt-1">{notes.length}/{notesMaxLength}</div>
             </div>
           </div>
 
@@ -536,7 +667,7 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
             <button
               onClick={handleSubmit}
               disabled={!title.trim()}
-              className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-500 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50"
+              className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50"
             >
               Enregistrer
             </button>
@@ -552,6 +683,27 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
           </div>
         </div>
       </div>
+
+      {/* Modal photo plein écran */}
+      {fullscreenPhoto && (
+        <div 
+          className="fixed inset-0 z-[10000] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setFullscreenPhoto(null)}
+        >
+          <button
+            onClick={() => setFullscreenPhoto(null)}
+            className="absolute top-4 right-4 text-white text-3xl hover:text-gray-300 z-10"
+          >
+            ✕
+          </button>
+          <img 
+            src={fullscreenPhoto} 
+            alt="Photo en plein écran"
+            className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 };
@@ -818,7 +970,7 @@ export const MissionCompletedModal = ({ mission, pqDistribution, onClose }) => {
 };
 
 // Modal paramètres
-export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateEmail, onUpdatePassword, onDeleteAccount, ownedItems = [], activeUpgrades = {}, onToggleUpgrade, shopItems = [], onCheckPseudo, notificationStatus, onEnableNotifications, onDisableNotifications, isNotificationSupported }) => {
+export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateEmail, onUpdatePassword, onDeleteAccount, ownedItems = [], activeUpgrades = {}, onToggleUpgrade, shopItems = [], onCheckPseudo, notificationStatus, onEnableNotifications, onDisableNotifications, isNotificationSupported, calendarSync }) => {
   const [pseudo, setPseudo] = useState(user.pseudo);
   const [email, setEmail] = useState(user.email || '');
   const [customTitle, setCustomTitle] = useState(user.customTitle || '');
@@ -961,7 +1113,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                   setPseudoError('');
                 }}
                 className={`w-full bg-slate-50 border rounded-xl px-4 py-3 focus:outline-none ${
-                  pseudoError ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-indigo-500'
+                  pseudoError ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-blue-500'
                 }`}
               />
               {pseudoError && (
@@ -981,7 +1133,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                   onChange={(e) => setCustomTitle(e.target.value.slice(0, 30))}
                   placeholder="Ex: Aventurier Légendaire"
                   maxLength={30}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
                 />
                 <p className="text-xs text-slate-400 mt-1">{customTitle.length}/30 caractères</p>
               </div>
@@ -994,7 +1146,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value.trim().toLowerCase())}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
               />
             </div>
 
@@ -1067,7 +1219,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -1078,7 +1230,7 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
@@ -1103,53 +1255,119 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
             {/* Séparateur */}
             <hr className="border-slate-200" />
 
+            {/* Calendriers connectés */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-slate-900">Calendriers connectés</h3>
+                {calendarSync?.google?.isConnected && (
+                  <button
+                    onClick={() => calendarSync.syncAll()}
+                    disabled={calendarSync.isSyncing}
+                    className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                      calendarSync.isSyncing 
+                        ? 'bg-slate-200 text-slate-500' 
+                        : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                    }`}
+                  >
+                    {calendarSync.isSyncing ? 'Sync...' : 'Synchroniser'}
+                  </button>
+                )}
+              </div>
+              
+              {/* Google Calendar */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-white">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm">
+                    <svg className="w-6 h-6" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-slate-800">Google Calendar</h4>
+                    {calendarSync?.google?.isConnected && calendarSync.google.lastSync && (
+                      <p className="text-xs text-slate-500">
+                        Dernière sync: {new Date(calendarSync.google.lastSync).toLocaleString('fr-FR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    )}
+                  </div>
+                  {calendarSync?.google?.isLoading ? (
+                    <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                  ) : calendarSync?.google?.isConnected ? (
+                    <button
+                      onClick={() => calendarSync.google.disconnect()}
+                      className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                    >
+                      Déconnecter
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => calendarSync?.google?.connect()}
+                      className="px-3 py-1.5 text-sm bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
+                    >
+                      Connecter
+                    </button>
+                  )}
+                </div>
+                
+                {calendarSync?.google?.isConnected && (
+                  <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 rounded-lg px-3 py-2">
+                    <span>✅</span>
+                    <span>{calendarSync.google.events?.length || 0} événement(s) synchronisé(s)</span>
+                  </div>
+                )}
+                
+                {calendarSync?.google?.error && (
+                  <div className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mt-2">
+                    ⚠️ {calendarSync.google.error}
+                  </div>
+                )}
+              </div>
+
+              {/* Outlook Calendar - Temporairement désactivé */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 opacity-60">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm">
+                    <svg className="w-6 h-6" viewBox="0 0 24 24">
+                      <path fill="#0078D4" d="M24 7.387v10.478c0 .23-.08.424-.238.576-.16.154-.353.23-.577.23h-8.186V6.58h8.186c.224 0 .418.077.577.23.158.153.238.347.238.577z"/>
+                      <path fill="#0364B8" d="M15 6.58v12.09L8.367 21l-6.129-1.363C1.583 19.483 1.163 19 1.163 18.343V5.656c0-.656.42-1.14 1.075-1.294L8.367 3 15 6.58z"/>
+                      <path fill="#0078D4" d="M15 6.58H8.367v12.09L15 21V6.58z"/>
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-slate-800">Outlook / Microsoft 365</h4>
+                    <p className="text-xs text-slate-500">Bientôt disponible</p>
+                  </div>
+                  <span className="px-3 py-1.5 text-sm bg-slate-200 text-slate-500 rounded-lg">
+                    Bientôt
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-lg text-sm text-slate-600">
+                <p className="flex items-start gap-2">
+                  <span>💡</span>
+                  <span>
+                    Les événements de vos calendriers seront automatiquement importés comme événements dans ToDoGame. 
+                    La synchronisation se fait toutes les 5 minutes.
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            {/* Séparateur */}
+            <hr className="border-slate-200" />
+
             {/* Mes données - RGPD */}
             <div className="space-y-4">
               <h3 className="font-bold text-slate-900">Mes données</h3>
-              
-              <button
-                onClick={async () => {
-                  try {
-                    // Créer un fichier texte lisible
-                    const date = new Date().toLocaleDateString('fr-FR');
-                    const textContent = `=== MES DONNÉES TODOGAME ===
-Date d'export : ${date}
-
-PROFIL
-- Pseudo : ${user?.pseudo || 'Non défini'}
-- Email : ${email || 'Non défini'}
-- Niveau : ${user?.level || 1}
-- XP : ${user?.xp || 0}
-- Patates : ${user?.potatoes || 0}
-- Avatar : ${user?.avatar || '🎮'}
-
-STATISTIQUES
-- Tâches complétées : ${user?.tasksCompleted || 0}
-- Événements complétés : ${user?.eventsCompleted || 0}
-- Missions complétées : ${user?.missionsCompleted || 0}
-
----
-Données exportées conformément au RGPD
-Droit à la portabilité des données`;
-                    
-                    // Créer et télécharger le fichier texte
-                    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `todogame-export-${new Date().toISOString().split('T')[0]}.txt`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  } catch (error) {
-                    console.error('Erreur export:', error);
-                  }
-                }}
-                className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-600 py-3 rounded-xl font-semibold border border-indigo-200 transition-all"
-              >
-                Exporter mes données
-              </button>
               
               <button
                 onClick={() => setShowPrivacyModal(true)}
@@ -1256,10 +1474,53 @@ Droit à la portabilité des données`;
               <h3 className="font-bold text-slate-900">6. Vos droits</h3>
               <p>Conformément au RGPD, vous disposez des droits suivants :</p>
               <ul className="list-disc pl-5 space-y-1">
-                <li><strong>Droit d'accès :</strong> exporter vos données depuis les paramètres</li>
+                <li><strong>Droit d'accès :</strong> consulter vos données personnelles</li>
                 <li><strong>Droit de rectification :</strong> modifier vos informations dans l'app</li>
                 <li><strong>Droit à l'effacement :</strong> supprimer votre compte dans les paramètres</li>
-                <li><strong>Droit à la portabilité :</strong> exporter vos données au format JSON</li>
+                <li>
+                  <strong>Droit à la portabilité :</strong>{' '}
+                  <button
+                    onClick={async () => {
+                      try {
+                        const date = new Date().toLocaleDateString('fr-FR');
+                        const textContent = `=== MES DONNÉES TODOGAME ===
+Date d'export : ${date}
+
+PROFIL
+- Pseudo : ${user?.pseudo || 'Non défini'}
+- Email : ${email || 'Non défini'}
+- Niveau : ${user?.level || 1}
+- XP : ${user?.xp || 0}
+- Patates : ${user?.potatoes || 0}
+- Avatar : ${user?.avatar || '🎮'}
+
+STATISTIQUES
+- Tâches complétées : ${user?.tasksCompleted || 0}
+- Événements complétés : ${user?.eventsCompleted || 0}
+- Missions complétées : ${user?.missionsCompleted || 0}
+
+---
+Données exportées conformément au RGPD
+Droit à la portabilité des données`;
+                        
+                        const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `todogame-export-${new Date().toISOString().split('T')[0]}.txt`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                      } catch (error) {
+                        console.error('Erreur export:', error);
+                      }
+                    }}
+                    className="text-indigo-600 hover:underline font-medium"
+                  >
+                    exporter mes données
+                  </button>
+                </li>
               </ul>
               
               <h3 className="font-bold text-slate-900">7. Sécurité</h3>
@@ -1809,7 +2070,7 @@ export const CreateMissionQuestModal = ({ mission, onClose, onCreate, getStatusC
                     key={d}
                     onClick={() => setDuration(d)}
                     className={`py-2 rounded-lg border-2 font-semibold text-sm transition-all ${
-                      duration === d ? 'bg-purple-500 text-white border-purple-500' : 'border-slate-200 text-slate-600'
+                      duration === d ? 'bg-blue-500 text-white border-blue-500' : 'border-slate-200 text-slate-600'
                     }`}
                   >
                     {d}
@@ -1971,7 +2232,7 @@ export const BadgeUnlockedModal = ({ badge, onClose }) => {
 export const EditMissionQuestModal = CreateMissionQuestModal;
 
 // Modal de création/édition d'événement
-export const CreateEventModal = ({ onClose, onCreate, onDelete, initialEvent, friends = [], missionMode = null, missionParticipants = [] }) => {
+export const CreateEventModal = ({ onClose, onCreate, onDelete, initialEvent, friends = [], missionMode = null, missionParticipants = [], ownedItems = [], activeUpgrades = {}, existingTags = [], userId }) => {
   const [title, setTitle] = useState(initialEvent?.title || '');
   const [description, setDescription] = useState(initialEvent?.description || '');
   const [date, setDate] = useState(initialEvent?.date ? new Date(initialEvent.date).toISOString().split('T')[0] : '');
@@ -1982,9 +2243,21 @@ export const CreateEventModal = ({ onClose, onCreate, onDelete, initialEvent, fr
   const [reminder, setReminder] = useState(initialEvent?.reminder || 'none');
   const [assignedTo, setAssignedTo] = useState(initialEvent?.assignedTo || '');
   const [showFriendsList, setShowFriendsList] = useState(false);
+  const [tags, setTags] = useState(initialEvent?.tags?.join(', ') || '');
+  const [notes, setNotes] = useState(initialEvent?.notes || '');
+  const [photos, setPhotos] = useState(initialEvent?.photos || []);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState(null);
 
   const isEditing = !!initialEvent;
   const isMissionEvent = !!missionMode;
+  
+  // Améliorations
+  const hasExtendedNotes = ownedItems.includes(72) && activeUpgrades[72] !== false;
+  const hasPhotoNotes = ownedItems.includes(86) && activeUpgrades[86] !== false;
+  const hasRichTextEditor = ownedItems.includes(85) && activeUpgrades[85] !== false;
+  const notesMaxLength = hasExtendedNotes ? 2000 : 500;
   
   // Liste des participants disponibles (amis ou participants de mission)
   const availableParticipants = isMissionEvent ? missionParticipants : friends;
@@ -2022,6 +2295,9 @@ export const CreateEventModal = ({ onClose, onCreate, onDelete, initialEvent, fr
       reminder,
       assignedTo: isMissionEvent ? assignedTo : null,
       isEvent: true,
+      tags: tags.split(',').map(t => t.trim()).filter(t => t),
+      notes: notes.trim(),
+      photos: photos,
     });
   };
 
@@ -2191,7 +2467,7 @@ export const CreateEventModal = ({ onClose, onCreate, onDelete, initialEvent, fr
             {!isMissionEvent && (
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Participants ({participants.length})
+                  Participants ({participants.length}) <span className="text-xs text-green-500 font-normal">points x2 !</span>
                 </label>
                 
                 {/* Participants sélectionnés */}
@@ -2247,17 +2523,269 @@ export const CreateEventModal = ({ onClose, onCreate, onDelete, initialEvent, fr
               </div>
             )}
 
-            {/* Description */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Description</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value.slice(0, 500))}
-                placeholder="Détails de l'événement..."
-                rows={3}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 resize-none"
+            {/* Tags */}
+            <div className="relative">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Catégories</label>
+              <input
+                type="text"
+                value={tags}
+                onChange={(e) => {
+                  setTags(e.target.value);
+                  setShowTagSuggestions(true);
+                }}
+                onFocus={() => setShowTagSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
+                placeholder="Ex: Travail, Loisir, RDV..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500"
               />
+              
+              {/* Suggestions de tags */}
+              {showTagSuggestions && existingTags.length > 0 && (() => {
+                const currentInput = tags.split(',').pop().trim().toLowerCase();
+                const alreadyUsedTags = tags.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
+                const suggestions = existingTags.filter(tag => 
+                  tag.toLowerCase().includes(currentInput) && 
+                  !alreadyUsedTags.includes(tag.toLowerCase())
+                ).slice(0, 5);
+                
+                if (suggestions.length === 0) return null;
+                
+                return (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                    {suggestions.map((suggestion, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        className="w-full px-4 py-2 text-left hover:bg-emerald-50 text-slate-700 text-sm"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          const tagsList = tags.split(',');
+                          tagsList[tagsList.length - 1] = suggestion;
+                          setTags(tagsList.join(', ') + ', ');
+                          setShowTagSuggestions(false);
+                        }}
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
+
+            {/* Notes */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Notes</label>
+              
+              {/* Barre d'outils notes - si amélioration achetée */}
+              {(hasRichTextEditor || hasPhotoNotes) && (
+                <div className="flex items-center gap-1 p-2 bg-slate-100 rounded-t-lg flex-wrap border border-b-0 border-slate-200">
+                  {hasRichTextEditor && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setNotes(notes ? notes + '\n• ' : '• ')}
+                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
+                        title="Liste à puces"
+                      >
+                        • Liste
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNotes(notes ? notes + '\n[ ] ' : '[ ] ')}
+                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
+                        title="Checkbox"
+                      >
+                        ☐ Check
+                      </button>
+                      <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                    </>
+                  )}
+                  
+                  {hasPhotoNotes && (
+                    <label className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer flex items-center gap-1">
+                      📷 Photo
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files[0];
+                          if (!file) return;
+                          setUploadingPhoto(true);
+                          try {
+                            // Convertir en base64 pour stockage simple
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setPhotos([...photos, reader.result]);
+                              setUploadingPhoto(false);
+                            };
+                            reader.readAsDataURL(file);
+                          } catch (error) {
+                            console.error('Erreur upload photo:', error);
+                            setUploadingPhoto(false);
+                          }
+                        }}
+                      />
+                      {uploadingPhoto && <span className="animate-spin">⏳</span>}
+                    </label>
+                  )}
+                </div>
+              )}
+              
+              {hasRichTextEditor ? (
+                <div className={`w-full bg-slate-50 border border-slate-200 ${(hasRichTextEditor || hasPhotoNotes) ? 'rounded-b-xl rounded-t-none' : 'rounded-xl'} px-4 py-3 min-h-[100px] max-h-[150px] overflow-y-auto`}>
+                  {notes ? (
+                    notes.split('\n').map((line, i) => {
+                      const trimmed = line.trimStart();
+                      
+                      if (trimmed.startsWith('[ ] ')) {
+                        const text = trimmed.substring(4);
+                        return (
+                          <div key={i} className="flex items-center gap-2 py-1">
+                            <span 
+                              className="w-5 h-5 border-2 border-slate-300 rounded cursor-pointer hover:border-green-400 flex-shrink-0"
+                              onClick={() => {
+                                const lines = notes.split('\n');
+                                lines[i] = line.replace('[ ] ', '[x] ');
+                                setNotes(lines.join('\n'));
+                              }}
+                            />
+                            <input
+                              type="text"
+                              value={text}
+                              onChange={(e) => {
+                                const lines = notes.split('\n');
+                                lines[i] = '[ ] ' + e.target.value;
+                                setNotes(lines.join('\n'));
+                              }}
+                              className="flex-1 bg-transparent border-none outline-none text-slate-700"
+                            />
+                          </div>
+                        );
+                      }
+                      
+                      if (trimmed.startsWith('[x] ') || trimmed.startsWith('[X] ')) {
+                        const text = trimmed.substring(4);
+                        return (
+                          <div key={i} className="flex items-center gap-2 py-1">
+                            <span 
+                              className="w-5 h-5 bg-green-500 border-2 border-green-500 rounded flex items-center justify-center text-white text-xs cursor-pointer flex-shrink-0"
+                              onClick={() => {
+                                const lines = notes.split('\n');
+                                lines[i] = line.replace(/\[x\] /i, '[ ] ');
+                                setNotes(lines.join('\n'));
+                              }}
+                            >
+                              ✓
+                            </span>
+                            <input
+                              type="text"
+                              value={text}
+                              onChange={(e) => {
+                                const lines = notes.split('\n');
+                                lines[i] = '[x] ' + e.target.value;
+                                setNotes(lines.join('\n'));
+                              }}
+                              className="flex-1 bg-transparent border-none outline-none text-slate-400 line-through"
+                            />
+                          </div>
+                        );
+                      }
+                      
+                      if (trimmed.startsWith('• ')) {
+                        const text = trimmed.substring(2);
+                        return (
+                          <div key={i} className="flex items-center gap-2 py-1">
+                            <span className="text-emerald-500 font-bold flex-shrink-0">•</span>
+                            <input
+                              type="text"
+                              value={text}
+                              onChange={(e) => {
+                                const lines = notes.split('\n');
+                                lines[i] = '• ' + e.target.value;
+                                setNotes(lines.join('\n'));
+                              }}
+                              className="flex-1 bg-transparent border-none outline-none text-slate-700"
+                            />
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div key={i} className="py-1">
+                          <input
+                            type="text"
+                            value={line}
+                            onChange={(e) => {
+                              const lines = notes.split('\n');
+                              lines[i] = e.target.value;
+                              setNotes(lines.join('\n'));
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const lines = notes.split('\n');
+                                lines.splice(i + 1, 0, '');
+                                setNotes(lines.join('\n'));
+                              }
+                            }}
+                            className="w-full bg-transparent border-none outline-none text-slate-700"
+                            placeholder="Note..."
+                          />
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <input
+                      type="text"
+                      value=""
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="w-full bg-transparent border-none outline-none text-slate-700"
+                      placeholder="Ajouter des notes..."
+                    />
+                  )}
+                </div>
+              ) : (
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value.slice(0, notesMaxLength))}
+                  placeholder="Ajouter des notes..."
+                  rows={3}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 resize-none"
+                />
+              )}
+              <div className="text-xs text-slate-400 mt-1 text-right">{notes.length}/{notesMaxLength}</div>
+            </div>
+
+            {/* Photos */}
+            {photos.length > 0 && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Photos ({photos.length})</label>
+                <div className="flex flex-wrap gap-2">
+                  {photos.map((photo, index) => (
+                    <div key={index} className="relative group">
+                      <img 
+                        src={photo} 
+                        alt="" 
+                        className="w-16 h-16 object-cover rounded-lg cursor-pointer hover:opacity-80"
+                        onClick={() => setFullscreenPhoto(photo)}
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPhotos(photos.filter((_, i) => i !== index));
+                        }}
+                        className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="p-6 border-t border-slate-200 flex gap-3">
@@ -2280,6 +2808,27 @@ export const CreateEventModal = ({ onClose, onCreate, onDelete, initialEvent, fr
           </div>
         </div>
       </div>
+
+      {/* Modal photo plein écran */}
+      {fullscreenPhoto && (
+        <div 
+          className="fixed inset-0 z-[10000] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setFullscreenPhoto(null)}
+        >
+          <button
+            onClick={() => setFullscreenPhoto(null)}
+            className="absolute top-4 right-4 text-white text-3xl hover:text-gray-300 z-10"
+          >
+            ✕
+          </button>
+          <img 
+            src={fullscreenPhoto} 
+            alt="Photo en plein écran"
+            className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 };
@@ -2517,7 +3066,7 @@ export const RiddleModal = ({ riddle, level, onClose, onSuccess, onFail }) => {
                   }}
                   onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
                   placeholder="Ta réponse..."
-                  className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-blue-500"
                   autoFocus
                 />
                 <button

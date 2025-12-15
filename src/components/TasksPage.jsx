@@ -1,11 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { PageHelp } from './PageHelp';
-import { SeasonalChallengeBanner } from './SeasonalChallengeBanner';
 
-export const TasksPage = ({ 
+export const TasksPage = ({  
   tasks, 
   events = [],
-  calendarEvents = [],
   tasksView, 
   setTasksView, 
   onCompleteTask,
@@ -22,10 +20,7 @@ export const TasksPage = ({
   user,
   onCompleteMissionQuest,
   ownedItems = [],
-  activeUpgrades = {},
-  seasonalChallenges,
-  onClaimSeasonalAvatar,
-  onCompleteSeasonalTask
+  activeUpgrades = {}
 }) => {
   const [weekDaysCount, setWeekDaysCount] = useState(7);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -58,11 +53,9 @@ export const TasksPage = ({
     return Math.round(getDurationBase(duration) * getStatusMultiplier(status));
   };
 
-  // Fonction de filtrage avec protection
+  // Fonction de filtrage
   const filterTasks = (tasksList) => {
-    if (!tasksList || !Array.isArray(tasksList)) return [];
     return tasksList.filter(task => {
-      if (!task) return false;
       if (filterStatus !== 'all' && task.status !== filterStatus) return false;
       if (filterDuration !== 'all' && task.duration !== filterDuration) return false;
       return true;
@@ -73,12 +66,11 @@ export const TasksPage = ({
     return Math.round(getDurationBase(duration) * getStatusMultiplier(status));
   };
 
-  // Fonction de tri avec protection
+  // Fonction de tri
   const sortTasks = (taskList) => {
-    if (!taskList || !Array.isArray(taskList)) return [];
     if (!hasAdvancedSort) return taskList;
     
-    return [...taskList].filter(t => t).sort((a, b) => {
+    return [...taskList].sort((a, b) => {
       switch (sortMode) {
         case 'priority':
           const priorityOrder = { 'urgent': 0, 'important': 1, 'à faire': 2 };
@@ -167,9 +159,9 @@ export const TasksPage = ({
     return `${firstDay.getDate()} ${monthNames[firstDay.getMonth()]} - ${lastDay.getDate()} ${monthNames[lastDay.getMonth()]}`;
   }, [weekDates]);
 
-  // Séparer les tâches actives et archivées (terminées) avec protection
-  const activeTasks = tasks.filter(t => t && !t.completed);
-  const archivedTasks = tasks.filter(t => t && t.completed);
+  // Séparer les tâches actives et archivées (terminées)
+  const activeTasks = tasks.filter(t => !t.completed);
+  const archivedTasks = tasks.filter(t => t.completed);
   
   // Tâches d'aujourd'hui (incluant les tâches de mission)
   const todayTasks = useMemo(() => {
@@ -196,7 +188,7 @@ export const TasksPage = ({
     return myMissionQuests.filter(q => q.isEvent && !q.completed);
   }, [myMissionQuests]);
 
-  // Événements d'aujourd'hui (incluant les événements de mission et calendrier)
+  // Événements d'aujourd'hui (incluant les événements de mission)
   const todayEvents = useMemo(() => {
     const regularEvents = events.filter(e => {
       if (e.completed) return false;
@@ -212,22 +204,9 @@ export const TasksPage = ({
       eventDate.setHours(0, 0, 0, 0);
       return eventDate.getTime() === today.getTime();
     });
-
-    // Événements calendrier (Google, Outlook)
-    const calendarEventsToday = calendarEvents.filter(e => {
-      if (!e.startDate) return false;
-      const eventDate = new Date(e.startDate);
-      eventDate.setHours(0, 0, 0, 0);
-      return eventDate.getTime() === today.getTime();
-    }).map(e => ({
-      ...e,
-      isCalendarEvent: true,
-      date: e.startDate,
-      time: new Date(e.startDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-    }));
     
-    return [...regularEvents, ...missionEventsToday, ...calendarEventsToday];
-  }, [events, today, missionEvents, calendarEvents]);
+    return [...regularEvents, ...missionEventsToday];
+  }, [events, today, missionEvents]);
 
   // Tâches de la semaine (incluant les tâches de mission)
   const weekTasks = useMemo(() => weekDates.map(date => {
@@ -261,26 +240,13 @@ export const TasksPage = ({
       eventDate.setHours(0, 0, 0, 0);
       return eventDate.getTime() === date.getTime();
     });
-
-    // Événements calendrier (Google, Outlook)
-    const calendarEventsForDate = calendarEvents.filter(e => {
-      if (!e.startDate) return false;
-      const eventDate = new Date(e.startDate);
-      eventDate.setHours(0, 0, 0, 0);
-      return eventDate.getTime() === date.getTime();
-    }).map(e => ({
-      ...e,
-      isCalendarEvent: true,
-      date: e.startDate,
-      time: new Date(e.startDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-    }));
     
     return {
       date,
       tasks: [...tasksForDate, ...missionQuestsForDate],
-      events: [...regularEventsForDate, ...missionEventsForDate, ...calendarEventsForDate]
+      events: [...regularEventsForDate, ...missionEventsForDate]
     };
-  }), [weekDates, activeTasks, myMissionQuests, events, missionEvents, calendarEvents]);
+  }), [weekDates, activeTasks, myMissionQuests, events, missionEvents]);
 
   // Bucketlist = tâches sans date + tâches de mission sans date
   const bucketlistTasks = [
@@ -293,6 +259,8 @@ export const TasksPage = ({
     const pointsGained = getDurationPoints(task.duration, task.status);
     const isCompleted = task.completed;
     const recurrenceLabel = getRecurrenceLabel ? getRecurrenceLabel(task) : null;
+    const isShared = task.participants && task.participants.length > 0;
+    const sharingBonus = isShared ? 2 : 1;
     
     const handleComplete = () => {
       if (task.isMissionQuest) {
@@ -330,22 +298,43 @@ export const TasksPage = ({
           <div className="flex-1 min-w-0" onClick={() => onEditTask(task)}>
             {/* Titre + XP/Patates en haut */}
             <div className="flex items-start justify-between gap-2">
-              <h3 className={`font-semibold ${compact ? 'text-xs leading-tight' : 'text-base'} cursor-pointer line-clamp-2 ${
-                isCompleted 
-                  ? 'text-slate-400 line-through' 
-                  : 'text-slate-900 hover:text-indigo-600'
-              }`}>
-                {task.title}
-              </h3>
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className={`font-semibold ${compact ? 'text-xs leading-tight' : 'text-base'} cursor-pointer line-clamp-2 ${
+                  isCompleted 
+                    ? 'text-slate-400 line-through' 
+                    : 'text-slate-900 hover:text-indigo-600'
+                }`}>
+                  {task.title}
+                </h3>
+                {/* Avatars des participants */}
+                {isShared && !compact && (
+                  <div className="flex -space-x-1 flex-shrink-0">
+                    {task.participants.slice(0, 3).map((p, i) => (
+                      <div 
+                        key={i} 
+                        className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center border-2 border-white shadow-sm"
+                        title={p.pseudo}
+                      >
+                        <span className="text-xs">{p.avatar}</span>
+                      </div>
+                    ))}
+                    {task.participants.length > 3 && (
+                      <div className="w-6 h-6 rounded-full bg-slate-300 flex items-center justify-center border-2 border-white text-xs text-slate-600">
+                        +{task.participants.length - 3}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               
               {/* XP et Patates en haut à droite */}
               {!isCompleted && !compact && (
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <span className="px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
-                    ⭐+{xpGained}
+                    ⚡+{xpGained * sharingBonus}
                   </span>
                   <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
-                    🥔+{pointsGained}
+                    🥔+{pointsGained * sharingBonus}
                   </span>
                 </div>
               )}
@@ -390,190 +379,110 @@ export const TasksPage = ({
 
   // Carte événement
   const EventCard = ({ event }) => {
-    const isCompleted = event.completed;
+    const currentUserPseudo = user?.pseudo;
     const participantCount = event.participants?.length || 0;
-    const isCalendarEvent = event.isCalendarEvent;
-    
-    // Tous les événements en vert
-    const bgColor = isCompleted 
-      ? 'bg-slate-100 border-slate-200 opacity-60' 
-      : 'bg-emerald-50 border-emerald-200 hover:shadow-md';
-
-    const [showCalendarEventModal, setShowCalendarEventModal] = useState(false);
+    const isShared = participantCount > 0;
+    const sharingBonus = isShared ? 2 : 1;
+    // Vérifier si l'utilisateur courant a complété cet événement
+    const userHasCompleted = event.completedBy?.includes(currentUserPseudo) || event.completed;
     
     return (
-      <>
-        <div className={`rounded-xl p-4 border shadow-sm transition-all group ${bgColor}`}>
-          <div className="flex items-start gap-3">
-            {/* Checkbox - pas pour les événements calendrier */}
-            {isCalendarEvent ? (
-              <div className="mt-1 w-6 h-6 rounded-lg bg-emerald-100 flex-shrink-0 flex items-center justify-center">
-                <span className="text-emerald-600 text-xs">📅</span>
-              </div>
-            ) : !isCompleted ? (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCompleteEvent(event.id);
-                }}
-                className="mt-1 w-6 h-6 rounded-lg border-2 border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100 transition-all flex-shrink-0 flex items-center justify-center"
-              >
-                <span className="opacity-0 group-hover:opacity-100 text-emerald-600 text-xs">✓</span>
-              </button>
-            ) : (
-              <div className="mt-1 w-6 h-6 rounded-lg bg-emerald-500 flex-shrink-0 flex items-center justify-center">
-                <span className="text-white text-xs">✓</span>
-              </div>
-            )}
-            
-            <div 
-              className="flex-1 min-w-0 cursor-pointer" 
-              onClick={() => isCalendarEvent ? setShowCalendarEventModal(true) : onEditEvent(event)}
+      <div className={`rounded-xl p-4 border shadow-sm transition-all group ${
+        userHasCompleted 
+          ? 'bg-slate-100 border-slate-200 opacity-60' 
+          : 'bg-emerald-50 border-emerald-200 hover:shadow-md'
+      }`}>
+        <div className="flex items-start gap-3">
+          {!userHasCompleted ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onCompleteEvent(event.id);
+              }}
+              className="mt-1 w-6 h-6 rounded-lg border-2 border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100 transition-all flex-shrink-0 flex items-center justify-center"
             >
-              {/* Titre */}
-              <div>
-                <h3 className={`font-semibold text-base ${
-                  isCompleted 
+              <span className="opacity-0 group-hover:opacity-100 text-emerald-600 text-xs">✓</span>
+            </button>
+          ) : (
+            <div className="mt-1 w-6 h-6 rounded-lg bg-emerald-500 flex-shrink-0 flex items-center justify-center">
+              <span className="text-white text-xs">✓</span>
+            </div>
+          )}
+          
+          <div className="flex-1 min-w-0" onClick={() => onEditEvent(event)}>
+            {/* Titre + Avatars + Récompenses */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className={`font-semibold text-base cursor-pointer ${
+                  userHasCompleted 
                     ? 'text-slate-400 line-through' 
                     : 'text-slate-900 hover:text-emerald-600'
                 }`}>
-                  {event.title}
+                  📅 {event.title}
                 </h3>
-                {!isCompleted && (
-                  <div className="flex items-center gap-2 flex-wrap mt-1">
-                    {event.time && (
-                      <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
-                        🕐 {event.time}
-                      </span>
-                    )}
-                    {event.duration && !isCalendarEvent && (
-                      <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
-                        {event.duration}
-                      </span>
-                    )}
-                    {event.location && (
-                      <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
-                        📍 {event.location}
-                      </span>
-                    )}
-                    {event.reminder && event.reminder !== 'none' && (
-                      <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 text-xs font-medium">
-                        🔔 {event.reminder}
-                      </span>
-                    )}
-                    {isCalendarEvent && (
-                      <span className="px-2 py-0.5 rounded-lg bg-emerald-100 border border-emerald-200 text-emerald-600 text-xs font-medium">
-                        {event.provider === 'google' ? 'Google' : 'Outlook'}
-                      </span>
+                {/* Avatars des participants */}
+                {isShared && (
+                  <div className="flex -space-x-1 flex-shrink-0">
+                    {event.participants.slice(0, 3).map((p, i) => (
+                      <div 
+                        key={i} 
+                        className="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center border-2 border-white shadow-sm"
+                        title={p.pseudo}
+                      >
+                        <span className="text-xs">{p.avatar}</span>
+                      </div>
+                    ))}
+                    {participantCount > 3 && (
+                      <div className="w-6 h-6 rounded-full bg-slate-300 flex items-center justify-center border-2 border-white text-xs text-slate-600">
+                        +{participantCount - 3}
+                      </div>
                     )}
                   </div>
                 )}
               </div>
               
-              {/* Participants avec avatars complets */}
-              {!isCompleted && participantCount > 0 && (
-                <div className="flex items-center gap-1 mt-2">
-                  <span className="text-xs text-slate-500">Avec :</span>
-                  <div className="flex -space-x-1">
-                    {event.participants.slice(0, 5).map((p, i) => (
-                      <div 
-                        key={i} 
-                        className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center border-2 border-white shadow-sm"
-                        title={p.pseudo}
-                      >
-                        <span className="text-sm">{p.avatar || '👤'}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {participantCount > 5 && (
-                    <span className="text-xs text-slate-500 ml-1">+{participantCount - 5}</span>
-                  )}
+              {/* XP et Patates */}
+              {!userHasCompleted && (
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <span className="px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
+                    ⚡+{5 * sharingBonus}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
+                    🥔+{5 * sharingBonus}
+                  </span>
                 </div>
+              )}
+            </div>
+            
+            {!userHasCompleted && (
+              <div className="flex items-center gap-2 flex-wrap mt-1">
+                <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                  {event.time}
+                </span>
+                <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                  {event.duration}
+                </span>
+                {event.location && (
+                  <span className="px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                    📍 {event.location}
+                  </span>
+                )}
+                {event.reminder && event.reminder !== 'none' && (
+                  <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 text-xs font-medium">
+                    🔔 {event.reminder}
+                  </span>
+                )}
+                {/* Tags */}
+                {event.tags && event.tags.length > 0 && event.tags.map((tag, index) => (
+                  <span key={index} className="px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 text-xs font-medium">
+                    #{tag}
+                  </span>
+                ))}
+              </div>
             )}
           </div>
         </div>
       </div>
-
-      {/* Modal lecture seule pour événements calendrier */}
-      {showCalendarEventModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50" onClick={() => setShowCalendarEventModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-emerald-50">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">📅</span>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">Événement {event.provider === 'google' ? 'Google' : 'Outlook'}</h2>
-                  <p className="text-xs text-emerald-600">Synchronisé depuis votre calendrier</p>
-                </div>
-              </div>
-              <button onClick={() => setShowCalendarEventModal(false)} className="text-2xl text-slate-400 hover:text-slate-600">✕</button>
-            </div>
-            
-            <div className="p-5 space-y-4">
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">{event.title}</h3>
-              </div>
-              
-              <div className="space-y-3">
-                {event.time && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-slate-400">🕐</span>
-                    <span className="text-slate-700">{event.time}</span>
-                  </div>
-                )}
-                
-                {event.date && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-slate-400">📆</span>
-                    <span className="text-slate-700">
-                      {new Date(event.date).toLocaleDateString('fr-FR', { 
-                        weekday: 'long', 
-                        day: 'numeric', 
-                        month: 'long',
-                        year: 'numeric'
-                      })}
-                    </span>
-                  </div>
-                )}
-                
-                {event.location && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-slate-400">📍</span>
-                    <span className="text-slate-700">{event.location}</span>
-                  </div>
-                )}
-                
-                {event.description && (
-                  <div className="flex items-start gap-3">
-                    <span className="text-slate-400">📝</span>
-                    <span className="text-slate-700">{event.description}</span>
-                  </div>
-                )}
-                
-                {participantCount > 0 && (
-                  <div className="flex items-start gap-3">
-                    <span className="text-slate-400">👥</span>
-                    <div className="flex flex-wrap gap-2">
-                      {event.participants.map((p, i) => (
-                        <span key={i} className="px-2 py-1 bg-slate-100 rounded-lg text-sm text-slate-600">
-                          {p.pseudo}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="p-5 border-t border-slate-100 bg-slate-50">
-              <p className="text-xs text-slate-500 text-center">
-                Pour modifier cet événement, ouvrez {event.provider === 'google' ? 'Google Calendar' : 'Outlook'}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-      </>
     );
   };
 
@@ -613,170 +522,162 @@ export const TasksPage = ({
         Plus la tâche est longue, plus elle rapporte ! Les tâches non terminées sont automatiquement reportées au lendemain.
       </PageHelp>
 
-      {/* Bannière défi saisonnier */}
-      {seasonalChallenges && seasonalChallenges.currentChallenge && (
-        <SeasonalChallengeBanner
-          challenge={seasonalChallenges.currentChallenge}
-          challengeData={seasonalChallenges.challengeData}
-          challengeStatus={seasonalChallenges.challengeStatus}
-          onAccept={seasonalChallenges.acceptChallenge}
-          onIgnore={seasonalChallenges.ignoreChallenge}
-          onCompleteTask={onCompleteSeasonalTask}
-          onClaimAvatar={onClaimSeasonalAvatar}
-        />
-      )}
-
       {/* Onglets avec Archive */}
-      <div className="flex gap-1 sm:gap-2 bg-white p-1 sm:p-2 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-        <button
-          onClick={() => setTasksView('today')}
-          className={`flex-1 min-w-fit py-2 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold transition-all text-sm sm:text-base ${
-            tasksView === 'today'
-              ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          Aujourd'hui
-        </button>
-        <button
-          onClick={() => setTasksView('week')}
-          className={`flex-1 min-w-fit py-2 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold transition-all text-sm sm:text-base ${
-            tasksView === 'week'
-              ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          Semaine
-        </button>
-        <button
-          onClick={() => setTasksView('bucketlist')}
-          className={`flex-1 min-w-fit py-2 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold transition-all text-sm sm:text-base ${
-            tasksView === 'bucketlist'
-              ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-50'
-          }`}
-        >
-          Bucketlist
-        </button>
-        <button
-          onClick={() => setTasksView('archive')}
-          className={`px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-semibold transition-all ${
-            tasksView === 'archive'
-              ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
-              : 'text-slate-600 hover:bg-slate-50'
-          }`}
-          title="Archives"
-        >
-          📦
-        </button>
+      <div className="flex items-center gap-2">
+        <div className="flex gap-1 sm:gap-2 bg-white p-1 sm:p-2 rounded-xl border border-slate-200 shadow-sm flex-1">
+          <button
+            onClick={() => setTasksView('today')}
+            className={`flex-1 min-w-fit py-2 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold transition-all text-sm sm:text-base ${
+              tasksView === 'today'
+                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            Aujourd'hui
+          </button>
+          <button
+            onClick={() => setTasksView('week')}
+            className={`flex-1 min-w-fit py-2 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold transition-all text-sm sm:text-base ${
+              tasksView === 'week'
+                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            Semaine
+          </button>
+          <button
+            onClick={() => setTasksView('bucketlist')}
+            className={`flex-1 min-w-fit py-2 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold transition-all text-sm sm:text-base ${
+              tasksView === 'bucketlist'
+                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            Bucketlist
+          </button>
+          <button
+            onClick={() => setTasksView('archive')}
+            className={`px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-semibold transition-all ${
+              tasksView === 'archive'
+                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+            title="Archives"
+          >
+            📦
+          </button>
+        </div>
         
-        {/* Bouton tri avancé */}
-        {hasAdvancedSort && (
-          <div className="relative">
-            <button
-              onClick={() => setShowSortMenu(!showSortMenu)}
-              className={`px-4 py-3 rounded-lg font-semibold transition-all ${
-                sortMode !== 'date'
-                  ? 'bg-indigo-100 text-indigo-600'
-                  : 'text-slate-600 hover:bg-slate-50'
-              }`}
-              title="Trier"
-            >
-              🔀
-            </button>
-            {showSortMenu && (
-              <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-20 min-w-[150px]">
-                <button
-                  onClick={() => { setSortMode('date'); setShowSortMenu(false); }}
-                  className={`w-full text-left px-4 py-2 hover:bg-slate-50 ${sortMode === 'date' ? 'text-indigo-600 font-semibold' : ''}`}
-                >
-                  Par date
-                </button>
-                <button
-                  onClick={() => { setSortMode('priority'); setShowSortMenu(false); }}
-                  className={`w-full text-left px-4 py-2 hover:bg-slate-50 ${sortMode === 'priority' ? 'text-indigo-600 font-semibold' : ''}`}
-                >
-                  Par priorité
-                </button>
-                <button
-                  onClick={() => { setSortMode('duration'); setShowSortMenu(false); }}
-                  className={`w-full text-left px-4 py-2 hover:bg-slate-50 ${sortMode === 'duration' ? 'text-indigo-600 font-semibold' : ''}`}
-                >
-                  Par durée
-                </button>
-                <button
-                  onClick={() => { setSortMode('alpha'); setShowSortMenu(false); }}
-                  className={`w-full text-left px-4 py-2 hover:bg-slate-50 ${sortMode === 'alpha' ? 'text-indigo-600 font-semibold' : ''}`}
-                >
-                  Alphabétique
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Boutons tri et filtre - séparés des onglets */}
+        <div className="flex gap-1">
+          {/* Bouton tri avancé */}
+          {hasAdvancedSort && (
+            <div className="relative">
+              <button
+                onClick={() => { setShowSortMenu(!showSortMenu); setShowFilterMenu(false); }}
+                className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-xl border shadow-sm transition-all ${
+                  sortMode !== 'date'
+                    ? 'bg-blue-100 border-blue-300 text-blue-600'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+                title="Trier"
+              >
+                🔀
+              </button>
+              {showSortMenu && (
+                <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 min-w-[150px]">
+                  <button
+                    onClick={() => { setSortMode('date'); setShowSortMenu(false); }}
+                    className={`w-full text-left px-4 py-2.5 hover:bg-slate-50 text-sm ${sortMode === 'date' ? 'text-blue-600 font-semibold bg-blue-50' : 'text-slate-700'}`}
+                  >
+                    📅 Par date
+                  </button>
+                  <button
+                    onClick={() => { setSortMode('priority'); setShowSortMenu(false); }}
+                    className={`w-full text-left px-4 py-2.5 hover:bg-slate-50 text-sm ${sortMode === 'priority' ? 'text-blue-600 font-semibold bg-blue-50' : 'text-slate-700'}`}
+                  >
+                    🎯 Par priorité
+                  </button>
+                  <button
+                    onClick={() => { setSortMode('duration'); setShowSortMenu(false); }}
+                    className={`w-full text-left px-4 py-2.5 hover:bg-slate-50 text-sm ${sortMode === 'duration' ? 'text-blue-600 font-semibold bg-blue-50' : 'text-slate-700'}`}
+                  >
+                    ⏱️ Par durée
+                  </button>
+                  <button
+                    onClick={() => { setSortMode('alpha'); setShowSortMenu(false); }}
+                    className={`w-full text-left px-4 py-2.5 hover:bg-slate-50 text-sm ${sortMode === 'alpha' ? 'text-blue-600 font-semibold bg-blue-50' : 'text-slate-700'}`}
+                  >
+                    🔤 Alphabétique
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* Bouton filtre de tâches */}
-        {hasQuestFilter && (
-          <div className="relative">
-            <button
-              onClick={() => setShowFilterMenu(!showFilterMenu)}
-              className={`px-4 py-3 rounded-lg font-semibold transition-all ${
-                filterStatus !== 'all' || filterDuration !== 'all'
-                  ? 'bg-purple-100 text-purple-600'
-                  : 'text-slate-600 hover:bg-slate-50'
-              }`}
-              title="Filtrer"
-            >
-              🔍
-            </button>
-            {showFilterMenu && (
-              <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-slate-200 py-3 px-4 z-20 min-w-[200px]">
-                <div className="mb-3">
-                  <div className="text-xs font-semibold text-slate-500 mb-2">Statut</div>
-                  <div className="flex flex-wrap gap-1">
-                    {['all', 'urgent', 'important', 'à faire'].map(status => (
-                      <button
-                        key={status}
-                        onClick={() => setFilterStatus(status)}
-                        className={`px-2 py-1 rounded text-xs font-medium transition-all ${
-                          filterStatus === status
-                            ? 'bg-purple-500 text-white'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                      >
-                        {status === 'all' ? 'Tous' : status}
-                      </button>
-                    ))}
+          {/* Bouton filtre de tâches */}
+          {hasQuestFilter && (
+            <div className="relative">
+              <button
+                onClick={() => { setShowFilterMenu(!showFilterMenu); setShowSortMenu(false); }}
+                className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-xl border shadow-sm transition-all ${
+                  filterStatus !== 'all' || filterDuration !== 'all'
+                    ? 'bg-purple-100 border-purple-300 text-purple-600'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+                title="Filtrer"
+              >
+                🔍
+              </button>
+              {showFilterMenu && (
+                <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-xl border border-slate-200 py-3 px-4 z-50 min-w-[220px]">
+                  <div className="mb-3">
+                    <div className="text-xs font-semibold text-slate-500 mb-2">Statut</div>
+                    <div className="flex flex-wrap gap-1">
+                      {['all', 'urgent', 'à faire', 'délégué'].map(status => (
+                        <button
+                          key={status}
+                          onClick={() => setFilterStatus(status)}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                            filterStatus === status
+                              ? 'bg-purple-500 text-white'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {status === 'all' ? 'Tous' : status}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div className="mb-3">
-                  <div className="text-xs font-semibold text-slate-500 mb-2">Durée</div>
-                  <div className="flex flex-wrap gap-1">
-                    {['all', '-1h', '1h-2h', '1/2 jour', '1 jour'].map(duration => (
-                      <button
-                        key={duration}
-                        onClick={() => setFilterDuration(duration)}
-                        className={`px-2 py-1 rounded text-xs font-medium transition-all ${
-                          filterDuration === duration
-                            ? 'bg-purple-500 text-white'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                      >
-                        {duration === 'all' ? 'Toutes' : duration}
-                      </button>
-                    ))}
+                  <div className="mb-3">
+                    <div className="text-xs font-semibold text-slate-500 mb-2">Durée</div>
+                    <div className="flex flex-wrap gap-1">
+                      {['all', '-1h', '1h-2h', '1/2 jour', '1 jour'].map(duration => (
+                        <button
+                          key={duration}
+                          onClick={() => setFilterDuration(duration)}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                            filterDuration === duration
+                              ? 'bg-purple-500 text-white'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {duration === 'all' ? 'Toutes' : duration}
+                        </button>
+                      ))}
+                    </div>
                   </div>
+                  <button
+                    onClick={() => { setFilterStatus('all'); setFilterDuration('all'); setShowFilterMenu(false); }}
+                    className="w-full text-center text-xs text-slate-500 hover:text-slate-700 py-2 border-t border-slate-100 mt-2"
+                  >
+                    ✕ Réinitialiser
+                  </button>
                 </div>
-                <button
-                  onClick={() => { setFilterStatus('all'); setFilterDuration('all'); setShowFilterMenu(false); }}
-                  className="w-full text-center text-xs text-slate-500 hover:text-slate-700 py-1"
-                >
-                  Réinitialiser les filtres
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* VUE AUJOURD'HUI */}
@@ -837,7 +738,7 @@ export const TasksPage = ({
               onClick={() => setWeekDaysCount(5)}
               className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition-all ${
                 weekDaysCount === 5
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-indigo-500 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -847,7 +748,7 @@ export const TasksPage = ({
               onClick={() => setWeekDaysCount(7)}
               className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition-all ${
                 weekDaysCount === 7
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-indigo-500 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -864,15 +765,16 @@ export const TasksPage = ({
               const totalItems = dayTasks.length + (dayEvents?.length || 0);
               
               return (
-                <div key={index} className={`bg-slate-50 rounded-xl p-4 border-2 ${isToday ? 'border-blue-500 shadow-md' : 'border-slate-200'}`}>
+                <div key={index} className={`bg-slate-50 rounded-xl p-4 border-2 ${isToday ? 'border-indigo-500 shadow-md' : 'border-slate-200'}`}>
                   <div className="flex items-center gap-3 mb-3">
-                    <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center ${isToday ? 'bg-blue-500 text-white' : 'bg-white text-slate-700'}`}>
+                    <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center ${isToday ? 'bg-indigo-500 text-white' : 'bg-white text-slate-700'}`}>
                       <div className="text-xs font-medium">{dayNames[date.getDay()].slice(0, 3)}</div>
                       <div className="text-lg font-black">{date.getDate()}</div>
                     </div>
                     <div className="flex-1">
-                      <div className={`font-bold ${isToday ? 'text-blue-600' : 'text-slate-900'}`}>
-                        {isToday && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">Aujourd'hui</span>}
+                      <div className={`font-bold ${isToday ? 'text-indigo-600' : 'text-slate-900'}`}>
+                        {dayNames[date.getDay()]}
+                        {isToday && <span className="ml-2 text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full">Aujourd'hui</span>}
                       </div>
                       <div className="text-sm text-slate-500">
                         {totalItems > 0 ? (

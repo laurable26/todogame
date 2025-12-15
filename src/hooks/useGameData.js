@@ -14,6 +14,7 @@ export const useGameData = (supabaseUser) => {
     pqSeason: 0,
     pqTotal: 0,
     tasksCompleted: 0,
+    eventsCompleted: 0,
     // Stats pour les badges
     totalPotatoes: 0,
     totalSpent: 0,
@@ -49,11 +50,19 @@ export const useGameData = (supabaseUser) => {
     return saved ? JSON.parse(saved) : {};
   });
   
-  // Thème et préférences
-  const [theme, setTheme] = useState({
-    darkMode: false,
-    colorTheme: 'default', // 'default', 'rose', 'vert', 'bleu', 'violet'
+  // Thème et préférences - avec persistance localStorage
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('todogame_theme');
+    return saved ? JSON.parse(saved) : {
+      darkMode: false,
+      colorTheme: 'default', // 'default', 'rose', 'vert', 'bleu', 'violet'
+    };
   });
+  
+  // Sauvegarder le thème dans localStorage à chaque changement
+  useEffect(() => {
+    localStorage.setItem('todogame_theme', JSON.stringify(theme));
+  }, [theme]);
   
   // Boosts actifs (avec date d'expiration)
   const [activeBoosts, setActiveBoosts] = useState([]);
@@ -70,7 +79,7 @@ export const useGameData = (supabaseUser) => {
     { id: 8, name: 'Social', description: 'Ajoute des amis', emoji: '👥', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: 'Ajoute 3 amis', silver: 'Ajoute 20 amis', gold: 'Ajoute 50 amis' }, thresholds: { bronze: 3, silver: 20, gold: 50 }, stat: 'friendsCount' },
     { id: 9, name: 'Marathonien', description: 'Quêtes longues', emoji: '🏃', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '50 quêtes "1 jour"', silver: '200 quêtes "1 jour"', gold: '1000 quêtes "1 jour"' }, thresholds: { bronze: 50, silver: 200, gold: 1000 }, stat: 'longQuests' },
     { id: 10, name: 'Perfectionniste', description: 'Quêtes urgentes à temps', emoji: '⚡', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '100 urgentes à temps', silver: '500 urgentes à temps', gold: '2000 urgentes à temps' }, thresholds: { bronze: 100, silver: 500, gold: 2000 }, stat: 'urgentCompleted' },
-    { id: 11, name: 'Champion', description: 'Gagne des saisons', emoji: '🏆', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: 'Top 3 d\'une saison', silver: 'Gagne 3 saisons', gold: 'Gagne 10 saisons' }, thresholds: { bronze: 1, silver: 3, gold: 10 }, stat: 'seasonsWon' },
+    { id: 11, name: 'Organisateur', description: 'Planifie des événements', emoji: '📅', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: 'Complète 10 événements', silver: 'Complète 50 événements', gold: 'Complète 200 événements' }, thresholds: { bronze: 10, silver: 50, gold: 200 }, stat: 'eventsCompleted' },
     { id: 12, name: 'Vétéran', description: 'Ancienneté', emoji: '🎖️', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '6 mois d\'utilisation', silver: '2 ans d\'utilisation', gold: '5 ans d\'utilisation' }, thresholds: { bronze: 180, silver: 730, gold: 1825 }, stat: 'daysPlayed' },
     { id: 13, name: 'Légende', description: 'Le summum', emoji: '👑', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: 'Niveau 50 + 100 missions', silver: 'Niveau 75 + 365 jours', gold: 'Niveau 100 + tous badges argent' }, thresholds: { bronze: 1, silver: 1, gold: 1 }, stat: 'legend' },
     { id: 14, name: 'Milliardaire', description: 'Richesse ultime', emoji: '💎', bronze: false, silver: false, gold: false, category: 'collection', requirements: { bronze: 'Dépense 50 000 patates', silver: 'Dépense 500 000 patates', gold: 'Dépense 5 000 000 patates' }, thresholds: { bronze: 50000, silver: 500000, gold: 5000000 }, stat: 'totalSpent' },
@@ -124,8 +133,10 @@ export const useGameData = (supabaseUser) => {
     // Améliorations - triées par prix
     { id: 71, name: 'Bordures Dorées', price: 500, type: 'amelioration', image: '✨', description: 'Bordure dorée sur ton avatar', isGoldenBorder: true },
     { id: 72, name: 'Notes Étendues', price: 300, type: 'amelioration', image: '📝', description: 'Notes plus longues sur les quêtes', isExtendedNotes: true },
-    { id: 85, name: 'Éditeur de Texte', price: 400, type: 'amelioration', image: '✏️', description: 'Gras, italique, listes dans les notes', isRichTextEditor: true },
+    { id: 85, name: 'Listes & Checkboxes', price: 400, type: 'amelioration', image: '✅', description: 'Ajoute des listes à puces et des checkboxes dans les notes', isRichTextEditor: true },
     { id: 86, name: 'Photos Notes', price: 600, type: 'amelioration', image: '📷', description: 'Ajouter des photos dans les notes', isPhotoNotes: true },
+    { id: 90, name: 'Oracle du Jour', price: 200, type: 'amelioration', image: '✦', description: 'Oracle quotidien avec cartes à choisir', isDailyQuote: true },
+    { id: 91, name: 'Journaling', price: 1000, type: 'amelioration', image: '🦋', description: 'Journal quotidien avec bilan hebdomadaire', isJournaling: true },
     { id: 73, name: 'Thème Rose', price: 400, type: 'amelioration', image: '💗', description: 'Change les couleurs en rose', themeColor: 'rose' },
     { id: 74, name: 'Thème Vert', price: 400, type: 'amelioration', image: '💚', description: 'Change les couleurs en vert', themeColor: 'vert' },
     { id: 75, name: 'Thème Bleu', price: 400, type: 'amelioration', image: '💙', description: 'Change les couleurs en bleu', themeColor: 'bleu' },
@@ -148,7 +159,7 @@ export const useGameData = (supabaseUser) => {
     { id: 5, name: 'Boost Coffre', price: 500, type: 'boost', duration: '24h', image: '📦', description: 'Coffre toutes les 6 quêtes', boostType: 'chest_boost', durationMs: 24 * 60 * 60 * 1000 },
     { id: 6, name: 'Boost XP x2', price: 400, type: 'boost', duration: '24h', image: '⚡', description: 'Double tes XP pendant 24h', boostType: 'xp_x2', durationMs: 24 * 60 * 60 * 1000, multiplier: 2 },
     { id: 7, name: 'Boost Patates x2', price: 400, type: 'boost', duration: '24h', image: '🥔', description: 'Double tes patates pendant 24h', boostType: 'potatoes_x2', durationMs: 24 * 60 * 60 * 1000, multiplier: 2 },
-    { id: 8, name: 'Boost Mission', price: 350, type: 'boost', duration: '1 mission', image: '🤝', description: 'x2 PQ sur prochaine mission', boostType: 'mission_boost', durationMs: null },
+    { id: 8, name: 'Boost Partage', price: 350, type: 'boost', duration: '24h', image: '🤝', description: 'x3 récompenses tâches partagées', boostType: 'share_boost', durationMs: 24 * 60 * 60 * 1000, multiplier: 3 },
     { id: 9, name: 'Méga Boost XP x3', price: 800, type: 'boost', duration: '12h', image: '🔥', description: 'Triple tes XP pendant 12h', boostType: 'xp_x3', durationMs: 12 * 60 * 60 * 1000, multiplier: 3 },
     { id: 10, name: 'Coffre Diamant', price: 1000, type: 'boost', duration: 'Instantané', image: '💎', description: 'Reçois un coffre diamant', boostType: 'instant_gold_chest', instant: true },
     { id: 11, name: 'Super Combo', price: 1500, type: 'boost', duration: '24h', image: '🌟', description: 'x2 XP + x2 Patates pendant 24h', boostType: 'super_combo', durationMs: 24 * 60 * 60 * 1000, multiplier: 2 },
@@ -159,6 +170,104 @@ export const useGameData = (supabaseUser) => {
     if (supabaseUser) {
       loadUserData(supabaseUser.id);
     }
+  }, [supabaseUser]);
+
+  // Souscription temps réel pour les missions
+  useEffect(() => {
+    if (!supabaseUser) return;
+
+    const channel = supabase
+      .channel('missions-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'missions',
+        },
+        async (payload) => {
+          // Recharger les missions quand il y a un changement
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('pseudo')
+            .eq('id', supabaseUser.id)
+            .single();
+
+          if (profile) {
+            const { data: missionsData } = await supabase
+              .from('missions')
+              .select('*');
+
+            if (missionsData) {
+              const userMissions = missionsData.filter(m => 
+                m.participant_pseudos?.includes(profile.pseudo) || m.created_by === profile.pseudo
+              );
+              setMissions(userMissions.map(m => ({
+                id: m.id,
+                title: m.title,
+                description: m.description || '',
+                participants: m.participants || [],
+                quests: m.quests || [],
+                createdBy: m.created_by,
+              })));
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // Souscription pour les profils (mise à jour des PQ des amis)
+    const profilesChannel = supabase
+      .channel('profiles-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+        },
+        async () => {
+          // Recharger les amis avec leurs PQ mis à jour
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('pseudo')
+            .eq('id', supabaseUser.id)
+            .single();
+
+          if (profile) {
+            const { data: friendsData } = await supabase
+              .from('friends')
+              .select('friend_pseudo')
+              .eq('user_pseudo', profile.pseudo);
+
+            if (friendsData && friendsData.length > 0) {
+              const friendPseudos = friendsData.map(f => f.friend_pseudo);
+              const { data: friendProfiles } = await supabase
+                .from('profiles')
+                .select('pseudo, avatar, avatar_bg, level, pq_season, owned_items, custom_title')
+                .in('pseudo', friendPseudos);
+
+              if (friendProfiles) {
+                setFriends(friendProfiles.map(f => ({
+                  pseudo: f.pseudo,
+                  avatar: f.avatar || '😀',
+                  avatarBg: f.avatar_bg || 'from-indigo-400 to-purple-500',
+                  level: f.level || 1,
+                  pqSeason: f.pq_season || 0,
+                  ownedItems: f.owned_items || [],
+                  customTitle: f.custom_title || '',
+                })));
+              }
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(profilesChannel);
+    };
   }, [supabaseUser]);
 
   const loadUserData = async (userId) => {
@@ -211,15 +320,32 @@ export const useGameData = (supabaseUser) => {
         });
       }
 
-      // Charger les tâches
+      // Charger les tâches (propres + partagées)
       const { data: tasksData } = await supabase
         .from('tasks')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      if (tasksData) {
-        setTasks(tasksData.map(t => ({
+      // Charger aussi les tâches où l'utilisateur est participant
+      // On récupère toutes les tâches des autres utilisateurs et on filtre côté client
+      const { data: allOtherTasks } = await supabase
+        .from('tasks')
+        .select('*')
+        .neq('user_id', userId);
+
+      // Filtrer les tâches partagées avec l'utilisateur courant
+      const sharedTasksData = (allOtherTasks || []).filter(t => {
+        if (!t.participants || !Array.isArray(t.participants) || t.participants.length === 0) return false;
+        return t.participants.some(p => p.pseudo === profile?.pseudo);
+      });
+
+      console.log('Tâches partagées trouvées:', sharedTasksData.length, sharedTasksData);
+
+      const allTasks = [...(tasksData || []), ...sharedTasksData];
+
+      if (allTasks.length > 0) {
+        setTasks(allTasks.map(t => ({
           id: t.id,
           title: t.title,
           status: t.status,
@@ -232,18 +358,37 @@ export const useGameData = (supabaseUser) => {
           recurrenceDays: t.recurrence_days || [],
           notes: t.notes || '',
           photos: t.photos || [],
+          participants: t.participants || [],
+          ownerId: t.user_id,
+          isSharedWithMe: t.user_id !== userId,
         })));
       }
 
-      // Charger les événements
+      // Charger les événements (propres + partagés)
       const { data: eventsData } = await supabase
         .from('events')
         .select('*')
         .eq('user_id', userId)
         .order('date', { ascending: true });
 
-      if (eventsData) {
-        setEvents(eventsData.map(e => ({
+      // Charger aussi les événements où l'utilisateur est participant
+      const { data: allOtherEvents } = await supabase
+        .from('events')
+        .select('*')
+        .neq('user_id', userId);
+
+      // Filtrer les événements partagés avec l'utilisateur courant
+      const sharedEventsData = (allOtherEvents || []).filter(e => {
+        if (!e.participants || !Array.isArray(e.participants) || e.participants.length === 0) return false;
+        return e.participants.some(p => p.pseudo === profile?.pseudo);
+      });
+
+      console.log('Événements partagés trouvés:', sharedEventsData.length, sharedEventsData);
+
+      const allEvents = [...(eventsData || []), ...sharedEventsData];
+
+      if (allEvents.length > 0) {
+        setEvents(allEvents.map(e => ({
           id: e.id,
           title: e.title,
           description: e.description || '',
@@ -254,7 +399,13 @@ export const useGameData = (supabaseUser) => {
           participants: e.participants || [],
           reminder: e.reminder || 'none',
           completed: e.completed || false,
+          completedBy: e.completed_by || [],
+          tags: e.tags || [],
+          notes: e.notes || '',
+          photos: e.photos || [],
           createdAt: e.created_at,
+          ownerId: e.user_id,
+          isSharedWithMe: e.user_id !== userId,
         })));
       }
 
@@ -455,6 +606,10 @@ export const useGameData = (supabaseUser) => {
         participants: event.participants || [],
         reminder: event.reminder || 'none',
         completed: event.completed || false,
+        completed_by: event.completedBy || [],
+        tags: event.tags || [],
+        notes: event.notes || '',
+        photos: event.photos || [],
         updated_at: new Date().toISOString(),
       };
       
