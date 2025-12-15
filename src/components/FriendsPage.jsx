@@ -14,6 +14,9 @@ export const FriendsPage = ({
   friendRequests,
   onAcceptRequest,
   onDeclineRequest,
+  sharedRequests = [],
+  onAcceptSharedRequest,
+  onDeclineSharedRequest,
   onEditTask,
   onEditEvent,
   ownedItems = []
@@ -81,6 +84,59 @@ export const FriendsPage = ({
                   </button>
                   <button
                     onClick={() => onDeclineRequest(request.pseudo)}
+                    className="bg-slate-200 text-slate-600 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-slate-300"
+                  >
+                    Refuser
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Demandes de partage en attente */}
+      {sharedRequests && sharedRequests.length > 0 && (
+        <div className="bg-gradient-to-r from-violet-50 to-indigo-50 rounded-xl p-4 border border-violet-200">
+          <h2 className="text-lg font-bold text-violet-900 mb-3 flex items-center gap-2">
+            <span className="w-6 h-6 bg-violet-500 text-white rounded-full flex items-center justify-center text-sm">
+              {sharedRequests.length}
+            </span>
+            Invitations à participer
+          </h2>
+          <div className="space-y-2">
+            {sharedRequests.map((request) => (
+              <div key={request.id} className="flex items-center justify-between bg-white p-3 rounded-xl border border-violet-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-violet-400 to-indigo-500 rounded-xl flex items-center justify-center text-xl">
+                    <span className="emoji-display">{request.fromAvatar}</span>
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900">{request.fromPseudo}</div>
+                    <div className="text-sm text-slate-600 flex items-center gap-1">
+                      <span>{request.itemType === 'task' ? '📝' : '📅'}</span>
+                      <span className="truncate max-w-[150px]">{request.itemTitle}</span>
+                    </div>
+                    {request.itemDate && (
+                      <div className="text-xs text-slate-400">
+                        {new Date(request.itemDate).toLocaleDateString('fr-FR', {
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'short'
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => onAcceptSharedRequest(request.id)}
+                    className="bg-green-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-green-600"
+                  >
+                    ✓ Accepter
+                  </button>
+                  <button
+                    onClick={() => onDeclineSharedRequest(request.id)}
                     className="bg-slate-200 text-slate-600 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-slate-300"
                   >
                     Refuser

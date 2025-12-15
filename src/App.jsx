@@ -64,6 +64,10 @@ const QuestApp = () => {
     setFriends,
     friendRequests,
     setFriendRequests,
+    sharedRequests,
+    sendSharedRequests,
+    acceptSharedRequest,
+    rejectSharedRequest,
     ownedItems,
     setOwnedItems,
     equippedItems,
@@ -936,10 +940,16 @@ const QuestApp = () => {
         category: taskData.date ? 'today' : 'bucketlist',
         completed: false,
       });
+
+      // Envoyer les demandes de partage aux participants
+      if (newTask.participants && newTask.participants.length > 0) {
+        await sendSharedRequests('task', newTask.id, newTask.participants);
+      }
     }
   };
 
   const updateTask = async (taskId, taskData) => {
+    const oldTask = tasks.find(t => t.id === taskId);
     setTasks(tasks.map(t => t.id === taskId ? { ...t, ...taskData } : t));
     
     if (supabaseUser) {
@@ -955,6 +965,17 @@ const QuestApp = () => {
         photos: taskData.photos || [],
         participants: taskData.participants || [],
       }).eq('id', taskId);
+
+      // Envoyer les demandes aux nouveaux participants
+      if (taskData.participants && taskData.participants.length > 0) {
+        const oldParticipants = oldTask?.participants?.map(p => p.pseudo) || [];
+        const newParticipants = taskData.participants.filter(
+          p => !oldParticipants.includes(p.pseudo)
+        );
+        if (newParticipants.length > 0) {
+          await sendSharedRequests('task', taskId, newParticipants);
+        }
+      }
     }
   };
 
@@ -1050,15 +1071,32 @@ const QuestApp = () => {
     
     if (supabaseUser) {
       await saveEvent(newEvent);
+
+      // Envoyer les demandes de partage aux participants
+      if (newEvent.participants && newEvent.participants.length > 0) {
+        await sendSharedRequests('event', newEvent.id, newEvent.participants);
+      }
     }
   };
 
   const updateEvent = async (eventId, eventData) => {
-    const updatedEvent = { ...events.find(e => e.id === eventId), ...eventData };
+    const oldEvent = events.find(e => e.id === eventId);
+    const updatedEvent = { ...oldEvent, ...eventData };
     setEvents(events.map(e => e.id === eventId ? updatedEvent : e));
     
     if (supabaseUser) {
       await saveEvent(updatedEvent);
+
+      // Envoyer les demandes aux nouveaux participants
+      if (eventData.participants && eventData.participants.length > 0) {
+        const oldParticipants = oldEvent?.participants?.map(p => p.pseudo) || [];
+        const newParticipants = eventData.participants.filter(
+          p => !oldParticipants.includes(p.pseudo)
+        );
+        if (newParticipants.length > 0) {
+          await sendSharedRequests('event', eventId, newParticipants);
+        }
+      }
     }
   };
 
@@ -2083,6 +2121,9 @@ const QuestApp = () => {
           }
           setFriendRequests(friendRequests.filter(r => r.pseudo !== pseudo));
         }}
+        sharedRequests={sharedRequests}
+        onAcceptSharedRequest={acceptSharedRequest}
+        onDeclineSharedRequest={rejectSharedRequest}
         removeFriend={async (pseudo) => {
           if (supabaseUser) {
             // Supprimer des deux côtés
