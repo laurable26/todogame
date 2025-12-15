@@ -6,6 +6,9 @@ export const TasksPage = ({
   events = [],
   tasksView, 
   setTasksView, 
+  sharedRequests = [],
+  onAcceptSharedRequest,
+  onDeclineSharedRequest,
   onCompleteTask,
   onCompleteEvent, 
   onCreateTask,
@@ -518,6 +521,59 @@ export const TasksPage = ({
 
       <PageHelp pageId="tasks" color="blue">
         <strong>📋 Organise ton quotidien !</strong> Crée des tâches avec une durée estimée pour gagner des XP et des patates. 
+
+      {/* Invitations à participer - Bandeau compact et responsive */}
+      {sharedRequests && sharedRequests.length > 0 && (
+        <div className="bg-gradient-to-r from-violet-500 to-indigo-500 rounded-xl p-3 shadow-lg">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                {sharedRequests.length}
+              </span>
+              <span className="text-white font-medium text-sm truncate">
+                {sharedRequests.length === 1 ? 'Invitation' : 'Invitations'}
+              </span>
+            </div>
+            
+            {/* Sur mobile : afficher juste le premier, sur desktop : tous */}
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+              {sharedRequests.slice(0, 3).map((request) => (
+                <div 
+                  key={request.id} 
+                  className="flex items-center gap-2 bg-white/95 rounded-lg px-2 py-1.5 flex-shrink-0"
+                >
+                  <span className="text-lg">{request.fromAvatar}</span>
+                  <div className="hidden sm:block">
+                    <p className="text-xs font-medium text-slate-700 truncate max-w-[100px]">
+                      {request.itemTitle}
+                    </p>
+                    <p className="text-xs text-slate-500">{request.fromPseudo}</p>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => onAcceptSharedRequest(request.id)}
+                      className="w-7 h-7 rounded-full bg-green-500 text-white flex items-center justify-center hover:bg-green-600 transition-colors text-sm font-bold"
+                    >
+                      ✓
+                    </button>
+                    <button
+                      onClick={() => onDeclineSharedRequest(request.id)}
+                      className="w-7 h-7 rounded-full bg-slate-300 text-slate-600 flex items-center justify-center hover:bg-slate-400 transition-colors text-sm"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {sharedRequests.length > 3 && (
+                <span className="text-white/80 text-xs flex-shrink-0">
+                  +{sharedRequests.length - 3}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )} 
         Les <strong>événements</strong> sont des activités planifiées avec heure et lieu. 
         Plus la tâche est longue, plus elle rapporte ! Les tâches non terminées sont automatiquement reportées au lendemain.
       </PageHelp>

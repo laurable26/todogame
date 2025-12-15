@@ -1889,6 +1889,9 @@ const QuestApp = () => {
         events={events}
         tasksView={tasksView}
         setTasksView={setTasksView}
+        sharedRequests={sharedRequests}
+        onAcceptSharedRequest={acceptSharedRequest}
+        onDeclineSharedRequest={rejectSharedRequest}
         onCompleteTask={completeTask}
         onCompleteEvent={completeEvent}
         onCreateTask={() => setCreatingTask(true)}
@@ -2121,9 +2124,6 @@ const QuestApp = () => {
           }
           setFriendRequests(friendRequests.filter(r => r.pseudo !== pseudo));
         }}
-        sharedRequests={sharedRequests}
-        onAcceptSharedRequest={acceptSharedRequest}
-        onDeclineSharedRequest={rejectSharedRequest}
         removeFriend={async (pseudo) => {
           if (supabaseUser) {
             // Supprimer des deux côtés
