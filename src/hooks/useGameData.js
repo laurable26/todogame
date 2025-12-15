@@ -216,6 +216,129 @@ export const useGameData = (supabaseUser) => {
       )
       .subscribe();
 
+    // Souscription pour les tâches (mise à jour des tâches partagées)
+    const tasksChannel = supabase
+      .channel('tasks-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+        },
+        async (payload) => {
+          // Recharger les tâches partagées quand il y a un changement
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('pseudo')
+            .eq('id', supabaseUser.id)
+            .single();
+
+          if (profile) {
+            // Charger les tâches propres
+            const { data: tasksData } = await supabase
+              .from('tasks')
+              .select('*')
+              .eq('user_id', supabaseUser.id)
+              .order('created_at', { ascending: false });
+
+            // Charger les tâches partagées
+            const { data: allOtherTasks } = await supabase
+              .from('tasks')
+              .select('*')
+              .neq('user_id', supabaseUser.id);
+
+            const sharedTasksData = (allOtherTasks || []).filter(t => {
+              if (!t.participants || !Array.isArray(t.participants) || t.participants.length === 0) return false;
+              return t.participants.some(p => p.pseudo === profile.pseudo);
+            });
+
+            const allTasks = [...(tasksData || []), ...sharedTasksData];
+
+            setTasks(allTasks.map(t => ({
+              id: t.id,
+              title: t.title,
+              status: t.status,
+              duration: t.duration,
+              date: t.date ? new Date(t.date) : null,
+              category: t.category,
+              completed: t.completed,
+              tags: t.tags || [],
+              recurrence: t.recurrence || 'none',
+              recurrenceDays: t.recurrence_days || [],
+              notes: t.notes || '',
+              photos: t.photos || [],
+              participants: t.participants || [],
+              ownerId: t.user_id,
+              isSharedWithMe: t.user_id !== supabaseUser.id,
+            })));
+          }
+        }
+      )
+      .subscribe();
+
+    // Souscription pour les événements (mise à jour des événements partagés)
+    const eventsChannel = supabase
+      .channel('events-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'events',
+        },
+        async (payload) => {
+          // Recharger les événements partagés quand il y a un changement
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('pseudo')
+            .eq('id', supabaseUser.id)
+            .single();
+
+          if (profile) {
+            // Charger les événements propres
+            const { data: eventsData } = await supabase
+              .from('events')
+              .select('*')
+              .eq('user_id', supabaseUser.id)
+              .order('date', { ascending: true });
+
+            // Charger les événements partagés
+            const { data: allOtherEvents } = await supabase
+              .from('events')
+              .select('*')
+              .neq('user_id', supabaseUser.id);
+
+            const sharedEventsData = (allOtherEvents || []).filter(e => {
+              if (!e.participants || !Array.isArray(e.participants) || e.participants.length === 0) return false;
+              return e.participants.some(p => p.pseudo === profile.pseudo);
+            });
+
+            const allEvents = [...(eventsData || []), ...sharedEventsData];
+
+            setEvents(allEvents.map(e => ({
+              id: e.id,
+              title: e.title,
+              description: e.description || '',
+              date: e.date ? new Date(e.date) : null,
+              time: e.time || '',
+              duration: e.duration || '1h-2h',
+              location: e.location || '',
+              participants: e.participants || [],
+              reminder: e.reminder || 'none',
+              completed: e.completed || false,
+              completedBy: e.completed_by || [],
+              tags: e.tags || [],
+              notes: e.notes || '',
+              photos: e.photos || [],
+              ownerId: e.user_id,
+              isSharedWithMe: e.user_id !== supabaseUser.id,
+            })));
+          }
+        }
+      )
+      .subscribe();
+
     // Souscription pour les profils (mise à jour des PQ des amis)
     const profilesChannel = supabase
       .channel('profiles-changes')
@@ -266,6 +389,8 @@ export const useGameData = (supabaseUser) => {
 
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(tasksChannel);
+      supabase.removeChannel(eventsChannel);
       supabase.removeChannel(profilesChannel);
     };
   }, [supabaseUser]);
