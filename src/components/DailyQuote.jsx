@@ -71,6 +71,29 @@ export const DailyQuoteCard = ({ onClose }) => {
   const [isFlipping, setIsFlipping] = useState(false);
   const [hasClaimedToday, setHasClaimedToday] = useState(false);
 
+  // Récupérer l'historique des citations (derniers 90 jours = ~3 mois)
+  const getRecentQuotes = () => {
+    const history = localStorage.getItem('todogame_quoteHistory');
+    if (!history) return [];
+    try {
+      const parsed = JSON.parse(history);
+      // Garder uniquement les citations des 90 derniers jours
+      const threeMonthsAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
+      return parsed.filter(entry => entry.date > threeMonthsAgo);
+    } catch {
+      return [];
+    }
+  };
+
+  // Sauvegarder une citation dans l'historique
+  const saveToHistory = (quoteText) => {
+    const history = getRecentQuotes();
+    history.push({ text: quoteText, date: Date.now() });
+    // Garder max 90 entrées
+    const trimmed = history.slice(-90);
+    localStorage.setItem('todogame_quoteHistory', JSON.stringify(trimmed));
+  };
+
   useEffect(() => {
     // Vérifier si déjà réclamé aujourd'hui
     const lastClaim = localStorage.getItem('todogame_lastQuoteClaim');
@@ -89,7 +112,14 @@ export const DailyQuoteCard = ({ onClose }) => {
   }, []);
 
   const generateCards = () => {
-    const shuffled = [...QUOTES].sort(() => Math.random() - 0.5);
+    // Filtrer les citations récentes pour éviter les répétitions
+    const recentQuotes = getRecentQuotes().map(entry => entry.text);
+    const availableQuotes = QUOTES.filter(q => !recentQuotes.includes(q.text));
+    
+    // Si toutes les citations ont été utilisées récemment, réinitialiser
+    const quotesToUse = availableQuotes.length >= 6 ? availableQuotes : QUOTES;
+    
+    const shuffled = [...quotesToUse].sort(() => Math.random() - 0.5);
     const selectedQuotes = shuffled.slice(0, 6);
     
     const newCards = selectedQuotes.map((quote, index) => ({
@@ -113,6 +143,8 @@ export const DailyQuoteCard = ({ onClose }) => {
       const today = new Date().toDateString();
       localStorage.setItem('todogame_lastQuoteClaim', today);
       localStorage.setItem('todogame_todayQuote', JSON.stringify(card.quote));
+      // Sauvegarder dans l'historique pour éviter les répétitions
+      saveToHistory(card.quote.text);
       setHasClaimedToday(true);
     }, 600);
   };

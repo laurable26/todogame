@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 
 // Modal de création/édition de tâche
@@ -18,6 +18,16 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [participants, setParticipants] = useState(initialTask?.participants || []);
   const [showFriendsList, setShowFriendsList] = useState(false);
+  const [focusLineIndex, setFocusLineIndex] = useState(-1);
+  const notesInputRefs = useRef({});
+
+  // Focus sur la ligne après ajout
+  useEffect(() => {
+    if (focusLineIndex >= 0 && notesInputRefs.current[focusLineIndex]) {
+      notesInputRefs.current[focusLineIndex].focus();
+      setFocusLineIndex(-1);
+    }
+  }, [focusLineIndex, notes]);
 
   const isEditing = !!initialTask;
   
@@ -499,22 +509,25 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                       if (trimmed.startsWith('[ ] ')) {
                         const text = trimmed.substring(4);
                         return (
-                          <div key={i} className="flex items-center gap-2 py-1">
+                          <div key={i} className="flex items-start gap-2 py-1">
                             <span 
-                              className="w-5 h-5 border-2 border-slate-300 rounded cursor-pointer hover:border-green-400 flex-shrink-0 transition-colors"
+                              className="w-5 h-5 mt-0.5 border-2 border-slate-300 rounded cursor-pointer hover:border-green-400 flex-shrink-0 transition-colors"
                               onClick={() => {
                                 const lines = notes.split('\n');
                                 lines[i] = line.replace('[ ] ', '[x] ');
                                 setNotes(lines.join('\n'));
                               }}
                             />
-                            <input
-                              type="text"
+                            <textarea
+                              ref={el => notesInputRefs.current[i] = el}
                               value={text}
                               onChange={(e) => {
                                 const lines = notes.split('\n');
-                                lines[i] = '[ ] ' + e.target.value;
+                                lines[i] = '[ ] ' + e.target.value.replace(/\n/g, ' ');
                                 setNotes(lines.join('\n'));
+                                // Auto-resize
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.scrollHeight + 'px';
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
@@ -522,15 +535,19 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                                   const lines = notes.split('\n');
                                   lines.splice(i + 1, 0, '[ ] ');
                                   setNotes(lines.join('\n'));
+                                  setFocusLineIndex(i + 1);
                                 }
                                 if (e.key === 'Backspace' && text === '') {
                                   e.preventDefault();
                                   const lines = notes.split('\n');
                                   lines.splice(i, 1);
                                   setNotes(lines.join('\n') || '');
+                                  if (i > 0) setFocusLineIndex(i - 1);
                                 }
                               }}
-                              className="flex-1 bg-transparent border-none outline-none text-slate-700"
+                              rows={1}
+                              className="flex-1 bg-transparent border-none outline-none text-slate-700 resize-none overflow-hidden"
+                              style={{ minHeight: '24px' }}
                               placeholder="Tâche..."
                             />
                           </div>
@@ -541,9 +558,9 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                       if (trimmed.startsWith('[x] ') || trimmed.startsWith('[X] ')) {
                         const text = trimmed.substring(4);
                         return (
-                          <div key={i} className="flex items-center gap-2 py-1">
+                          <div key={i} className="flex items-start gap-2 py-1">
                             <span 
-                              className="w-5 h-5 bg-green-500 border-2 border-green-500 rounded flex items-center justify-center text-white text-xs cursor-pointer flex-shrink-0"
+                              className="w-5 h-5 mt-0.5 bg-green-500 border-2 border-green-500 rounded flex items-center justify-center text-white text-xs cursor-pointer flex-shrink-0"
                               onClick={() => {
                                 const lines = notes.split('\n');
                                 lines[i] = line.replace(/\[x\] /i, '[ ] ');
@@ -552,15 +569,35 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                             >
                               ✓
                             </span>
-                            <input
-                              type="text"
+                            <textarea
+                              ref={el => notesInputRefs.current[i] = el}
                               value={text}
                               onChange={(e) => {
                                 const lines = notes.split('\n');
-                                lines[i] = '[x] ' + e.target.value;
+                                lines[i] = '[x] ' + e.target.value.replace(/\n/g, ' ');
                                 setNotes(lines.join('\n'));
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.scrollHeight + 'px';
                               }}
-                              className="flex-1 bg-transparent border-none outline-none text-slate-400 line-through"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const lines = notes.split('\n');
+                                  lines.splice(i + 1, 0, '[ ] ');
+                                  setNotes(lines.join('\n'));
+                                  setFocusLineIndex(i + 1);
+                                }
+                                if (e.key === 'Backspace' && text === '') {
+                                  e.preventDefault();
+                                  const lines = notes.split('\n');
+                                  lines.splice(i, 1);
+                                  setNotes(lines.join('\n') || '');
+                                  if (i > 0) setFocusLineIndex(i - 1);
+                                }
+                              }}
+                              rows={1}
+                              className="flex-1 bg-transparent border-none outline-none text-slate-400 line-through resize-none overflow-hidden"
+                              style={{ minHeight: '24px' }}
                             />
                           </div>
                         );
@@ -570,15 +607,17 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                       if (trimmed.startsWith('• ')) {
                         const text = trimmed.substring(2);
                         return (
-                          <div key={i} className="flex items-center gap-2 py-1">
-                            <span className="text-indigo-500 font-bold flex-shrink-0">•</span>
-                            <input
-                              type="text"
+                          <div key={i} className="flex items-start gap-2 py-1">
+                            <span className="text-indigo-500 font-bold flex-shrink-0 mt-0.5">•</span>
+                            <textarea
+                              ref={el => notesInputRefs.current[i] = el}
                               value={text}
                               onChange={(e) => {
                                 const lines = notes.split('\n');
-                                lines[i] = '• ' + e.target.value;
+                                lines[i] = '• ' + e.target.value.replace(/\n/g, ' ');
                                 setNotes(lines.join('\n'));
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.scrollHeight + 'px';
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
@@ -586,15 +625,19 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                                   const lines = notes.split('\n');
                                   lines.splice(i + 1, 0, '• ');
                                   setNotes(lines.join('\n'));
+                                  setFocusLineIndex(i + 1);
                                 }
                                 if (e.key === 'Backspace' && text === '') {
                                   e.preventDefault();
                                   const lines = notes.split('\n');
                                   lines.splice(i, 1);
                                   setNotes(lines.join('\n') || '');
+                                  if (i > 0) setFocusLineIndex(i - 1);
                                 }
                               }}
-                              className="flex-1 bg-transparent border-none outline-none text-slate-700"
+                              rows={1}
+                              className="flex-1 bg-transparent border-none outline-none text-slate-700 resize-none overflow-hidden"
+                              style={{ minHeight: '24px' }}
                               placeholder="Élément..."
                             />
                           </div>
@@ -604,13 +647,15 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                       // Texte normal
                       return (
                         <div key={i} className="py-1">
-                          <input
-                            type="text"
+                          <textarea
+                            ref={el => notesInputRefs.current[i] = el}
                             value={line}
                             onChange={(e) => {
                               const lines = notes.split('\n');
-                              lines[i] = e.target.value;
+                              lines[i] = e.target.value.replace(/\n/g, ' ');
                               setNotes(lines.join('\n'));
+                              e.target.style.height = 'auto';
+                              e.target.style.height = e.target.scrollHeight + 'px';
                             }}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
@@ -618,32 +663,37 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                                 const lines = notes.split('\n');
                                 lines.splice(i + 1, 0, '');
                                 setNotes(lines.join('\n'));
+                                setFocusLineIndex(i + 1);
                               }
                               if (e.key === 'Backspace' && line === '' && notes.split('\n').length > 1) {
                                 e.preventDefault();
                                 const lines = notes.split('\n');
                                 lines.splice(i, 1);
                                 setNotes(lines.join('\n'));
+                                if (i > 0) setFocusLineIndex(i - 1);
                               }
                             }}
-                            className="w-full bg-transparent border-none outline-none text-slate-700"
+                            rows={1}
+                            className="w-full bg-transparent border-none outline-none text-slate-700 resize-none overflow-hidden"
+                            style={{ minHeight: '24px' }}
                             placeholder="Note..."
                           />
                         </div>
                       );
                     })
                   ) : (
-                    <input
-                      type="text"
+                    <textarea
                       value=""
-                      onChange={(e) => setNotes(e.target.value)}
+                      onChange={(e) => setNotes(e.target.value.replace(/\n/g, ' '))}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           setNotes(notes + '\n');
                         }
                       }}
-                      className="w-full bg-transparent border-none outline-none text-slate-700"
+                      rows={1}
+                      className="w-full bg-transparent border-none outline-none text-slate-700 resize-none overflow-hidden"
+                      style={{ minHeight: '24px' }}
                       placeholder="Écris tes notes ici..."
                     />
                   )}
@@ -656,7 +706,8 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
                   onChange={(e) => setNotes(e.target.value.slice(0, notesMaxLength))}
                   placeholder="Ajouter des notes ou détails..."
                   rows={hasExtendedNotes ? 6 : 4}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 resize-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 resize-none whitespace-pre-wrap break-words"
+                  style={{ overflowWrap: 'break-word', wordWrap: 'break-word' }}
                 />
               )}
               <div className="text-xs text-slate-400 text-right mt-1">{notes.length}/{notesMaxLength}</div>
@@ -2249,6 +2300,8 @@ export const CreateEventModal = ({ onClose, onCreate, onDelete, initialEvent, fr
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [fullscreenPhoto, setFullscreenPhoto] = useState(null);
+  const [recurrence, setRecurrence] = useState(initialEvent?.recurrence || 'none');
+  const [recurrenceDays, setRecurrenceDays] = useState(initialEvent?.recurrenceDays || []);
 
   const isEditing = !!initialEvent;
   const isMissionEvent = !!missionMode;
@@ -2293,6 +2346,8 @@ export const CreateEventModal = ({ onClose, onCreate, onDelete, initialEvent, fr
       location: location.trim(),
       participants,
       reminder,
+      recurrence,
+      recurrenceDays,
       assignedTo: isMissionEvent ? assignedTo : null,
       isEvent: true,
       tags: tags.split(',').map(t => t.trim()).filter(t => t),
@@ -2523,6 +2578,90 @@ export const CreateEventModal = ({ onClose, onCreate, onDelete, initialEvent, fr
               </div>
             )}
 
+            {/* Récurrence */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Récurrence</label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 'none', label: 'Aucune' },
+                  { value: 'daily', label: '🔄 Quotidien' },
+                  { value: 'weekly', label: '🔄 Hebdo' },
+                  { value: 'monthly', label: '🔄 Mensuel' },
+                ].map(option => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setRecurrence(option.value)}
+                    className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                      recurrence === option.value
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              
+              {/* Sélecteur de jours pour hebdomadaire */}
+              {recurrence === 'weekly' && (
+                <div className="mt-3">
+                  <p className="text-xs text-slate-500 mb-2">Répéter les :</p>
+                  <div className="flex gap-1">
+                    {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => {
+                          if (recurrenceDays.includes(index)) {
+                            setRecurrenceDays(recurrenceDays.filter(d => d !== index));
+                          } else {
+                            setRecurrenceDays([...recurrenceDays, index]);
+                          }
+                        }}
+                        className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${
+                          recurrenceDays.includes(index)
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Sélecteur de jours pour mensuel */}
+              {recurrence === 'monthly' && (
+                <div className="mt-3">
+                  <p className="text-xs text-slate-500 mb-2">Répéter le(s) :</p>
+                  <div className="flex flex-wrap gap-1">
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => {
+                          if (recurrenceDays.includes(day)) {
+                            setRecurrenceDays(recurrenceDays.filter(d => d !== day));
+                          } else {
+                            setRecurrenceDays([...recurrenceDays, day]);
+                          }
+                        }}
+                        className={`w-7 h-7 rounded text-xs font-medium transition-all ${
+                          recurrenceDays.includes(day)
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Tags */}
             <div className="relative">
               <label className="block text-sm font-semibold text-slate-700 mb-2">Catégories</label>
@@ -2752,7 +2891,8 @@ export const CreateEventModal = ({ onClose, onCreate, onDelete, initialEvent, fr
                   onChange={(e) => setNotes(e.target.value.slice(0, notesMaxLength))}
                   placeholder="Ajouter des notes..."
                   rows={3}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 resize-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 resize-none whitespace-pre-wrap break-words"
+                  style={{ overflowWrap: 'break-word', wordWrap: 'break-word' }}
                 />
               )}
               <div className="text-xs text-slate-400 mt-1 text-right">{notes.length}/{notesMaxLength}</div>

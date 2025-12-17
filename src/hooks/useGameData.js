@@ -42,7 +42,7 @@ export const useGameData = (supabaseUser) => {
   const [missions, setMissions] = useState([]);
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
-  const [sharedRequests, setSharedRequests] = useState([]); // Demandes de partage en attente
+  const [sharedRequests, setSharedRequests] = useState([]);
   const [ownedItems, setOwnedItems] = useState([]);
   const [equippedItems, setEquippedItems] = useState([]);
   const [activeUpgrades, setActiveUpgrades] = useState(() => {
@@ -446,34 +446,39 @@ export const useGameData = (supabaseUser) => {
         });
       }
 
-      // Charger les tâches (propres)
+      // Charger les tâches (propres + partagées)
       const { data: tasksData } = await supabase
         .from('tasks')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      // Charger les tâches partagées ACCEPTÉES via shared_requests
-      const { data: acceptedTaskRequests } = await supabase
-        .from('shared_requests')
-        .select('item_id')
-        .eq('to_pseudo', profile?.pseudo)
-        .eq('item_type', 'task')
-        .eq('status', 'accepted');
-      
-      const acceptedTaskIds = acceptedTaskRequests?.map(r => r.item_id) || [];
-      console.log('Tâches acceptées IDs:', acceptedTaskIds);
-      
-      let sharedTasksData = [];
-      if (acceptedTaskIds.length > 0) {
-        const { data: sharedTasks } = await supabase
-          .from('tasks')
-          .select('*')
-          .in('id', acceptedTaskIds);
-        sharedTasksData = sharedTasks || [];
-      }
+      // Charger aussi les tâches où l'utilisateur est participant
+      // On récupère toutes les tâches des autres utilisateurs et on filtre côté client
+      const { data: allOtherTasks } = await supabase
+        .from('tasks')
+        .select('*')
+        .neq('user_id', userId);
 
-      console.log('Tâches partagées acceptées:', sharedTasksData.length);
+      console.log('Mon pseudo:', profile?.pseudo);
+      console.log('Toutes les tâches des autres:', allOtherTasks?.length, allOtherTasks);
+
+      // Filtrer les tâches partagées avec l'utilisateur courant
+      const sharedTasksData = (allOtherTasks || []).filter(t => {
+        if (!t.participants || !Array.isArray(t.participants) || t.participants.length === 0) {
+          return false;
+        }
+        const isParticipant = t.participants.some(p => {
+          const match = p.pseudo === profile?.pseudo;
+          if (t.participants.length > 0) {
+            console.log('Vérification tâche:', t.title, '| Participants:', t.participants.map(pp => pp.pseudo), '| Mon pseudo:', profile?.pseudo, '| Match:', match);
+          }
+          return match;
+        });
+        return isParticipant;
+      });
+
+      console.log('Tâches partagées trouvées:', sharedTasksData.length, sharedTasksData);
 
       const allTasks = [...(tasksData || []), ...sharedTasksData];
 
@@ -496,34 +501,37 @@ export const useGameData = (supabaseUser) => {
         isSharedWithMe: t.user_id !== userId,
       })));
 
-      // Charger les événements (propres)
+      // Charger les événements (propres + partagés)
       const { data: eventsData } = await supabase
         .from('events')
         .select('*')
         .eq('user_id', userId)
         .order('date', { ascending: true });
 
-      // Charger les événements partagés ACCEPTÉS via shared_requests
-      const { data: acceptedEventRequests } = await supabase
-        .from('shared_requests')
-        .select('item_id')
-        .eq('to_pseudo', profile?.pseudo)
-        .eq('item_type', 'event')
-        .eq('status', 'accepted');
-      
-      const acceptedEventIds = acceptedEventRequests?.map(r => r.item_id) || [];
-      console.log('Événements acceptés IDs:', acceptedEventIds);
-      
-      let sharedEventsData = [];
-      if (acceptedEventIds.length > 0) {
-        const { data: sharedEvents } = await supabase
-          .from('events')
-          .select('*')
-          .in('id', acceptedEventIds);
-        sharedEventsData = sharedEvents || [];
-      }
+      // Charger aussi les événements où l'utilisateur est participant
+      const { data: allOtherEvents } = await supabase
+        .from('events')
+        .select('*')
+        .neq('user_id', userId);
 
-      console.log('Événements partagés acceptés:', sharedEventsData.length);
+      console.log('Tous les événements des autres:', allOtherEvents?.length);
+
+      // Filtrer les événements partagés avec l'utilisateur courant
+      const sharedEventsData = (allOtherEvents || []).filter(e => {
+        if (!e.participants || !Array.isArray(e.participants) || e.participants.length === 0) {
+          return false;
+        }
+        const isParticipant = e.participants.some(p => {
+          const match = p.pseudo === profile?.pseudo;
+          if (e.participants.length > 0) {
+            console.log('Vérification événement:', e.title, '| Participants:', e.participants.map(pp => pp.pseudo), '| Mon pseudo:', profile?.pseudo, '| Match:', match);
+          }
+          return match;
+        });
+        return isParticipant;
+      });
+
+      console.log('Événements partagés trouvés:', sharedEventsData.length, sharedEventsData);
 
       const allEvents = [...(eventsData || []), ...sharedEventsData];
 
@@ -538,6 +546,8 @@ export const useGameData = (supabaseUser) => {
         location: e.location || '',
         participants: e.participants || [],
         reminder: e.reminder || 'none',
+        recurrence: e.recurrence || 'none',
+        recurrenceDays: e.recurrence_days || [],
         completed: e.completed || false,
         completedBy: e.completed_by || [],
         tags: e.tags || [],
@@ -597,34 +607,6 @@ export const useGameData = (supabaseUser) => {
             pqSeason: p.pq_season || 0,
           })));
         }
-      }
-
-      // Charger les demandes de partage reçues
-      const { data: sharedRequestsData, error: sharedError } = await supabase
-        .from('shared_requests')
-        .select('*')
-        .eq('to_pseudo', profile?.pseudo)
-        .eq('status', 'pending');
-
-      console.log('Demandes de partage reçues:', sharedRequestsData, sharedError);
-
-      if (sharedRequestsData && sharedRequestsData.length > 0) {
-        setSharedRequests(sharedRequestsData.map(r => ({
-          id: r.id,
-          itemType: r.item_type,
-          itemId: r.item_id,
-          fromPseudo: r.from_pseudo,
-          fromAvatar: r.from_avatar || '😀',
-          itemTitle: r.item_title || (r.item_type === 'task' ? 'Tâche partagée' : 'Événement partagé'),
-          itemDate: r.item_date,
-          itemDuration: r.item_duration,
-          itemStatus: r.item_status,
-          itemTime: r.item_time,
-          itemLocation: r.item_location,
-          createdAt: r.created_at,
-        })));
-      } else {
-        setSharedRequests([]);
       }
 
       // Charger les missions
@@ -760,18 +742,30 @@ export const useGameData = (supabaseUser) => {
   const saveEvent = async (event) => {
     if (!supabaseUser) return;
     
+    // Fonction pour formater la date en local
+    const formatDateLocal = (date) => {
+      if (!date) return null;
+      const d = new Date(date);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}T00:00:00`;
+    };
+    
     try {
       const eventData = {
         id: event.id,
         user_id: supabaseUser.id,
         title: event.title,
         description: event.description || '',
-        date: event.date instanceof Date ? event.date.toISOString() : event.date,
+        date: formatDateLocal(event.date),
         time: event.time || '',
         duration: event.duration || '1h-2h',
         location: event.location || '',
         participants: event.participants || [],
         reminder: event.reminder || 'none',
+        recurrence: event.recurrence || 'none',
+        recurrence_days: event.recurrenceDays || [],
         completed: event.completed || false,
         completed_by: event.completedBy || [],
         tags: event.tags || [],
@@ -1173,20 +1167,56 @@ export const useGameData = (supabaseUser) => {
     return !data;
   };
 
-  // Envoyer des demandes de partage quand on crée/modifie une tâche avec participants
-  const sendSharedRequests = async (itemType, itemId, participants, itemData) => {
+  // ============================================
+  // GESTION DES DEMANDES DE PARTAGE
+  // ============================================
+
+  // Charger les demandes de partage en attente
+  const loadSharedRequests = async () => {
+    if (!supabaseUser || !user.pseudo) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('shared_requests')
+        .select('*')
+        .eq('to_pseudo', user.pseudo)
+        .eq('status', 'pending');
+      
+      if (error) {
+        console.error('Erreur chargement demandes partage:', error);
+        return;
+      }
+      
+      console.log('Demandes de partage reçues:', data?.length, data?.[0]?.item_title);
+      
+      setSharedRequests((data || []).map(r => ({
+        id: r.id,
+        itemType: r.item_type,
+        itemId: r.item_id,
+        fromPseudo: r.from_pseudo,
+        fromAvatar: r.from_avatar || '😀',
+        itemTitle: r.item_title || (r.item_type === 'task' ? 'Tâche partagée' : 'Événement partagé'),
+        itemDate: r.item_date,
+        itemDuration: r.item_duration,
+        itemStatus: r.item_status,
+        itemTime: r.item_time,
+        itemLocation: r.item_location,
+        createdAt: r.created_at,
+      })));
+    } catch (error) {
+      console.error('Erreur loadSharedRequests:', error);
+    }
+  };
+
+  // Envoyer des demandes de partage
+  const sendSharedRequests = async (itemType, itemId, participants, itemData = {}) => {
+    if (!supabaseUser || !user.pseudo) return;
+    
     console.log('sendSharedRequests appelé:', { itemType, itemId, participants, itemData });
     
-    if (!supabaseUser || !participants || participants.length === 0) {
-      console.log('sendSharedRequests: conditions non remplies', { supabaseUser: !!supabaseUser, participants });
-      return;
-    }
-
     for (const participant of participants) {
       // Ne pas envoyer de demande à soi-même
       if (participant.pseudo === user.pseudo) continue;
-      
-      console.log('Envoi demande à:', participant.pseudo);
       
       // Vérifier si une demande existe déjà
       const { data: existing, error: checkError } = await supabase
@@ -1203,6 +1233,8 @@ export const useGameData = (supabaseUser) => {
 
       // Si pas de demande existante, en créer une nouvelle
       if (!existing) {
+        console.log('Envoi demande à:', participant.pseudo);
+        
         const requestData = {
           item_type: itemType,
           item_id: itemId,
@@ -1242,171 +1274,168 @@ export const useGameData = (supabaseUser) => {
 
   // Accepter une demande de partage
   const acceptSharedRequest = async (requestId) => {
-    // Retirer immédiatement de l'UI
     const request = sharedRequests.find(r => r.id === requestId);
+    if (!request) return;
+    
+    // Retirer immédiatement de l'UI
     setSharedRequests(prev => prev.filter(r => r.id !== requestId));
     
+    // Mettre à jour dans Supabase
     const { error } = await supabase
       .from('shared_requests')
       .update({ status: 'accepted', updated_at: new Date().toISOString() })
       .eq('id', requestId);
-
-    if (!error && supabaseUser) {
-      // Recharger les tâches et événements pour voir le nouvel item
-      // Charger les tâches
-      const { data: tasksData } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('user_id', supabaseUser.id);
-      
-      // Charger les tâches partagées acceptées
-      const { data: acceptedTaskRequests } = await supabase
-        .from('shared_requests')
-        .select('item_id')
-        .eq('to_pseudo', user.pseudo)
-        .eq('item_type', 'task')
-        .eq('status', 'accepted');
-      
-      const acceptedTaskIds = acceptedTaskRequests?.map(r => r.item_id) || [];
-      
-      let sharedTasks = [];
-      if (acceptedTaskIds.length > 0) {
-        const { data: sharedTasksData } = await supabase
-          .from('tasks')
-          .select('*')
-          .in('id', acceptedTaskIds);
-        sharedTasks = sharedTasksData || [];
-      }
-      
-      const allTasks = [...(tasksData || []), ...sharedTasks];
-      setTasks(allTasks.map(t => ({
-        id: t.id,
-        title: t.title,
-        status: t.status,
-        duration: t.duration,
-        date: t.date ? new Date(t.date) : null,
-        category: t.category,
-        completed: t.completed,
-        tags: t.tags || [],
-        recurrence: t.recurrence || 'none',
-        recurrenceDays: t.recurrence_days || [],
-        notes: t.notes || '',
-        photos: t.photos || [],
-        participants: t.participants || [],
-        ownerId: t.user_id,
-        isSharedWithMe: t.user_id !== supabaseUser.id,
-      })));
-
-      // Charger les événements
-      const { data: eventsData } = await supabase
-        .from('events')
-        .select('*')
-        .eq('user_id', supabaseUser.id);
-      
-      // Charger les événements partagés acceptés
-      const { data: acceptedEventRequests } = await supabase
-        .from('shared_requests')
-        .select('item_id')
-        .eq('to_pseudo', user.pseudo)
-        .eq('item_type', 'event')
-        .eq('status', 'accepted');
-      
-      const acceptedEventIds = acceptedEventRequests?.map(r => r.item_id) || [];
-      
-      let sharedEvents = [];
-      if (acceptedEventIds.length > 0) {
-        const { data: sharedEventsData } = await supabase
-          .from('events')
-          .select('*')
-          .in('id', acceptedEventIds);
-        sharedEvents = sharedEventsData || [];
-      }
-      
-      const allEvents = [...(eventsData || []), ...sharedEvents];
-      setEvents(allEvents.map(e => ({
-        id: e.id,
-        title: e.title,
-        date: e.date ? new Date(e.date) : null,
-        time: e.time,
-        duration: e.duration,
-        location: e.location || '',
-        reminder: e.reminder || 'none',
-        completed: e.completed,
-        completedBy: e.completed_by || [],
-        tags: e.tags || [],
-        notes: e.notes || '',
-        participants: e.participants || [],
-        ownerId: e.user_id,
-        isSharedWithMe: e.user_id !== supabaseUser.id,
-      })));
+    
+    if (error) {
+      console.error('Erreur acceptation demande:', error);
+      return;
     }
     
-    return !error;
+    // Recharger les tâches/événements pour voir le nouvel item
+    if (supabaseUser) {
+      // Charger les IDs des tâches/événements acceptés
+      if (request.itemType === 'task') {
+        const { data: acceptedTaskRequests } = await supabase
+          .from('shared_requests')
+          .select('item_id')
+          .eq('to_pseudo', user.pseudo)
+          .eq('item_type', 'task')
+          .eq('status', 'accepted');
+        
+        const acceptedTaskIds = (acceptedTaskRequests || []).map(r => r.item_id);
+        
+        if (acceptedTaskIds.length > 0) {
+          // Charger les tâches propres
+          const { data: myTasks } = await supabase
+            .from('tasks')
+            .select('*')
+            .eq('user_id', supabaseUser.id);
+          
+          // Charger les tâches acceptées
+          const { data: sharedTasks } = await supabase
+            .from('tasks')
+            .select('*')
+            .in('id', acceptedTaskIds);
+          
+          const allTasks = [...(myTasks || []), ...(sharedTasks || [])];
+          
+          setTasks(allTasks.map(t => ({
+            id: t.id,
+            title: t.title,
+            status: t.status,
+            duration: t.duration,
+            date: t.date ? new Date(t.date) : null,
+            recurrence: t.recurrence || 'none',
+            recurrenceDays: t.recurrence_days || [],
+            tags: t.tags || [],
+            notes: t.notes || '',
+            photos: t.photos || [],
+            participants: t.participants || [],
+            completed: t.completed || false,
+            createdAt: t.created_at,
+            ownerId: t.user_id,
+            isSharedWithMe: t.user_id !== supabaseUser.id,
+          })));
+        }
+      } else if (request.itemType === 'event') {
+        const { data: acceptedEventRequests } = await supabase
+          .from('shared_requests')
+          .select('item_id')
+          .eq('to_pseudo', user.pseudo)
+          .eq('item_type', 'event')
+          .eq('status', 'accepted');
+        
+        const acceptedEventIds = (acceptedEventRequests || []).map(r => r.item_id);
+        
+        if (acceptedEventIds.length > 0) {
+          // Charger les événements propres
+          const { data: myEvents } = await supabase
+            .from('events')
+            .select('*')
+            .eq('user_id', supabaseUser.id);
+          
+          // Charger les événements acceptés
+          const { data: sharedEvents } = await supabase
+            .from('events')
+            .select('*')
+            .in('id', acceptedEventIds);
+          
+          const allEvents = [...(myEvents || []), ...(sharedEvents || [])];
+          
+          setEvents(allEvents.map(e => ({
+            id: e.id,
+            title: e.title,
+            description: e.description || '',
+            date: e.date ? new Date(e.date) : null,
+            time: e.time || '',
+            duration: e.duration || '1h-2h',
+            location: e.location || '',
+            participants: e.participants || [],
+            reminder: e.reminder || 'none',
+            recurrence: e.recurrence || 'none',
+            recurrenceDays: e.recurrence_days || [],
+            completed: e.completed || false,
+            completedBy: e.completed_by || [],
+            tags: e.tags || [],
+            notes: e.notes || '',
+            photos: e.photos || [],
+            createdAt: e.created_at,
+            ownerId: e.user_id,
+            isSharedWithMe: e.user_id !== supabaseUser.id,
+          })));
+        }
+      }
+    }
   };
 
   // Refuser une demande de partage
   const rejectSharedRequest = async (requestId) => {
-    // Trouver la demande pour avoir les infos
     const request = sharedRequests.find(r => r.id === requestId);
+    if (!request) return;
     
     // Retirer immédiatement de l'UI
     setSharedRequests(prev => prev.filter(r => r.id !== requestId));
     
+    // Mettre à jour dans Supabase
     const { error } = await supabase
       .from('shared_requests')
       .update({ status: 'rejected', updated_at: new Date().toISOString() })
       .eq('id', requestId);
-
-    if (!error && request) {
-      // Utiliser les fonctions SQL pour retirer le participant (bypass RLS)
+    
+    if (error) {
+      console.error('Erreur refus demande:', error);
+      return;
+    }
+    
+    // Retirer le participant de la tâche/événement
+    try {
       if (request.itemType === 'task') {
-        const { error: rpcError } = await supabase.rpc('remove_participant_from_task', {
+        await supabase.rpc('remove_participant_from_task', {
           p_task_id: request.itemId,
           p_pseudo: user.pseudo
         });
-        if (rpcError) {
-          console.error('Erreur suppression participant tâche:', rpcError);
-        }
       } else if (request.itemType === 'event') {
-        const { error: rpcError } = await supabase.rpc('remove_participant_from_event', {
+        await supabase.rpc('remove_participant_from_event', {
           p_event_id: request.itemId,
           p_pseudo: user.pseudo
         });
-        if (rpcError) {
-          console.error('Erreur suppression participant événement:', rpcError);
-        }
       }
-    }
-    return !error;
-  };
-
-  // Fonction pour rafraîchir les demandes de partage (polling)
-  const refreshSharedRequests = async () => {
-    if (!supabaseUser || !user.pseudo) return;
-    
-    const { data: sharedRequestsData } = await supabase
-      .from('shared_requests')
-      .select('*')
-      .eq('to_pseudo', user.pseudo)
-      .eq('status', 'pending');
-
-    if (sharedRequestsData) {
-      setSharedRequests(sharedRequestsData.map(r => ({
-        id: r.id,
-        itemType: r.item_type,
-        itemId: r.item_id,
-        fromPseudo: r.from_pseudo,
-        fromAvatar: r.from_avatar || '😀',
-        itemTitle: r.item_title || (r.item_type === 'task' ? 'Tâche partagée' : 'Événement partagé'),
-        itemDate: r.item_date,
-        itemDuration: r.item_duration,
-        itemStatus: r.item_status,
-        itemTime: r.item_time,
-        itemLocation: r.item_location,
-        createdAt: r.created_at,
-      })));
+    } catch (error) {
+      console.error('Erreur retrait participant:', error);
     }
   };
+
+  // Rafraîchir les demandes de partage
+  const refreshSharedRequests = () => {
+    loadSharedRequests();
+  };
+
+  // Charger les demandes au démarrage et quand le pseudo change
+  useEffect(() => {
+    if (supabaseUser && user.pseudo) {
+      loadSharedRequests();
+    }
+  }, [supabaseUser, user.pseudo]);
 
   return {
     user,
@@ -1425,8 +1454,8 @@ export const useGameData = (supabaseUser) => {
     setFriends,
     friendRequests,
     setFriendRequests,
+    // Demandes de partage
     sharedRequests,
-    setSharedRequests,
     sendSharedRequests,
     acceptSharedRequest,
     rejectSharedRequest,

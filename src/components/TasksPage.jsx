@@ -1,14 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { PageHelp } from './PageHelp';
+import { SeasonalChallengeBanner } from './SeasonalChallengeBanner';
 
 export const TasksPage = ({  
   tasks, 
   events = [],
   tasksView, 
   setTasksView, 
-  sharedRequests = [],
-  onAcceptSharedRequest,
-  onDeclineSharedRequest,
   onCompleteTask,
   onCompleteEvent, 
   onCreateTask,
@@ -23,7 +21,19 @@ export const TasksPage = ({
   user,
   onCompleteMissionQuest,
   ownedItems = [],
-  activeUpgrades = {}
+  activeUpgrades = {},
+  // Props pour le défi saisonnier
+  seasonalChallenge,
+  seasonalChallengeData,
+  seasonalChallengeStatus,
+  onAcceptSeasonalChallenge,
+  onIgnoreSeasonalChallenge,
+  onCompleteSeasonalTask,
+  onClaimSeasonalAvatar,
+  // Props pour les invitations
+  sharedRequests = [],
+  onAcceptSharedRequest,
+  onDeclineSharedRequest
 }) => {
   const [weekDaysCount, setWeekDaysCount] = useState(7);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -519,100 +529,84 @@ export const TasksPage = ({
         </div>
       </div>
 
-      {/* Invitations à participer */}
+      {/* Bannière défi saisonnier */}
+      {seasonalChallenge && (
+        <SeasonalChallengeBanner
+          challenge={seasonalChallenge}
+          challengeData={seasonalChallengeData}
+          challengeStatus={seasonalChallengeStatus}
+          onAccept={onAcceptSeasonalChallenge}
+          onIgnore={onIgnoreSeasonalChallenge}
+          onCompleteTask={onCompleteSeasonalTask}
+          onClaimAvatar={onClaimSeasonalAvatar}
+        />
+      )}
+
+      {/* Bandeau d'invitations à participer */}
       {sharedRequests && sharedRequests.length > 0 && (
-        <div className="bg-gradient-to-r from-violet-500 to-indigo-500 rounded-xl p-4 shadow-lg">
-          <h2 className="text-white font-bold text-lg mb-3 flex items-center gap-2">
-            <span className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center text-sm">
-              {sharedRequests.length}
-            </span>
-            {sharedRequests.length === 1 ? 'Invitation à participer' : 'Invitations à participer'}
-          </h2>
-          
+        <div className="bg-gradient-to-r from-violet-100 to-purple-100 rounded-2xl p-4 border border-violet-200">
+          <h3 className="text-lg font-bold text-violet-800 mb-3 flex items-center gap-2">
+            <span className="text-xl">🌟</span>
+            {sharedRequests.length} Invitation{sharedRequests.length > 1 ? 's' : ''} à participer
+          </h3>
           <div className="space-y-3">
             {sharedRequests.map((request) => (
-              <div 
-                key={request.id} 
-                className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-violet-400"
-              >
+              <div key={request.id} className="bg-white rounded-xl p-4 border-l-4 border-violet-400 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    {/* Titre avec icône */}
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-lg">{request.itemType === 'task' ? '📝' : '📅'}</span>
-                      <h3 className="font-bold text-slate-800 text-base">
-                        {request.itemTitle || (request.itemType === 'task' ? 'Tâche sans titre' : 'Événement sans titre')}
-                      </h3>
+                      <h4 className="font-semibold text-slate-800 truncate">{request.itemTitle || (request.itemType === 'task' ? 'Tâche partagée' : 'Événement partagé')}</h4>
                     </div>
                     
-                    {/* Infos : statut/heure, durée, date, lieu */}
-                    <div className="flex items-center gap-2 flex-wrap mb-2">
-                      {/* Pour les tâches : statut */}
+                    <div className="flex flex-wrap gap-2 mb-2">
                       {request.itemType === 'task' && request.itemStatus && (
-                        <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                          request.itemStatus === 'urgent' 
-                            ? 'bg-red-50 border border-red-200 text-red-600' 
-                            : request.itemStatus === 'important'
-                            ? 'bg-orange-50 border border-orange-200 text-orange-600'
-                            : 'bg-slate-100 border border-slate-200 text-slate-600'
+                        <span className={`px-2 py-0.5 rounded-lg text-xs font-medium ${
+                          request.itemStatus === 'urgent' ? 'bg-red-100 text-red-700' :
+                          request.itemStatus === 'important' ? 'bg-orange-100 text-orange-700' :
+                          'bg-slate-100 text-slate-600'
                         }`}>
                           {request.itemStatus}
                         </span>
                       )}
-                      
-                      {/* Pour les événements : heure */}
                       {request.itemType === 'event' && request.itemTime && (
-                        <span className="px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 text-xs font-medium">
+                        <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-emerald-100 text-emerald-700">
                           🕐 {request.itemTime}
                         </span>
                       )}
-                      
-                      {/* Durée */}
                       {request.itemDuration && (
-                        <span className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                        <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-blue-100 text-blue-700">
                           ⏱️ {request.itemDuration}
                         </span>
                       )}
-                      
-                      {/* Date */}
                       {request.itemDate && (
-                        <span className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
-                          📆 {new Date(request.itemDate).toLocaleDateString('fr-FR', {
-                            weekday: 'short',
-                            day: 'numeric',
-                            month: 'short'
-                          })}
+                        <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600">
+                          📆 {new Date(request.itemDate).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
                         </span>
                       )}
-                      
-                      {/* Lieu (événements) */}
                       {request.itemType === 'event' && request.itemLocation && (
-                        <span className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+                        <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-amber-100 text-amber-700">
                           📍 {request.itemLocation}
                         </span>
                       )}
                     </div>
                     
-                    {/* Envoyeur */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{request.fromAvatar}</span>
-                      <span className="text-sm text-violet-600 font-medium">
-                        Invitation de <strong>{request.fromPseudo}</strong>
-                      </span>
+                    <div className="flex items-center gap-2 text-sm text-violet-600">
+                      <span className="text-lg">{request.fromAvatar || '😀'}</span>
+                      <span>Invitation de <strong>{request.fromPseudo}</strong></span>
                     </div>
                   </div>
                   
-                  {/* Boutons */}
                   <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
                     <button
-                      onClick={() => onAcceptSharedRequest(request.id)}
-                      className="px-4 py-2 rounded-xl bg-green-500 text-white font-semibold text-sm hover:bg-green-600 transition-colors shadow-md"
+                      onClick={() => onAcceptSharedRequest && onAcceptSharedRequest(request.id)}
+                      className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-semibold hover:opacity-90 transition-all text-sm"
                     >
                       ✓ Accepter
                     </button>
                     <button
-                      onClick={() => onDeclineSharedRequest(request.id)}
-                      className="px-4 py-2 rounded-xl bg-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-300 transition-colors"
+                      onClick={() => onDeclineSharedRequest && onDeclineSharedRequest(request.id)}
+                      className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-medium hover:bg-slate-200 transition-all text-sm"
                     >
                       Refuser
                     </button>
@@ -626,7 +620,8 @@ export const TasksPage = ({
 
       <PageHelp pageId="tasks" color="blue">
         <strong>📋 Organise ton quotidien !</strong> Crée des tâches avec une durée estimée pour gagner des XP et des patates. 
-        Les <strong>événements</strong> sont des activités planifiées avec heure et lieu. Plus la tâche est longue, plus elle rapporte ! Les tâches non terminées sont automatiquement reportées au lendemain.
+        Les <strong>événements</strong> sont des activités planifiées avec heure et lieu. 
+        Plus la tâche est longue, plus elle rapporte ! Les tâches non terminées sont automatiquement reportées au lendemain.
       </PageHelp>
 
       {/* Onglets avec Archive */}
