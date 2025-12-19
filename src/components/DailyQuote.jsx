@@ -64,35 +64,48 @@ const QUOTES = [
   { text: "Protège ta paix.", author: "Anonyme" },
 ];
 
-export const DailyQuoteCard = ({ onClose }) => {
+// Générateur pseudo-aléatoire déterministe basé sur une seed
+const seededRandom = (seed) => {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+};
+
+// Créer une seed unique basée sur l'userId et la date
+const createDailySeed = (userId) => {
+  const today = new Date();
+  const dateString = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+  
+  // Créer un hash simple à partir de l'userId et de la date
+  let hash = 0;
+  const combinedString = `${userId || 'anonymous'}-${dateString}`;
+  for (let i = 0; i < combinedString.length; i++) {
+    const char = combinedString.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convertir en 32-bit integer
+  }
+  return Math.abs(hash);
+};
+
+// Mélanger un tableau de manière déterministe avec une seed
+const shuffleWithSeed = (array, seed) => {
+  const result = [...array];
+  let currentSeed = seed;
+  
+  for (let i = result.length - 1; i > 0; i--) {
+    currentSeed = (currentSeed * 9301 + 49297) % 233280;
+    const j = Math.floor((currentSeed / 233280) * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  
+  return result;
+};
+
+export const DailyQuoteCard = ({ onClose, userId }) => {
   const [cards, setCards] = useState([]);
   const [selectedCard, setSelectedCard] = useState(null);
   const [isRevealed, setIsRevealed] = useState(false);
   const [isFlipping, setIsFlipping] = useState(false);
   const [hasClaimedToday, setHasClaimedToday] = useState(false);
-
-  // Récupérer l'historique des citations (derniers 90 jours = ~3 mois)
-  const getRecentQuotes = () => {
-    const history = localStorage.getItem('todogame_quoteHistory');
-    if (!history) return [];
-    try {
-      const parsed = JSON.parse(history);
-      // Garder uniquement les citations des 90 derniers jours
-      const threeMonthsAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
-      return parsed.filter(entry => entry.date > threeMonthsAgo);
-    } catch {
-      return [];
-    }
-  };
-
-  // Sauvegarder une citation dans l'historique
-  const saveToHistory = (quoteText) => {
-    const history = getRecentQuotes();
-    history.push({ text: quoteText, date: Date.now() });
-    // Garder max 90 entrées
-    const trimmed = history.slice(-90);
-    localStorage.setItem('todogame_quoteHistory', JSON.stringify(trimmed));
-  };
 
   useEffect(() => {
     // Vérifier si déjà réclamé aujourd'hui
@@ -109,17 +122,12 @@ export const DailyQuoteCard = ({ onClose }) => {
     } else {
       generateCards();
     }
-  }, []);
+  }, [userId]);
 
   const generateCards = () => {
-    // Filtrer les citations récentes pour éviter les répétitions
-    const recentQuotes = getRecentQuotes().map(entry => entry.text);
-    const availableQuotes = QUOTES.filter(q => !recentQuotes.includes(q.text));
-    
-    // Si toutes les citations ont été utilisées récemment, réinitialiser
-    const quotesToUse = availableQuotes.length >= 6 ? availableQuotes : QUOTES;
-    
-    const shuffled = [...quotesToUse].sort(() => Math.random() - 0.5);
+    // Utiliser une seed basée sur l'userId et la date pour un mélange déterministe
+    const seed = createDailySeed(userId);
+    const shuffled = shuffleWithSeed(QUOTES, seed);
     const selectedQuotes = shuffled.slice(0, 6);
     
     const newCards = selectedQuotes.map((quote, index) => ({
@@ -143,8 +151,6 @@ export const DailyQuoteCard = ({ onClose }) => {
       const today = new Date().toDateString();
       localStorage.setItem('todogame_lastQuoteClaim', today);
       localStorage.setItem('todogame_todayQuote', JSON.stringify(card.quote));
-      // Sauvegarder dans l'historique pour éviter les répétitions
-      saveToHistory(card.quote.text);
       setHasClaimedToday(true);
     }, 600);
   };

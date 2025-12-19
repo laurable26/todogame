@@ -4,7 +4,6 @@ import { useGameData } from './hooks/useGameData';
 import { useNotifications } from './hooks/useNotifications';
 import { useJournaling } from './hooks/useJournaling';
 import { useCalendarSync } from './hooks/useCalendarSync';
-import { useSeasonalChallenges } from './hooks/useSeasonalChallenges';
 import { AuthScreen, OnboardingScreen, LoadingScreen } from './components/AuthScreens';
 import { Header, Navigation } from './components/Header';
 import { TasksPage } from './components/TasksPage';
@@ -15,7 +14,6 @@ import { ShopPage } from './components/ShopPage';
 import { StatsPage } from './components/StatsPage';
 import { DailyQuoteCard, DailyQuoteButton } from './components/DailyQuote';
 import { JournalingButterfly } from './components/JournalingButterfly';
-import { SeasonalChallengeBanner } from './components/SeasonalChallengeBanner';
 import { 
   CreateTaskModal, 
   ChestOpenedModal, 
@@ -66,12 +64,6 @@ const QuestApp = () => {
     setFriends,
     friendRequests,
     setFriendRequests,
-    // Demandes de partage
-    sharedRequests,
-    sendSharedRequests,
-    acceptSharedRequest,
-    rejectSharedRequest,
-    refreshSharedRequests,
     ownedItems,
     setOwnedItems,
     equippedItems,
@@ -154,17 +146,6 @@ const QuestApp = () => {
 
   // Hook pour la synchronisation des calendriers
   const calendarSync = useCalendarSync(supabaseUser?.id);
-
-  // Hook pour les défis saisonniers
-  const {
-    currentChallenge,
-    challengeData,
-    challengeStatus,
-    acceptChallenge,
-    ignoreChallenge,
-    completeTask: completeSeasonalTask,
-    claimAvatar,
-  } = useSeasonalChallenges(supabaseUser?.id, user.avatar, user.avatarBg);
 
   // Vérifier si l'amélioration Citation du Jour est active
   const hasDailyQuote = ownedItems.includes(90) && activeUpgrades[90] !== false;
@@ -312,20 +293,10 @@ const QuestApp = () => {
       
       // Mettre à jour dans Supabase
       if (supabaseUser) {
-        // Formater la date en préservant le fuseau local
-        const formatDateForDB = (date) => {
-          if (!date) return null;
-          const d = new Date(date);
-          const year = d.getFullYear();
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}T00:00:00`;
-        };
-        
         for (const task of tasksToReport) {
           await supabase
             .from('tasks')
-            .update({ date: formatDateForDB(today) })
+            .update({ date: today.toISOString() })
             .eq('id', task.id);
         }
       }
@@ -1285,102 +1256,6 @@ const QuestApp = () => {
       }
     }
     
-    // Gérer la récurrence si activée
-    if (event.recurrence && event.recurrence !== 'none') {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      let nextDate = null;
-
-      if (event.recurrence === 'daily') {
-        nextDate = new Date(today);
-        nextDate.setDate(nextDate.getDate() + 1);
-      } else if (event.recurrence === 'weekly') {
-        const recurrenceDays = event.recurrenceDays || [];
-        if (recurrenceDays.length > 0) {
-          const currentDay = today.getDay();
-          const sortedDays = [...recurrenceDays].sort((a, b) => a - b);
-          let nextDay = sortedDays.find(d => d > currentDay);
-          
-          if (nextDay === undefined) {
-            nextDay = sortedDays[0];
-            nextDate = new Date(today);
-            nextDate.setDate(today.getDate() + (7 - currentDay + nextDay));
-          } else {
-            nextDate = new Date(today);
-            nextDate.setDate(today.getDate() + (nextDay - currentDay));
-          }
-        }
-      } else if (event.recurrence === 'monthly') {
-        const recurrenceDays = event.recurrenceDays || [];
-        if (recurrenceDays.length > 0) {
-          const currentDayOfMonth = today.getDate();
-          const sortedDays = [...recurrenceDays].sort((a, b) => a - b);
-          let nextDay = sortedDays.find(d => d > currentDayOfMonth);
-          
-          if (nextDay === undefined) {
-            nextDay = sortedDays[0];
-            nextDate = new Date(today.getFullYear(), today.getMonth() + 1, nextDay);
-          } else {
-            nextDate = new Date(today.getFullYear(), today.getMonth(), nextDay);
-          }
-        }
-      }
-
-      // Créer le prochain événement récurrent
-      if (nextDate) {
-        const newEventId = crypto.randomUUID();
-        const formatDateForDB = (date) => {
-          if (!date) return null;
-          const d = new Date(date);
-          const year = d.getFullYear();
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}T00:00:00`;
-        };
-        
-        const newEvent = {
-          id: newEventId,
-          title: event.title,
-          description: event.description,
-          date: nextDate,
-          time: event.time,
-          duration: event.duration,
-          location: event.location,
-          participants: event.participants,
-          reminder: event.reminder,
-          recurrence: event.recurrence,
-          recurrenceDays: event.recurrenceDays,
-          tags: event.tags,
-          notes: event.notes,
-          completed: false,
-          completedBy: [],
-        };
-
-        setEvents(prev => [...prev, newEvent]);
-
-        if (supabaseUser) {
-          await supabase.from('events').insert({
-            id: newEventId,
-            user_id: supabaseUser.id,
-            title: newEvent.title,
-            description: newEvent.description || '',
-            date: formatDateForDB(nextDate),
-            time: newEvent.time,
-            duration: newEvent.duration,
-            location: newEvent.location || '',
-            participants: newEvent.participants || [],
-            reminder: newEvent.reminder || 'none',
-            recurrence: newEvent.recurrence,
-            recurrence_days: newEvent.recurrenceDays || [],
-            tags: newEvent.tags || [],
-            notes: newEvent.notes || '',
-            completed: false,
-            completed_by: [],
-          });
-        }
-      }
-    }
-    
     // Afficher le modal de célébration
     setCompletingEvent({ ...event, xp: finalXp, points: finalPoints, shared: hasParticipants });
   };
@@ -2120,59 +1995,6 @@ const QuestApp = () => {
         }}
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
-        seasonalChallenge={currentChallenge}
-        seasonalChallengeData={challengeData}
-        seasonalChallengeStatus={challengeStatus}
-        onAcceptSeasonalChallenge={acceptChallenge}
-        onIgnoreSeasonalChallenge={ignoreChallenge}
-        onCompleteSeasonalTask={async (index) => {
-          const result = await completeSeasonalTask(index);
-          if (result?.completed) {
-            // Donner les récompenses
-            const bonusXP = 150;
-            const bonusPotatoes = 200;
-            let newXp = user.xp + bonusXP;
-            let newLevel = user.level;
-            let newXpToNext = user.xpToNext;
-            
-            while (newXp >= newXpToNext) {
-              newXp -= newXpToNext;
-              newLevel++;
-              newXpToNext = Math.floor(newXpToNext * 1.15);
-            }
-            
-            const newUser = {
-              ...user,
-              xp: newXp,
-              level: newLevel,
-              xpToNext: newXpToNext,
-              potatoes: user.potatoes + bonusPotatoes,
-            };
-            
-            updateUser(newUser);
-            if (supabaseUser) {
-              saveProfile(newUser);
-            }
-          }
-        }}
-        onClaimSeasonalAvatar={async () => {
-          const success = await claimAvatar();
-          if (success && currentChallenge) {
-            // Équiper l'avatar saisonnier
-            const newUser = {
-              ...user,
-              avatar: currentChallenge.avatar,
-              avatarBg: currentChallenge.avatarBg,
-            };
-            updateUser(newUser);
-            if (supabaseUser) {
-              saveProfile(newUser);
-            }
-          }
-        }}
-        sharedRequests={sharedRequests}
-        onAcceptSharedRequest={acceptSharedRequest}
-        onDeclineSharedRequest={rejectSharedRequest}
       />
     );
   } else if (currentPage === 'friends') {
@@ -2769,7 +2591,7 @@ const QuestApp = () => {
 
       {/* Modal Citation du Jour */}
       {showDailyQuote && (
-        <DailyQuoteCard onClose={() => setShowDailyQuote(false)} />
+        <DailyQuoteCard onClose={() => setShowDailyQuote(false)} userId={supabaseUser?.id} />
       )}
 
       {/* Journaling - Papillon flottant */}
