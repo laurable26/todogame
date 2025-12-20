@@ -4,6 +4,7 @@ import { useGameData } from './hooks/useGameData';
 import { useNotifications } from './hooks/useNotifications';
 import { useJournaling } from './hooks/useJournaling';
 import { useCalendarSync } from './hooks/useCalendarSync';
+import { useSeasonalChallenges } from './hooks/useSeasonalChallenges';
 import { AuthScreen, OnboardingScreen, LoadingScreen } from './components/AuthScreens';
 import { Header, Navigation } from './components/Header';
 import { TasksPage } from './components/TasksPage';
@@ -14,6 +15,7 @@ import { ShopPage } from './components/ShopPage';
 import { StatsPage } from './components/StatsPage';
 import { DailyQuoteCard, DailyQuoteButton } from './components/DailyQuote';
 import { JournalingButterfly } from './components/JournalingButterfly';
+import { SeasonalChallengeBanner } from './components/SeasonalChallengeBanner';
 import { 
   CreateTaskModal, 
   ChestOpenedModal, 
@@ -147,6 +149,9 @@ const QuestApp = () => {
   // Hook pour la synchronisation des calendriers
   const calendarSync = useCalendarSync(supabaseUser?.id);
 
+  // Hook pour les défis saisonniers
+  const seasonalChallenges = useSeasonalChallenges(supabaseUser?.id, user.avatar, user.avatarBg);
+
   // Vérifier si l'amélioration Citation du Jour est active
   const hasDailyQuote = ownedItems.includes(90) && activeUpgrades[90] !== false;
   
@@ -213,12 +218,15 @@ const QuestApp = () => {
       if (!supabaseUser) return;
       
       const today = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
+      console.log('Chargement énigmes pour la date:', today);
       
       const { data, error } = await supabase
         .from('riddles_history')
-        .select('level')
+        .select('level, riddle_date')
         .eq('user_id', supabaseUser.id)
         .eq('riddle_date', today);
+      
+      console.log('Énigmes trouvées:', data, 'Erreur:', error);
       
       if (!error && data) {
         setRiddlesDoneToday(data.map(r => r.level));
@@ -304,6 +312,55 @@ const QuestApp = () => {
     
     checkAndReportTasks();
   }, [tasks.length, supabaseUser]); // Se déclenche quand les tâches sont chargées
+
+  // Reporter automatiquement les événements non faits d'hier à aujourd'hui
+  useEffect(() => {
+    const checkAndReportEvents = async () => {
+      if (!events || events.length === 0) return;
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const eventsToReport = events.filter(event => {
+        if (event.completed) return false;
+        if (!event.date) return false;
+        // Ne pas reporter les événements partagés dont on n'est pas le propriétaire
+        if (event.isSharedWithMe) return false;
+        
+        const eventDate = new Date(event.date);
+        eventDate.setHours(0, 0, 0, 0);
+        
+        // Si la date de l'événement est avant aujourd'hui, on le reporte
+        return eventDate < today;
+      });
+      
+      if (eventsToReport.length === 0) return;
+      
+      console.log(`Report de ${eventsToReport.length} événement(s) non terminé(s) à aujourd'hui`);
+      
+      // Mettre à jour les événements localement
+      const updatedEvents = events.map(event => {
+        if (eventsToReport.some(e => e.id === event.id)) {
+          return { ...event, date: today };
+        }
+        return event;
+      });
+      
+      setEvents(updatedEvents);
+      
+      // Mettre à jour dans Supabase
+      if (supabaseUser) {
+        for (const event of eventsToReport) {
+          await supabase
+            .from('events')
+            .update({ date: today.toISOString() })
+            .eq('id', event.id);
+        }
+      }
+    };
+    
+    checkAndReportEvents();
+  }, [events.length, supabaseUser]); // Se déclenche quand les événements sont chargés
 
   // Recherche d'utilisateurs via Supabase
   useEffect(() => {
@@ -1878,6 +1935,42 @@ const QuestApp = () => {
         getRecurrenceLabel={getRecurrenceLabel}
         missions={missions}
         user={user}
+        seasonalChallenges={seasonalChallenges}
+        onClaimSeasonalReward={async () => {
+          // Réclamer les récompenses du défi saisonnier
+          const bonusXP = 150;
+          const bonusPotatoes = 200;
+          
+          // Ajouter XP
+          let newXp = user.xp + bonusXP;
+          let newLevel = user.level;
+          let newXpToNext = user.xpToNext;
+          
+          while (newXp >= newXpToNext) {
+            newXp -= newXpToNext;
+            newLevel += 1;
+            newXpToNext = getXpForLevel(newLevel);
+          }
+          
+          // Mettre à jour l'avatar et les récompenses
+          const newUser = {
+            ...user,
+            xp: newXp,
+            level: newLevel,
+            xpToNext: newXpToNext,
+            potatoes: user.potatoes + bonusPotatoes,
+            avatar: seasonalChallenges.currentChallenge.avatar,
+            avatarBg: seasonalChallenges.currentChallenge.avatarBg,
+          };
+          
+          setUser(newUser);
+          if (supabaseUser) {
+            saveProfile(newUser);
+          }
+          
+          // Marquer comme réclamé
+          await seasonalChallenges.claimAvatar();
+        }}
         onCompleteMissionQuest={async (missionId, questId) => {
           // Vérifier si la tâche était non assignée
           const mission = missions.find(m => m.id === missionId);
@@ -2454,7 +2547,8 @@ const QuestApp = () => {
         
         const isDoneToday = activeRiddleLevel && riddlesDoneToday.includes(activeRiddleLevel);
         
-        if (!activeRiddleLevel || isDoneToday) return null;
+        // L'icône reste visible même si faite, mais sans badge XP
+        if (!activeRiddleLevel) return null;
         
         const config = {
           1: { xp: 25 },
@@ -2519,15 +2613,24 @@ const QuestApp = () => {
             <button
               onClick={() => {
                 const riddle = getDailyRiddle(activeRiddleLevel);
-                setShowRiddle({ level: activeRiddleLevel, riddle });
+                setShowRiddle({ level: activeRiddleLevel, riddle, alreadyDone: isDoneToday });
               }}
-              className="puzzle-float cursor-grab active:cursor-grabbing relative"
-              title={`Énigme du jour (+${config.xp} XP)`}
+              className={`puzzle-float cursor-grab active:cursor-grabbing relative ${isDoneToday ? 'opacity-70' : ''}`}
+              title={isDoneToday ? 'Énigme du jour (déjà faite)' : `Énigme du jour (+${config.xp} XP)`}
             >
               <span className="text-5xl drop-shadow-lg">🧩</span>
-              <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full shadow">
-                +{config.xp}
-              </span>
+              {/* Badge XP seulement si pas encore fait */}
+              {!isDoneToday && (
+                <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full shadow">
+                  +{config.xp}
+                </span>
+              )}
+              {/* Badge "fait" si déjà terminé */}
+              {isDoneToday && (
+                <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full shadow">
+                  ✓
+                </span>
+              )}
             </button>
           </div>
         );
@@ -2546,8 +2649,15 @@ const QuestApp = () => {
         <RiddleModal
           riddle={showRiddle.riddle}
           level={showRiddle.level}
+          alreadyDone={showRiddle.alreadyDone}
           onClose={() => setShowRiddle(null)}
           onSuccess={(xpReward) => {
+            // Ne pas donner de XP si déjà fait
+            if (showRiddle.alreadyDone) {
+              setShowRiddle(null);
+              return;
+            }
+            
             // 1. Marquer comme fait dans Supabase
             markRiddleDone(showRiddle.level, true);
             
@@ -2579,7 +2689,9 @@ const QuestApp = () => {
             setShowRiddle(null);
           }}
           onFail={() => {
-            markRiddleDone(showRiddle.level, false);
+            if (!showRiddle.alreadyDone) {
+              markRiddleDone(showRiddle.level, false);
+            }
           }}
         />
       )}
