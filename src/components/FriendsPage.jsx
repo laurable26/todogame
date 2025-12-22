@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { PageHelp } from './PageHelp';
 
 export const FriendsPage = ({ 
   user,
   friends, 
   tasks = [],
-  events = [],
   searchQuery, 
   setSearchQuery, 
   searchResults, 
@@ -15,21 +14,24 @@ export const FriendsPage = ({
   onAcceptRequest,
   onDeclineRequest,
   onEditTask,
-  onEditEvent,
   ownedItems = []
 }) => {
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
-  // Filtrer les tâches et événements partagés avec un ami
+  // Dériver les tâches avec heure (anciennement événements)
+  const tasksWithTime = useMemo(() => tasks.filter(t => t.time && t.time !== ''), [tasks]);
+  const tasksWithoutTime = useMemo(() => tasks.filter(t => !t.time || t.time === ''), [tasks]);
+
+  // Filtrer les tâches partagées avec un ami
   const getSharedWithFriend = (friendPseudo) => {
-    const sharedTasks = tasks.filter(t => 
+    const sharedTasks = tasksWithoutTime.filter(t => 
       t.participants?.some(p => p.pseudo === friendPseudo)
     );
-    const sharedEvents = events.filter(e => 
-      e.participants?.some(p => p.pseudo === friendPseudo)
+    const sharedTasksWithTime = tasksWithTime.filter(t => 
+      t.participants?.some(p => p.pseudo === friendPseudo)
     );
-    return { sharedTasks, sharedEvents };
+    return { sharedTasks, sharedTasksWithTime };
   };
 
   // Liste des amis (triée par niveau)
@@ -165,8 +167,8 @@ export const FriendsPage = ({
         {sortedFriends.length > 0 ? (
           <div className="space-y-2">
             {sortedFriends.map((friend) => {
-              const { sharedTasks, sharedEvents } = getSharedWithFriend(friend.pseudo);
-              const sharedCount = sharedTasks.length + sharedEvents.length;
+              const { sharedTasks, sharedTasksWithTime } = getSharedWithFriend(friend.pseudo);
+              const sharedCount = sharedTasks.length + sharedTasksWithTime.length;
               
               return (
                 <div 
@@ -274,14 +276,14 @@ export const FriendsPage = ({
               {/* Contenu */}
               <div className="p-5 overflow-y-auto flex-1">
                 {(() => {
-                  const { sharedTasks, sharedEvents } = getSharedWithFriend(selectedFriend.pseudo);
-                  const hasShared = sharedTasks.length > 0 || sharedEvents.length > 0;
+                  const { sharedTasks, sharedTasksWithTime } = getSharedWithFriend(selectedFriend.pseudo);
+                  const hasShared = sharedTasks.length > 0 || sharedTasksWithTime.length > 0;
 
                   if (!hasShared) {
                     return (
                       <div className="text-center py-10">
                         <div className="text-4xl mb-3">🤝</div>
-                        <p className="text-slate-500">Aucune tâche ou événement partagé avec {selectedFriend.pseudo}</p>
+                        <p className="text-slate-500">Aucune tâche partagée avec {selectedFriend.pseudo}</p>
                         <p className="text-sm text-slate-400 mt-2">Crée une tâche et ajoute cet ami comme participant !</p>
                       </div>
                     );
@@ -323,31 +325,31 @@ export const FriendsPage = ({
                         </div>
                       )}
 
-                      {/* Événements partagés */}
-                      {sharedEvents.length > 0 && (
+                      {/* Tâches avec heure partagées */}
+                      {sharedTasksWithTime.length > 0 && (
                         <div>
-                          <h3 className="font-semibold text-slate-700 mb-2">📅 Événements partagés ({sharedEvents.length})</h3>
+                          <h3 className="font-semibold text-slate-700 mb-2">📅 Tâches planifiées partagées ({sharedTasksWithTime.length})</h3>
                           <div className="space-y-2">
-                            {sharedEvents.map(event => (
+                            {sharedTasksWithTime.map(task => (
                               <div 
-                                key={event.id} 
+                                key={task.id} 
                                 onClick={() => {
                                   setSelectedFriend(null);
-                                  onEditEvent && onEditEvent(event);
+                                  onEditTask && onEditTask(task);
                                 }}
-                                className={`p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md ${event.completed ? 'bg-slate-50 border-slate-200' : 'bg-emerald-50 border-emerald-200 hover:border-emerald-400'}`}
+                                className={`p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md ${task.completed ? 'bg-slate-50 border-slate-200' : 'bg-emerald-50 border-emerald-200 hover:border-emerald-400'}`}
                               >
                                 <div className="flex items-center justify-between">
-                                  <span className={`font-medium ${event.completed ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
-                                    {event.title || 'Événement sans titre'}
+                                  <span className={`font-medium ${task.completed ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                                    {task.title || 'Tâche sans titre'}
                                   </span>
                                   <div className="flex items-center gap-2">
-                                    {event.completed && <span className="text-green-500">✓</span>}
+                                    {task.completed && <span className="text-green-500">✓</span>}
                                     <span className="text-slate-400">→</span>
                                   </div>
                                 </div>
                                 <p className="text-xs text-slate-500 mt-1">
-                                  {event.date && new Date(event.date).toLocaleDateString('fr-FR')} • {event.time}
+                                  {task.date && new Date(task.date).toLocaleDateString('fr-FR')} • {task.time}
                                 </p>
                               </div>
                             ))}

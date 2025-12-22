@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 
-export const StatsPage = ({ user, tasks, events = [], chests, badges, friends, journaling, hasJournaling }) => {
+export const StatsPage = ({ user, tasks, chests, badges, friends, journaling, hasJournaling }) => {
   const [period, setPeriod] = useState('all'); // 'today', 'month', 'all'
   const [journalingStats, setJournalingStats] = useState(null);
 
@@ -36,29 +36,33 @@ export const StatsPage = ({ user, tasks, events = [], chests, badges, friends, j
   // Calculer les statistiques
   const stats = useMemo(() => {
     const filteredTasks = filterByPeriod(tasks);
-    const filteredEvents = filterByPeriod(events);
     
-    const completedTasks = filteredTasks.filter(t => t.completed);
-    const activeTasks = filteredTasks.filter(t => !t.completed);
-    const completedEvents = filteredEvents.filter(e => e.completed);
+    // Séparer les tâches avec et sans heure
+    const tasksWithTime = filteredTasks.filter(t => t.time && t.time !== '');
+    const tasksWithoutTime = filteredTasks.filter(t => !t.time || t.time === '');
     
-    // Tâches/événements partagés
+    const completedTasks = tasksWithoutTime.filter(t => t.completed);
+    const activeTasks = tasksWithoutTime.filter(t => !t.completed);
+    const completedTasksWithTime = tasksWithTime.filter(t => t.completed);
+    
+    // Tâches partagées
     const sharedTasks = completedTasks.filter(t => t.participants?.length > 0);
-    const sharedEvents = completedEvents.filter(e => e.participants?.length > 0);
+    const sharedTasksWithTime = completedTasksWithTime.filter(t => t.participants?.length > 0);
     
     // Stats par durée (avec les vraies valeurs utilisées)
+    const allCompletedTasks = [...completedTasks, ...completedTasksWithTime];
     const tasksByDuration = {
-      '-1h': completedTasks.filter(t => t.duration === '-1h').length,
-      '1h-2h': completedTasks.filter(t => t.duration === '1h-2h').length,
-      '1/2 jour': completedTasks.filter(t => t.duration === '1/2 jour').length,
-      '1 jour': completedTasks.filter(t => t.duration === '1 jour').length,
+      '-1h': allCompletedTasks.filter(t => t.duration === '-1h').length,
+      '1h-2h': allCompletedTasks.filter(t => t.duration === '1h-2h').length,
+      '1/2 jour': allCompletedTasks.filter(t => t.duration === '1/2 jour').length,
+      '1 jour': allCompletedTasks.filter(t => t.duration === '1 jour').length,
     };
     
     // Stats par statut
     const tasksByStatus = {
-      'urgent': completedTasks.filter(t => t.status === 'urgent').length,
-      'important': completedTasks.filter(t => t.status === 'important').length,
-      'normal': completedTasks.filter(t => t.status === 'à faire' || t.status === 'normal' || t.status === 'délégué').length,
+      'urgent': allCompletedTasks.filter(t => t.status === 'urgent').length,
+      'important': allCompletedTasks.filter(t => t.status === 'important').length,
+      'normal': allCompletedTasks.filter(t => t.status === 'à faire' || t.status === 'normal' || t.status === 'délégué').length,
     };
 
     // Temps en minutes par durée
@@ -113,9 +117,9 @@ export const StatsPage = ({ user, tasks, events = [], chests, badges, friends, j
     return {
       completedTasks: completedTasks.length,
       activeTasks: activeTasks.length,
-      completedEvents: completedEvents.length,
+      completedTasksWithTime: completedTasksWithTime.length,
       sharedTasks: sharedTasks.length,
-      sharedEvents: sharedEvents.length,
+      sharedTasksWithTime: sharedTasksWithTime.length,
       tasksByDuration,
       tasksByStatus,
       tagStats: sortedTagStats,
@@ -125,7 +129,7 @@ export const StatsPage = ({ user, tasks, events = [], chests, badges, friends, j
       totalHours,
       friends: friends.length,
     };
-  }, [tasks, events, chests, badges, friends, period]);
+  }, [tasks, chests, badges, friends, period]);
 
   const getPeriodLabel = () => {
     switch(period) {
@@ -222,8 +226,8 @@ export const StatsPage = ({ user, tasks, events = [], chests, badges, friends, j
           color="border-green-200"
         />
         <StatCard 
-          title="Événements" 
-          value={stats.completedEvents}
+          title="Tâches planifiées" 
+          value={stats.completedTasksWithTime}
           subtitle={getPeriodLabel()}
           icon="📅"
           color="border-emerald-200"
@@ -253,8 +257,8 @@ export const StatsPage = ({ user, tasks, events = [], chests, badges, friends, j
             <div className="text-sm text-purple-700">Tâches partagées</div>
           </div>
           <div className="text-center p-3 bg-emerald-50 rounded-xl">
-            <div className="text-2xl font-black text-emerald-600">{stats.sharedEvents}</div>
-            <div className="text-sm text-emerald-700">Événements partagés</div>
+            <div className="text-2xl font-black text-emerald-600">{stats.sharedTasksWithTime}</div>
+            <div className="text-sm text-emerald-700">Planifiées partagées</div>
           </div>
           <div className="text-center p-3 bg-cyan-50 rounded-xl">
             <div className="text-2xl font-black text-cyan-600">{stats.friends}</div>

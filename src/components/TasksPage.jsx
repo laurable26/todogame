@@ -4,15 +4,11 @@ import { SeasonalChallengeBanner } from './SeasonalChallengeBanner';
 
 export const TasksPage = ({  
   tasks, 
-  events = [],
   tasksView, 
   setTasksView, 
   onCompleteTask,
-  onCompleteEvent, 
   onCreateTask,
-  onCreateEvent, 
   onEditTask,
-  onEditEvent, 
   onDeleteTask, 
   onClearCompleted, 
   getStatusColor, 
@@ -24,7 +20,11 @@ export const TasksPage = ({
   activeUpgrades = {},
   // Props pour le défi saisonnier
   seasonalChallenges,
-  onClaimSeasonalReward
+  onClaimSeasonalReward,
+  // Props pour les invitations de partage
+  pendingInvitation,
+  onAcceptInvitation,
+  onDeclineInvitation
 }) => {
   const [weekDaysCount, setWeekDaysCount] = useState(7);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -37,6 +37,9 @@ export const TasksPage = ({
   // Améliorations disponibles (possédé ET actif)
   const hasAdvancedSort = ownedItems.includes(77) && activeUpgrades[77] !== false;
   const hasQuestFilter = ownedItems.includes(84) && activeUpgrades[84] !== false;
+  
+  // Dériver les events depuis tasks (tâches avec heure)
+  const events = useMemo(() => tasks.filter(t => t.time && t.time !== ''), [tasks]);
   
   const today = useMemo(() => {
     const d = new Date();
@@ -310,18 +313,28 @@ export const TasksPage = ({
                 }`}>
                   {task.title}
                 </h3>
-                {/* Avatars des participants */}
+                {/* Avatars des participants avec statut */}
                 {isShared && !compact && (
                   <div className="flex -space-x-1 flex-shrink-0">
-                    {task.participants.slice(0, 3).map((p, i) => (
-                      <div 
-                        key={i} 
-                        className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center border-2 border-white shadow-sm"
-                        title={p.pseudo}
-                      >
-                        <span className="text-xs">{p.avatar}</span>
-                      </div>
-                    ))}
+                    {task.participants.slice(0, 3).map((p, i) => {
+                      const isAccepted = p.accepted !== false; // true par défaut si pas défini
+                      return (
+                        <div 
+                          key={i} 
+                          className={`w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow-sm transition-all ${
+                            isAccepted 
+                              ? 'bg-gradient-to-br from-indigo-400 to-purple-500' 
+                              : 'bg-slate-300 grayscale opacity-60'
+                          }`}
+                          title={`${p.pseudo}${isAccepted ? '' : ' (en attente)'}`}
+                        >
+                          <span className={`text-xs ${isAccepted ? '' : 'opacity-50'}`}>{p.avatar}</span>
+                          {!isAccepted && (
+                            <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-amber-400 rounded-full border border-white" title="En attente"></span>
+                          )}
+                        </div>
+                      );
+                    })}
                     {task.participants.length > 3 && (
                       <div className="w-6 h-6 rounded-full bg-slate-300 flex items-center justify-center border-2 border-white text-xs text-slate-600">
                         +{task.participants.length - 3}
@@ -401,7 +414,7 @@ export const TasksPage = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onCompleteEvent(event.id);
+                onCompleteTask(event.id);
               }}
               className="mt-1 w-6 h-6 rounded-lg border-2 border-emerald-400 hover:border-emerald-600 hover:bg-emerald-100 transition-all flex-shrink-0 flex items-center justify-center"
             >
@@ -413,7 +426,7 @@ export const TasksPage = ({
             </div>
           )}
           
-          <div className="flex-1 min-w-0" onClick={() => onEditEvent(event)}>
+          <div className="flex-1 min-w-0" onClick={() => onEditTask(event)}>
             {/* Titre + Avatars + Récompenses */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
@@ -504,27 +517,66 @@ export const TasksPage = ({
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl sm:text-3xl font-black text-slate-900">Tâches</h1>
-        <div className="flex gap-2">
-          <button 
-            onClick={onCreateEvent}
-            className="bg-gradient-to-r from-emerald-500 to-teal-500 px-3 sm:px-4 py-2 sm:py-3 rounded-xl font-bold text-white hover:scale-105 transition-transform shadow-lg text-sm sm:text-base"
-          >
-            + Événement
-          </button>
-          <button 
-            onClick={onCreateTask}
-            className="bg-gradient-to-r from-blue-500 to-cyan-500 px-3 sm:px-4 py-2 sm:py-3 rounded-xl font-bold text-white hover:scale-105 transition-transform shadow-lg text-sm sm:text-base"
-          >
-            + Tâche
-          </button>
-        </div>
+        <button 
+          onClick={onCreateTask}
+          className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full font-bold text-white hover:scale-110 transition-transform shadow-lg flex items-center justify-center text-3xl sm:text-4xl"
+        >
+          +
+        </button>
       </div>
 
       <PageHelp pageId="tasks" color="blue">
         <strong>📋 Organise ton quotidien !</strong> Crée des tâches avec une durée estimée pour gagner des XP et des patates. 
-        Les <strong>événements</strong> sont des activités planifiées avec heure et lieu. 
+        Ajoute une heure dans "Plus d'options" pour créer un événement avec lieu et rappel. 
         Plus la tâche est longue, plus elle rapporte ! Les tâches non terminées sont automatiquement reportées au lendemain.
       </PageHelp>
+
+      {/* Bandeau invitation de partage */}
+      {pendingInvitation && (
+        <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-4 shadow-lg border-2 border-white/20">
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Avatar de l'expéditeur */}
+            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-2xl flex-shrink-0 border-2 border-white/30">
+              {pendingInvitation.ownerAvatar}
+            </div>
+            
+            {/* Détails */}
+            <div className="flex-1 min-w-0">
+              <p className="text-white/80 text-sm">
+                <span className="font-bold text-white">{pendingInvitation.ownerPseudo}</span> t'invite à participer à :
+              </p>
+              <h3 className="text-white font-bold text-lg truncate">
+                📋 {pendingInvitation.taskTitle}
+              </h3>
+              {(pendingInvitation.taskDate || pendingInvitation.taskTime) && (
+                <p className="text-white/70 text-sm">
+                  📅 {pendingInvitation.taskDate && new Date(pendingInvitation.taskDate).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
+                  {pendingInvitation.taskTime && ` à ${pendingInvitation.taskTime}`}
+                </p>
+              )}
+              <p className="text-yellow-200 text-xs mt-1 font-medium">
+                ✨ Points et XP x2 en participant !
+              </p>
+            </div>
+            
+            {/* Boutons */}
+            <div className="flex gap-2 flex-shrink-0">
+              <button
+                onClick={() => onDeclineInvitation(pendingInvitation.taskId)}
+                className="px-4 py-2 bg-white/20 hover:bg-red-500/50 text-white rounded-xl font-semibold transition-all border border-white/30"
+              >
+                ✕ Refuser
+              </button>
+              <button
+                onClick={() => onAcceptInvitation(pendingInvitation.taskId)}
+                className="px-4 py-2 bg-white hover:bg-green-100 text-purple-600 rounded-xl font-bold transition-all shadow-md"
+              >
+                ✓ Accepter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bannière défi saisonnier */}
       {seasonalChallenges && seasonalChallenges.currentChallenge && (

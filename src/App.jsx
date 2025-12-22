@@ -27,9 +27,8 @@ import {
   CreateMissionQuestModal,
   EditMissionQuestModal,
   BadgeUnlockedModal,
-  CreateEventModal,
-  EventCompletedModal,
-  RiddleModal
+  RiddleModal,
+  ShareInvitationModal
 } from './components/Modals';
 import { getDailyRiddle } from './data/riddles';
 import { supabase } from './supabaseClient';
@@ -58,8 +57,6 @@ const QuestApp = () => {
     updateChests,
     tasks,
     setTasks,
-    events,
-    setEvents,
     missions,
     setMissions,
     friends,
@@ -80,8 +77,7 @@ const QuestApp = () => {
     saveFriend,
     saveMission,
     deleteMission: deleteMissionFromDB,
-    saveEvent,
-    deleteEvent: deleteEventFromDB,
+    saveTask,
     checkPseudoAvailable,
     // Thème
     theme,
@@ -132,9 +128,6 @@ const QuestApp = () => {
   const [creatingTask, setCreatingTask] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [completingTask, setCompletingTask] = useState(null);
-  const [creatingEvent, setCreatingEvent] = useState(false);
-  const [editingEvent, setEditingEvent] = useState(null);
-  const [completingEvent, setCompletingEvent] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [openingChest, setOpeningChest] = useState(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -142,6 +135,7 @@ const QuestApp = () => {
   const [riddlesDoneToday, setRiddlesDoneToday] = useState([]);
   const [showDailyQuote, setShowDailyQuote] = useState(false);
   const [pendingNotification, setPendingNotification] = useState(null);
+  const [pendingShareInvitation, setPendingShareInvitation] = useState(null);
 
   // Hook pour le journaling
   const journaling = useJournaling(supabaseUser?.id);
@@ -236,6 +230,171 @@ const QuestApp = () => {
     loadRiddlesHistory();
   }, [supabaseUser]);
 
+  // Détecter les invitations de partage en attente
+  useEffect(() => {
+    if (!supabaseUser || !user.pseudo) return;
+    
+    const checkPendingInvitations = async () => {
+      console.log('🔍 Recherche invitations pour:', user.pseudo);
+      
+      // Chercher directement dans Supabase les tâches où on est participant avec accepted: false
+      const { data: allOtherTasks, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .neq('user_id', supabaseUser.id);
+      
+      if (error) {
+        console.error('❌ Erreur recherche invitations:', error);
+        return;
+      }
+      
+      // Filtrer les tâches où je suis invité avec accepted: false
+      const pendingInvitations = (allOtherTasks || []).filter(task => {
+        if (!task.participants || !Array.isArray(task.participants)) return false;
+        
+        const myParticipation = task.participants.find(p => p.pseudo === user.pseudo);
+        const isPending = myParticipation && myParticipation.accepted === false;
+        
+        if (isPending) {
+          console.log('🔍 Invitation trouvée:', task.title, '| participants:', task.participants);
+        }
+        
+        return isPending;
+      });
+      
+      console.log('🔍 Total invitations en attente:', pendingInvitations.length);
+      
+      // Afficher la première invitation en attente
+      if (pendingInvitations.length > 0 && !pendingShareInvitation) {
+        const invitation = pendingInvitations[0];
+        
+        // Trouver le pseudo du créateur (participant avec accepted: true qui n'est pas nous)
+        const ownerParticipant = invitation.participants?.find(p => p.pseudo !== user.pseudo && p.accepted === true);
+        
+        console.log('🎉 INVITATION DÉTECTÉE:', {
+          taskTitle: invitation.title,
+          ownerParticipant
+        });
+        
+        setPendingShareInvitation({
+          taskId: invitation.id,
+          taskTitle: invitation.title,
+          taskDate: invitation.date ? new Date(invitation.date) : null,
+          taskTime: invitation.time,
+          ownerPseudo: ownerParticipant?.pseudo || 'Un ami',
+          ownerAvatar: ownerParticipant?.avatar || '😀',
+        });
+      }
+    };
+    
+    checkPendingInvitations();
+    
+    // Vérifier périodiquement (toutes les 10 secondes)
+    const interval = setInterval(checkPendingInvitations, 10000);
+    
+    return () => clearInterval(interval);
+  }, [user.pseudo, supabaseUser, pendingShareInvitation]);
+
+  // Accepter une invitation de partage
+  const acceptShareInvitation = async (taskId) => {
+    console.log('✅ Acceptation invitation pour tâche:', taskId);
+    
+    // Récupérer la tâche depuis Supabase
+    const { data: taskData, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', taskId)
+      .single();
+    
+    if (error || !taskData) {
+      console.error('❌ Erreur récupération tâche:', error);
+      setPendingShareInvitation(null);
+      return;
+    }
+    
+    // Mettre à jour les participants
+    const updatedParticipants = taskData.participants.map(p => 
+      p.pseudo === user.pseudo ? { ...p, accepted: true } : p
+    );
+    
+    // Sauvegarder dans Supabase
+    const { error: updateError } = await supabase
+      .from('tasks')
+      .update({ participants: updatedParticipants })
+      .eq('id', taskId);
+    
+    if (updateError) {
+      console.error('❌ Erreur mise à jour participants:', updateError);
+    } else {
+      console.log('✅ Invitation acceptée avec succès');
+      
+      // Ajouter la tâche à la liste locale
+      const newTask = {
+        id: taskData.id,
+        title: taskData.title,
+        status: taskData.status || 'à faire',
+        duration: taskData.duration,
+        date: taskData.date ? new Date(taskData.date) : null,
+        category: taskData.category,
+        completed: taskData.completed,
+        tags: taskData.tags || [],
+        recurrence: taskData.recurrence || 'none',
+        recurrenceDays: taskData.recurrence_days || [],
+        notes: taskData.notes || '',
+        photos: taskData.photos || [],
+        participants: updatedParticipants,
+        ownerId: taskData.user_id,
+        isSharedWithMe: true,
+        time: taskData.time || '',
+        location: taskData.location || '',
+        reminder: taskData.reminder || 'none',
+        description: taskData.description || '',
+        completedBy: taskData.completed_by || [],
+        missionId: taskData.mission_id,
+        assignedTo: taskData.assigned_to,
+      };
+      
+      setTasks(prevTasks => [...prevTasks, newTask]);
+    }
+    
+    setPendingShareInvitation(null);
+  };
+
+  // Refuser une invitation de partage
+  const declineShareInvitation = async (taskId) => {
+    console.log('❌ Refus invitation pour tâche:', taskId);
+    
+    // Récupérer la tâche depuis Supabase
+    const { data: taskData, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', taskId)
+      .single();
+    
+    if (error || !taskData) {
+      console.error('❌ Erreur récupération tâche:', error);
+      setPendingShareInvitation(null);
+      return;
+    }
+    
+    // Retirer l'utilisateur des participants
+    const updatedParticipants = taskData.participants.filter(p => p.pseudo !== user.pseudo);
+    
+    // Mettre à jour la tâche dans Supabase
+    const { error: updateError } = await supabase
+      .from('tasks')
+      .update({ participants: updatedParticipants })
+      .eq('id', taskId);
+    
+    if (updateError) {
+      console.error('❌ Erreur mise à jour participants:', updateError);
+    } else {
+      console.log('✅ Invitation refusée avec succès');
+    }
+    
+    setPendingShareInvitation(null);
+  };
+
   // Fonction pour marquer une énigme comme faite
   const markRiddleDone = async (level, solved) => {
     if (!supabaseUser) return;
@@ -269,14 +428,22 @@ const QuestApp = () => {
   // Reporter automatiquement les tâches non faites d'hier à aujourd'hui
   useEffect(() => {
     const checkAndReportTasks = async () => {
-      if (!tasks || tasks.length === 0) return;
+      if (!tasks || tasks.length === 0 || !supabaseUser) return;
       
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0];
+      
+      // Éviter de retraiter plusieurs fois le même jour
+      const lastReportKey = `todogame_lastTaskReport_${supabaseUser.id}`;
+      const lastReport = localStorage.getItem(lastReportKey);
+      if (lastReport === todayStr) return;
       
       const tasksToReport = tasks.filter(task => {
         if (task.completed) return false;
         if (!task.date) return false;
+        // Ne pas reporter les tâches partagées dont on n'est pas propriétaire
+        if (task.isSharedWithMe) return false;
         
         const taskDate = new Date(task.date);
         taskDate.setHours(0, 0, 0, 0);
@@ -285,7 +452,10 @@ const QuestApp = () => {
         return taskDate < today;
       });
       
-      if (tasksToReport.length === 0) return;
+      if (tasksToReport.length === 0) {
+        localStorage.setItem(lastReportKey, todayStr);
+        return;
+      }
       
       console.log(`Report de ${tasksToReport.length} tâche(s) non terminée(s) à aujourd'hui`);
       
@@ -299,68 +469,80 @@ const QuestApp = () => {
       
       setTasks(updatedTasks);
       
-      // Mettre à jour dans Supabase
-      if (supabaseUser) {
-        for (const task of tasksToReport) {
-          await supabase
-            .from('tasks')
-            .update({ date: today.toISOString() })
-            .eq('id', task.id);
-        }
-      }
+      // Mettre à jour dans Supabase - en batch pour plus de fiabilité
+      const taskIds = tasksToReport.map(t => t.id);
+      await supabase
+        .from('tasks')
+        .update({ date: today.toISOString() })
+        .in('id', taskIds);
+      
+      localStorage.setItem(lastReportKey, todayStr);
     };
     
-    checkAndReportTasks();
+    // Petit délai pour s'assurer que les tâches sont bien chargées
+    const timer = setTimeout(checkAndReportTasks, 500);
+    return () => clearTimeout(timer);
   }, [tasks.length, supabaseUser]); // Se déclenche quand les tâches sont chargées
 
-  // Reporter automatiquement les événements non faits d'hier à aujourd'hui
+  // Reporter automatiquement les tâches avec heure (événements) non faites d'hier à aujourd'hui
   useEffect(() => {
-    const checkAndReportEvents = async () => {
-      if (!events || events.length === 0) return;
+    const checkAndReportTasksWithTime = async () => {
+      // Filtrer les tâches avec heure (anciennement événements)
+      const tasksWithTime = tasks.filter(t => t.time && t.time !== '');
+      if (!tasksWithTime || tasksWithTime.length === 0 || !supabaseUser) return;
       
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0];
       
-      const eventsToReport = events.filter(event => {
-        if (event.completed) return false;
-        if (!event.date) return false;
-        // Ne pas reporter les événements partagés dont on n'est pas le propriétaire
-        if (event.isSharedWithMe) return false;
+      // Éviter de retraiter plusieurs fois le même jour
+      const lastReportKey = `todogame_lastEventReport_${supabaseUser.id}`;
+      const lastReport = localStorage.getItem(lastReportKey);
+      if (lastReport === todayStr) return;
+      
+      const tasksToReport = tasksWithTime.filter(task => {
+        if (task.completed) return false;
+        if (!task.date) return false;
+        // Ne pas reporter les tâches partagées dont on n'est pas le propriétaire
+        if (task.isSharedWithMe) return false;
         
-        const eventDate = new Date(event.date);
-        eventDate.setHours(0, 0, 0, 0);
+        const taskDate = new Date(task.date);
+        taskDate.setHours(0, 0, 0, 0);
         
-        // Si la date de l'événement est avant aujourd'hui, on le reporte
-        return eventDate < today;
+        // Si la date de la tâche est avant aujourd'hui, on la reporte
+        return taskDate < today;
       });
       
-      if (eventsToReport.length === 0) return;
-      
-      console.log(`Report de ${eventsToReport.length} événement(s) non terminé(s) à aujourd'hui`);
-      
-      // Mettre à jour les événements localement
-      const updatedEvents = events.map(event => {
-        if (eventsToReport.some(e => e.id === event.id)) {
-          return { ...event, date: today };
-        }
-        return event;
-      });
-      
-      setEvents(updatedEvents);
-      
-      // Mettre à jour dans Supabase
-      if (supabaseUser) {
-        for (const event of eventsToReport) {
-          await supabase
-            .from('events')
-            .update({ date: today.toISOString() })
-            .eq('id', event.id);
-        }
+      if (tasksToReport.length === 0) {
+        localStorage.setItem(lastReportKey, todayStr);
+        return;
       }
+      
+      console.log(`Report de ${tasksToReport.length} tâche(s) planifiée(s) non terminée(s) à aujourd'hui`);
+      
+      // Mettre à jour les tâches localement
+      const updatedTasks = tasks.map(task => {
+        if (tasksToReport.some(t => t.id === task.id)) {
+          return { ...task, date: today };
+        }
+        return task;
+      });
+      
+      setTasks(updatedTasks);
+      
+      // Mettre à jour dans Supabase - en batch
+      const taskIds = tasksToReport.map(t => t.id);
+      await supabase
+        .from('tasks')
+        .update({ date: today.toISOString() })
+        .in('id', taskIds);
+      
+      localStorage.setItem(lastReportKey, todayStr);
     };
     
-    checkAndReportEvents();
-  }, [events.length, supabaseUser]); // Se déclenche quand les événements sont chargés
+    const timer = setTimeout(checkAndReportTasksWithTime, 600);
+    return () => clearTimeout(timer);
+  }, [tasks.length, supabaseUser]); // Se déclenche quand les tâches sont chargées
 
   // Recherche d'utilisateurs via Supabase
   useEffect(() => {
@@ -520,19 +702,57 @@ const QuestApp = () => {
   const openChest = (type) => {
     if (chests[type] <= 0) return;
 
+    // Les IDs doivent correspondre à ceux de shopItems dans useGameData.js
     const possibleRewards = {
-      bronze: [],
+      bronze: [
+        // Avatars basiques (prix 100-200)
+        { id: 21, name: 'Chat', type: 'avatar', image: '🐱' },
+        { id: 22, name: 'Chien', type: 'avatar', image: '🐶' },
+        { id: 23, name: 'Lapin', type: 'avatar', image: '🐰' },
+        { id: 24, name: 'Panda', type: 'avatar', image: '🐼' },
+        { id: 25, name: 'Renard', type: 'avatar', image: '🦊' },
+        { id: 26, name: 'Lion', type: 'avatar', image: '🦁' },
+      ],
       silver: [
-        { id: 30, name: 'Océan', type: 'fond', image: '🌊', colors: 'from-blue-400 to-cyan-500' },
-        { id: 32, name: 'Forêt', type: 'fond', image: '🌲', colors: 'from-green-500 to-emerald-600' },
+        // Fonds basiques (prix 200-400)
+        { id: 50, name: 'Océan', type: 'fond', image: '🌊', colors: 'from-blue-400 to-cyan-500' },
+        { id: 51, name: 'Prairie', type: 'fond', image: '🌿', colors: 'from-green-400 to-lime-500' },
+        { id: 52, name: 'Forêt', type: 'fond', image: '🌲', colors: 'from-green-600 to-emerald-700' },
+        { id: 53, name: 'Ciel', type: 'fond', image: '☁️', colors: 'from-sky-300 to-blue-400' },
+        { id: 54, name: 'Coucher de soleil', type: 'fond', image: '🌅', colors: 'from-orange-400 to-pink-500' },
+        { id: 55, name: 'Aurore', type: 'fond', image: '🌄', colors: 'from-pink-400 to-orange-400' },
+        // Avatars moyens (prix 300-500)
+        { id: 27, name: 'Guerrier', type: 'avatar', image: '⚔️' },
+        { id: 28, name: 'Mage', type: 'avatar', image: '🧙' },
+        { id: 29, name: 'Fantôme', type: 'avatar', image: '👻' },
+        { id: 30, name: 'Citrouille', type: 'avatar', image: '🎃' },
       ],
       gold: [
-        { id: 33, name: 'Galaxie', type: 'fond', image: '🌌', colors: 'from-purple-600 to-indigo-800' },
-        { id: 34, name: 'Feu', type: 'fond', image: '🔥', colors: 'from-red-500 to-orange-500' },
+        // Fonds rares (prix 500-1000)
+        { id: 56, name: 'Nuit', type: 'fond', image: '🌙', colors: 'from-slate-700 to-slate-900' },
+        { id: 57, name: 'Minuit', type: 'fond', image: '🌑', colors: 'from-indigo-900 to-slate-900' },
+        { id: 58, name: 'Feu', type: 'fond', image: '🔥', colors: 'from-red-500 to-orange-500' },
+        { id: 59, name: 'Lave', type: 'fond', image: '🌋', colors: 'from-red-600 to-yellow-500' },
+        { id: 60, name: 'Galaxie', type: 'fond', image: '🌌', colors: 'from-purple-600 to-indigo-800' },
+        { id: 61, name: 'Nébuleuse', type: 'fond', image: '✨', colors: 'from-purple-500 to-pink-600' },
+        // Avatars rares (prix 600-1000)
+        { id: 33, name: 'Pirate', type: 'avatar', image: '🏴‍☠️' },
+        { id: 34, name: 'Cowboy', type: 'avatar', image: '🤠' },
+        { id: 35, name: 'Robot', type: 'avatar', image: '🤖' },
+        { id: 36, name: 'Extraterrestre', type: 'avatar', image: '👾' },
       ],
       legendary: [
-        { id: 14, name: 'Alien', type: 'avatar', image: '👽' },
-        { id: 15, name: 'Dragon', type: 'avatar', image: '🐉' },
+        // Fonds légendaires (prix 1500+)
+        { id: 62, name: 'Or', type: 'fond', image: '🏆', colors: 'from-yellow-400 to-amber-500' },
+        { id: 63, name: 'Argent', type: 'fond', image: '🥈', colors: 'from-slate-300 to-slate-500' },
+        { id: 64, name: 'Arc-en-ciel', type: 'fond', image: '🌈', colors: 'from-red-500 via-yellow-500 to-blue-500' },
+        { id: 65, name: 'Aurore Boréale', type: 'fond', image: '🌠', colors: 'from-green-400 via-blue-500 to-purple-600' },
+        // Avatars légendaires (prix 1500+)
+        { id: 38, name: 'Alien', type: 'avatar', image: '👽' },
+        { id: 39, name: 'Sirène', type: 'avatar', image: '🧜‍♀️' },
+        { id: 40, name: 'Licorne', type: 'avatar', image: '🦄' },
+        { id: 41, name: 'Fée', type: 'avatar', image: '🧚' },
+        { id: 43, name: 'Dragon', type: 'avatar', image: '🐉' },
       ],
     };
 
@@ -741,9 +961,11 @@ const QuestApp = () => {
     const xpMultiplier = getXpMultiplier();
     const potatoesMultiplier = getPotatoesMultiplier();
     
-    // Bonus x2 si tâche partagée avec des amis
+    // Bonus pour tâches partagées avec des amis
+    // x2 de base, x3 si Boost Partage actif
     const hasParticipants = task.participants && task.participants.length > 0;
-    const sharingBonus = hasParticipants ? 2 : 1;
+    const hasShareBoost = activeBoosts.some(b => b.type === 'share_boost' && new Date(b.expiresAt) > new Date());
+    const sharingBonus = hasParticipants ? (hasShareBoost ? 3 : 2) : 1;
     
     const baseXp = getDurationXP(task.duration, task.status);
     const basePoints = getDurationPoints(task.duration, task.status);
@@ -791,45 +1013,58 @@ const QuestApp = () => {
     if (task.recurrence && task.recurrence !== 'none') {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      
+      // Utiliser la date de la tâche comme base (pas aujourd'hui)
+      const taskDate = task.date ? new Date(task.date) : today;
+      taskDate.setHours(0, 0, 0, 0);
+      
       let nextDate = null;
 
       if (task.recurrence === 'daily') {
-        // Prochaine occurrence = demain
-        nextDate = new Date(today);
+        // Prochaine occurrence = lendemain de la date de tâche OU demain si c'est dans le passé
+        nextDate = new Date(Math.max(taskDate.getTime(), today.getTime()));
         nextDate.setDate(nextDate.getDate() + 1);
       } else if (task.recurrence === 'weekly') {
-        // Trouver le prochain jour de la semaine
+        // Trouver le prochain jour de la semaine configuré
         const recurrenceDays = task.recurrenceDays || [];
         if (recurrenceDays.length > 0) {
-          const currentDay = today.getDay();
-          // Trier les jours et trouver le prochain
-          const sortedDays = [...recurrenceDays].sort((a, b) => a - b);
-          let nextDay = sortedDays.find(d => d > currentDay);
+          // Commencer à chercher à partir de demain
+          const searchStart = new Date(Math.max(taskDate.getTime(), today.getTime()));
+          searchStart.setDate(searchStart.getDate() + 1);
           
-          if (nextDay === undefined) {
-            // Pas de jour cette semaine, prendre le premier de la semaine prochaine
-            nextDay = sortedDays[0];
-            nextDate = new Date(today);
-            nextDate.setDate(today.getDate() + (7 - currentDay + nextDay));
-          } else {
-            nextDate = new Date(today);
-            nextDate.setDate(today.getDate() + (nextDay - currentDay));
+          // Chercher le prochain jour configuré (max 14 jours)
+          for (let i = 0; i < 14; i++) {
+            const checkDate = new Date(searchStart);
+            checkDate.setDate(searchStart.getDate() + i);
+            if (recurrenceDays.includes(checkDate.getDay())) {
+              nextDate = checkDate;
+              break;
+            }
           }
         }
       } else if (task.recurrence === 'monthly') {
-        // Trouver le prochain jour du mois
+        // Trouver le prochain jour du mois configuré
         const recurrenceDays = task.recurrenceDays || [];
         if (recurrenceDays.length > 0) {
-          const currentDayOfMonth = today.getDate();
+          const baseDate = new Date(Math.max(taskDate.getTime(), today.getTime()));
+          const currentDayOfMonth = baseDate.getDate();
           const sortedDays = [...recurrenceDays].sort((a, b) => a - b);
+          
+          // Trouver le prochain jour ce mois-ci (après demain minimum)
           let nextDay = sortedDays.find(d => d > currentDayOfMonth);
           
           if (nextDay === undefined) {
             // Pas de jour ce mois, prendre le premier du mois prochain
             nextDay = sortedDays[0];
-            nextDate = new Date(today.getFullYear(), today.getMonth() + 1, nextDay);
+            nextDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, nextDay);
           } else {
-            nextDate = new Date(today.getFullYear(), today.getMonth(), nextDay);
+            nextDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), nextDay);
+          }
+          
+          // S'assurer que la date est dans le futur
+          if (nextDate <= today) {
+            nextDay = sortedDays[0];
+            nextDate = new Date(today.getFullYear(), today.getMonth() + 1, nextDay);
           }
         }
       }
@@ -968,50 +1203,36 @@ const QuestApp = () => {
   };
 
   const addTask = async (taskData) => {
+    // Utiliser l'ID fourni ou en générer un nouveau
+    const taskId = taskData.id || crypto.randomUUID();
+    
     const newTask = {
-      id: crypto.randomUUID(),
       ...taskData,
+      id: taskId,
       completed: false,
     };
     
-    setTasks([...tasks, newTask]);
+    // Vérifier si la tâche existe déjà (auto-save)
+    const existingIndex = tasks.findIndex(t => t.id === taskId);
+    if (existingIndex >= 0) {
+      // Mise à jour
+      setTasks(tasks.map(t => t.id === taskId ? { ...t, ...newTask } : t));
+    } else {
+      // Nouvelle tâche
+      setTasks([...tasks, newTask]);
+    }
     
     if (supabaseUser) {
-      await supabase.from('tasks').insert({
-        id: newTask.id,
-        user_id: supabaseUser.id,
-        title: newTask.title,
-        status: newTask.status,
-        duration: newTask.duration,
-        date: newTask.date?.toISOString(),
-        recurrence: newTask.recurrence || 'none',
-        recurrence_days: newTask.recurrenceDays || [],
-        tags: newTask.tags || [],
-        notes: newTask.notes || '',
-        photos: newTask.photos || [],
-        participants: newTask.participants || [],
-        category: taskData.date ? 'today' : 'bucketlist',
-        completed: false,
-      });
+      await saveTask(newTask);
     }
   };
 
   const updateTask = async (taskId, taskData) => {
-    setTasks(tasks.map(t => t.id === taskId ? { ...t, ...taskData } : t));
+    const updatedTask = { ...tasks.find(t => t.id === taskId), ...taskData };
+    setTasks(tasks.map(t => t.id === taskId ? updatedTask : t));
     
     if (supabaseUser) {
-      await supabase.from('tasks').update({
-        title: taskData.title,
-        status: taskData.status,
-        duration: taskData.duration,
-        date: taskData.date?.toISOString(),
-        recurrence: taskData.recurrence,
-        recurrence_days: taskData.recurrenceDays || [],
-        tags: taskData.tags,
-        notes: taskData.notes,
-        photos: taskData.photos || [],
-        participants: taskData.participants || [],
-      }).eq('id', taskId);
+      await saveTask(updatedTask);
     }
   };
 
@@ -1093,228 +1314,6 @@ const QuestApp = () => {
     if (supabaseUser) {
       await supabase.from('tasks').delete().eq('id', taskId);
     }
-  };
-
-  // === ÉVÉNEMENTS ===
-  const addEvent = async (eventData) => {
-    const newEvent = {
-      id: crypto.randomUUID(),
-      ...eventData,
-      completed: false,
-    };
-    
-    setEvents([...events, newEvent]);
-    
-    if (supabaseUser) {
-      await saveEvent(newEvent);
-    }
-  };
-
-  const updateEvent = async (eventId, eventData) => {
-    const updatedEvent = { ...events.find(e => e.id === eventId), ...eventData };
-    setEvents(events.map(e => e.id === eventId ? updatedEvent : e));
-    
-    if (supabaseUser) {
-      await saveEvent(updatedEvent);
-    }
-  };
-
-  const deleteEvent = async (eventId) => {
-    const event = events.find(e => e.id === eventId);
-    if (!event) return;
-    
-    const isShared = event.participants && event.participants.length > 0;
-    const sharingBonus = isShared ? 2 : 1;
-    
-    // Si l'événement était complété, retirer les points
-    if (event.completed || (event.completedBy && event.completedBy.includes(user.pseudo))) {
-      const xpLost = 5 * sharingBonus;
-      const pointsLost = 5 * sharingBonus;
-      
-      let newXp = user.xp - xpLost;
-      let newLevel = user.level;
-      let newXpToNext = user.xpToNext;
-      
-      while (newXp < 0 && newLevel > 1) {
-        newLevel -= 1;
-        newXpToNext = getXpForLevel(newLevel);
-        newXp += newXpToNext;
-      }
-      if (newXp < 0) newXp = 0;
-      
-      const newUser = {
-        ...user,
-        xp: newXp,
-        level: newLevel,
-        xpToNext: newXpToNext,
-        potatoes: Math.max(0, user.potatoes - pointsLost),
-      };
-      updateUser(newUser);
-      
-      // Si événement partagé, retirer les points aux autres participants aussi
-      if (isShared && supabaseUser) {
-        for (const participant of event.participants) {
-          try {
-            const { data: participantProfile } = await supabase
-              .from('profiles')
-              .select('id, xp, level, xp_to_next, potatoes')
-              .eq('pseudo', participant.pseudo)
-              .single();
-            
-            if (participantProfile) {
-              let pNewXp = participantProfile.xp - xpLost;
-              let pNewLevel = participantProfile.level;
-              let pNewXpToNext = participantProfile.xp_to_next;
-              
-              while (pNewXp < 0 && pNewLevel > 1) {
-                pNewLevel -= 1;
-                pNewXpToNext = Math.floor(pNewXpToNext / 1.15);
-                pNewXp += pNewXpToNext;
-              }
-              if (pNewXp < 0) pNewXp = 0;
-              
-              await supabase
-                .from('profiles')
-                .update({
-                  xp: pNewXp,
-                  level: pNewLevel,
-                  xp_to_next: pNewXpToNext,
-                  potatoes: Math.max(0, participantProfile.potatoes - pointsLost),
-                })
-                .eq('id', participantProfile.id);
-            }
-          } catch (error) {
-            console.error('Erreur retrait points participant:', error);
-          }
-        }
-      }
-    }
-    
-    setEvents(events.filter(e => e.id !== eventId));
-    if (supabaseUser) {
-      await deleteEventFromDB(eventId);
-    }
-  };
-
-  const completeEvent = async (eventId) => {
-    const event = events.find(e => e.id === eventId);
-    if (!event) return;
-    
-    // Vérifier si l'utilisateur a déjà complété cet événement
-    const completedBy = event.completedBy || [];
-    if (completedBy.includes(user.pseudo)) return; // Déjà complété par cet utilisateur
-    
-    // Récompenses fixes : 5 XP, 5 patates
-    // Bonus x2 si événement partagé avec des amis
-    const participantCount = event.participants?.length || 0;
-    const hasParticipants = participantCount > 0;
-    const sharingBonus = hasParticipants ? 2 : 1;
-    
-    const baseXp = 5;
-    const basePoints = 5;
-    const xpGained = baseXp * sharingBonus;
-    const pointsGained = basePoints * sharingBonus;
-    
-    // Appliquer les multiplicateurs de boost
-    const finalXp = Math.round(xpGained * getXpMultiplier());
-    const finalPoints = Math.round(pointsGained * getPotatoesMultiplier());
-    
-    let newXp = user.xp + finalXp;
-    let newLevel = user.level;
-    let newXpToNext = user.xpToNext;
-    
-    while (newXp >= newXpToNext) {
-      newXp -= newXpToNext;
-      newLevel++;
-      newXpToNext = Math.floor(newXpToNext * 1.15);
-    }
-    
-    const newUser = {
-      ...user,
-      xp: newXp,
-      level: newLevel,
-      xpToNext: newXpToNext,
-      potatoes: user.potatoes + finalPoints,
-    };
-    
-    updateUser(newUser);
-    
-    // Ajouter l'utilisateur à la liste des personnes ayant complété
-    const newCompletedBy = [...completedBy, user.pseudo];
-    const updatedEvent = { 
-      ...event, 
-      completedBy: newCompletedBy,
-      // Marquer comme totalement complété si tous les participants + créateur ont complété
-      completed: event.missionId ? false : true // Pour événements normaux, marquer complété directement
-    };
-    
-    setEvents(events.map(e => e.id === eventId ? updatedEvent : e));
-    
-    if (supabaseUser) {
-      await saveEvent(updatedEvent);
-      
-      // Si événement partagé, notifier les autres participants et leur donner des points
-      if (hasParticipants) {
-        for (const participant of event.participants) {
-          // Ne pas notifier soi-même
-          if (participant.pseudo === user.pseudo) continue;
-          
-          try {
-            // Récupérer le profil du participant
-            const { data: participantProfile } = await supabase
-              .from('profiles')
-              .select('id, xp, level, xp_to_next, potatoes')
-              .eq('pseudo', participant.pseudo)
-              .single();
-            
-            if (participantProfile) {
-              // Calculer les points pour le participant
-              let participantNewXp = participantProfile.xp + finalXp;
-              let participantNewLevel = participantProfile.level;
-              let participantNewXpToNext = participantProfile.xp_to_next;
-              
-              while (participantNewXp >= participantNewXpToNext) {
-                participantNewXp -= participantNewXpToNext;
-                participantNewLevel += 1;
-                participantNewXpToNext = Math.floor(participantNewXpToNext * 1.15);
-              }
-              
-              // Mettre à jour le profil du participant
-              await supabase
-                .from('profiles')
-                .update({
-                  xp: participantNewXp,
-                  level: participantNewLevel,
-                  xp_to_next: participantNewXpToNext,
-                  potatoes: participantProfile.potatoes + finalPoints,
-                })
-                .eq('id', participantProfile.id);
-              
-              // Créer une notification
-              await supabase.from('notifications').insert({
-                user_id: participantProfile.id,
-                type: 'event_completed',
-                title: 'Événement partagé terminé !',
-                message: `${user.pseudo} a terminé "${event.title}"`,
-                data: {
-                  eventId: event.id,
-                  eventTitle: event.title,
-                  completedBy: user.pseudo,
-                  xpGained: finalXp,
-                  pointsGained: finalPoints,
-                },
-                read: false,
-              });
-            }
-          } catch (error) {
-            console.error('Erreur notification participant:', error);
-          }
-        }
-      }
-    }
-    
-    // Afficher le modal de célébration
-    setCompletingEvent({ ...event, xp: finalXp, points: finalPoints, shared: hasParticipants });
   };
 
   // Loading
@@ -1425,18 +1424,19 @@ const QuestApp = () => {
       />
     );
   } else if (openingChest) {
-    pageContent = <ChestOpeningModal chest={openingChest} onClose={() => setOpeningChest(null)} />;
+    pageContent = <ChestOpeningModal chest={openingChest} onClose={() => setOpeningChest(null)} hasAnimationsPlus={ownedItems.includes(80) && activeUpgrades[80] !== false} />;
   } else if (completingTask) {
-    pageContent = <TaskCompletedModal task={completingTask} onClose={() => setCompletingTask(null)} />;
-  } else if (completingEvent) {
-    pageContent = <EventCompletedModal event={completingEvent} onClose={() => setCompletingEvent(null)} />;
+    pageContent = <TaskCompletedModal task={completingTask} onClose={() => setCompletingTask(null)} hasAnimationsPlus={ownedItems.includes(80) && activeUpgrades[80] !== false} />;
   } else if (completingMission) {
     pageContent = <MissionCompletedModal mission={completingMission.mission} pqDistribution={completingMission.pqDistribution} onClose={() => { setCompletingMission(null); setSelectedMission(null); }} />;
   } else if (editingTask) {
     pageContent = (
       <CreateTaskModal
         onClose={() => setEditingTask(null)}
-        onCreate={(taskData) => { updateTask(editingTask.id, taskData); setEditingTask(null); }}
+        onCreate={(taskData, silent) => { 
+          updateTask(editingTask.id, taskData); 
+          if (!silent) setEditingTask(null); 
+        }}
         onDelete={() => { deleteTask(editingTask.id); setEditingTask(null); }}
         initialTask={editingTask}
         getStatusColor={getStatusColor}
@@ -1444,6 +1444,8 @@ const QuestApp = () => {
         activeUpgrades={activeUpgrades}
         existingTags={existingTags}
         userId={supabaseUser?.id}
+        userPseudo={user.pseudo}
+        userAvatar={user.avatar}
         friends={friends}
       />
     );
@@ -1451,39 +1453,18 @@ const QuestApp = () => {
     pageContent = (
       <CreateTaskModal
         onClose={() => setCreatingTask(false)}
-        onCreate={(taskData) => { addTask(taskData); setCreatingTask(false); }}
+        onCreate={(taskData, silent) => { 
+          addTask(taskData); 
+          if (!silent) setCreatingTask(false); 
+        }}
         getStatusColor={getStatusColor}
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
         existingTags={existingTags}
         userId={supabaseUser?.id}
+        userPseudo={user.pseudo}
+        userAvatar={user.avatar}
         friends={friends}
-      />
-    );
-  } else if (editingEvent) {
-    pageContent = (
-      <CreateEventModal
-        onClose={() => setEditingEvent(null)}
-        onCreate={(eventData) => { updateEvent(editingEvent.id, eventData); setEditingEvent(null); }}
-        onDelete={() => { deleteEvent(editingEvent.id); setEditingEvent(null); }}
-        initialEvent={editingEvent}
-        friends={friends}
-        ownedItems={ownedItems}
-        activeUpgrades={activeUpgrades}
-        existingTags={existingTags}
-        userId={supabaseUser?.id}
-      />
-    );
-  } else if (creatingEvent) {
-    pageContent = (
-      <CreateEventModal
-        onClose={() => setCreatingEvent(false)}
-        onCreate={(eventData) => { addEvent(eventData); setCreatingEvent(false); }}
-        friends={friends}
-        ownedItems={ownedItems}
-        activeUpgrades={activeUpgrades}
-        existingTags={existingTags}
-        userId={supabaseUser?.id}
       />
     );
   } else if (creatingMissionQuest) {
@@ -1522,6 +1503,8 @@ const QuestApp = () => {
         activeUpgrades={activeUpgrades}
         existingTags={existingTags}
         userId={supabaseUser?.id}
+        userPseudo={user.pseudo}
+        userAvatar={user.avatar}
       />
     );
   } else if (editingQuest) {
@@ -1574,31 +1557,33 @@ const QuestApp = () => {
         activeUpgrades={activeUpgrades}
         existingTags={existingTags}
         userId={supabaseUser?.id}
+        userPseudo={user.pseudo}
+        userAvatar={user.avatar}
       />
     );
   } else if (creatingMissionEvent) {
-    // Création d'un événement dans une mission
+    // Création d'une tâche avec heure dans une mission
     pageContent = (
-      <CreateEventModal
+      <CreateTaskModal
         onClose={() => setCreatingMissionEvent(null)}
-        onCreate={async (eventData) => {
-          const newEvent = { 
+        onCreate={async (taskData) => {
+          const newQuest = { 
             id: Date.now(), 
-            title: eventData.title,
-            description: eventData.description,
-            date: eventData.date,
-            time: eventData.time,
-            duration: eventData.duration,
-            location: eventData.location,
-            reminder: eventData.reminder,
-            assignedTo: eventData.assignedTo || null,
+            title: taskData.title,
+            description: taskData.notes || '',
+            date: taskData.date,
+            time: taskData.time,
+            duration: taskData.duration,
+            location: taskData.location,
+            reminder: taskData.reminder,
+            assignedTo: taskData.assignedTo || null,
             completed: false, 
-            isEvent: true,
-            xp: getDurationXP(eventData.duration, 'à faire') 
+            isEvent: !!taskData.time,
+            xp: getDurationXP(taskData.duration, taskData.status || 'à faire') 
           };
           const updatedMission = { 
             ...creatingMissionEvent, 
-            quests: [...(creatingMissionEvent.quests || []), newEvent] 
+            quests: [...(creatingMissionEvent.quests || []), newQuest] 
           };
           setMissions(missions.map(m => m.id === creatingMissionEvent.id ? updatedMission : m));
           setSelectedMission(updatedMission);
@@ -1609,8 +1594,13 @@ const QuestApp = () => {
           }
         }}
         missionMode={creatingMissionEvent}
-        missionParticipants={creatingMissionEvent?.participants || []}
         friends={friends}
+        ownedItems={ownedItems}
+        activeUpgrades={activeUpgrades}
+        existingTags={existingTags}
+        userId={supabaseUser?.id}
+        userPseudo={user.pseudo}
+        userAvatar={user.avatar}
       />
     );
   } else if (creatingMission) {
@@ -1822,15 +1812,15 @@ const QuestApp = () => {
               tasksToRemove += 1;
             });
             
-            // Compter les événements de cette mission complétés par l'utilisateur
-            const missionEvents = events.filter(e => e.missionId === missionId);
-            missionEvents.forEach(event => {
-              if (event.completedBy?.includes(user.pseudo) || event.completed) {
-                // Récompenses fixes des événements : 5 XP, 5 patates
-                xpToRemove += 5;
-                potatoesToRemove += 5;
-                // PQ des événements : 5 PQ par participant
-                const participantCount = event.participants?.length || 0;
+            // Compter les tâches avec heure de cette mission complétées par l'utilisateur
+            const missionTasksWithTime = tasks.filter(t => t.missionId === missionId && t.time && t.time !== '');
+            missionTasksWithTime.forEach(task => {
+              if (task.completedBy?.includes(user.pseudo) || task.completed) {
+                // Récompenses des tâches avec heure : calculées selon durée/status
+                xpToRemove += getDurationXP(task.duration, task.status || 'à faire');
+                potatoesToRemove += getDurationPoints(task.duration, task.status || 'à faire');
+                // PQ des tâches avec participants
+                const participantCount = task.participants?.length || 0;
                 if (participantCount > 0) {
                   pqToRemove += participantCount * 5;
                 }
@@ -1881,9 +1871,9 @@ const QuestApp = () => {
               }
             }
             
-            // Supprimer aussi les événements liés à cette mission
-            const remainingEvents = events.filter(e => e.missionId !== missionId);
-            setEvents(remainingEvents);
+            // Supprimer aussi les tâches liées à cette mission
+            const remainingTasks = tasks.filter(t => t.missionId !== missionId);
+            setTasks(remainingTasks);
           }
           
           setMissions(missions.filter(m => m.id !== missionId));
@@ -1891,8 +1881,8 @@ const QuestApp = () => {
           // Supprimer de Supabase
           if (supabaseUser) {
             await deleteMissionFromDB(missionId);
-            // Supprimer les événements de la mission dans Supabase
-            await supabase.from('events').delete().eq('mission_id', missionId);
+            // Supprimer les événements de la mission dans Supabase (maintenant dans tasks)
+            await supabase.from('tasks').delete().eq('mission_id', missionId);
           }
         }}
         currentUser={user.pseudo}
@@ -1905,13 +1895,10 @@ const QuestApp = () => {
     pageContent = (
       <TasksPage 
         tasks={tasks}
-        events={events}
         tasksView={tasksView}
         setTasksView={setTasksView}
         onCompleteTask={completeTask}
-        onCompleteEvent={completeEvent}
         onCreateTask={() => setCreatingTask(true)}
-        onCreateEvent={() => setCreatingEvent(true)}
         onEditTask={(task) => {
           if (task.isMissionQuest) {
             // Édition d'une tâche de mission
@@ -1924,7 +1911,6 @@ const QuestApp = () => {
             setEditingTask(task);
           }
         }}
-        onEditEvent={(event) => setEditingEvent(event)}
         onDeleteTask={deleteTask}
         onClearCompleted={() => {
           const completedIds = tasks.filter(t => t.completed).map(t => t.id);
@@ -2088,6 +2074,9 @@ const QuestApp = () => {
         }}
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
+        pendingInvitation={pendingShareInvitation}
+        onAcceptInvitation={acceptShareInvitation}
+        onDeclineInvitation={declineShareInvitation}
       />
     );
   } else if (currentPage === 'friends') {
@@ -2096,7 +2085,6 @@ const QuestApp = () => {
         user={user}
         friends={friends}
         tasks={tasks}
-        events={events}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         searchResults={searchResults}
@@ -2191,7 +2179,6 @@ const QuestApp = () => {
           setFriends(friends.filter(f => f.pseudo !== pseudo));
         }}
         onEditTask={(task) => setEditingTask(task)}
-        onEditEvent={(event) => setEditingEvent(event)}
         ownedItems={ownedItems}
       />
     );
@@ -2204,7 +2191,6 @@ const QuestApp = () => {
       <StatsPage 
         user={user}
         tasks={tasks}
-        events={events}
         chests={chests}
         badges={badges}
         friends={friends}
@@ -2338,16 +2324,63 @@ const QuestApp = () => {
         .animate-fade-in { animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
         
-        /* Animations améliorées */
+        /* ===== ANIMATIONS+ - Uniquement les effets importants ===== */
+        
+        /* Transitions fluides globales */
         .transitions-enhanced * {
-          transition-duration: 0.3s !important;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
         }
-        .transitions-enhanced button:hover {
-          transform: scale(1.05);
+        
+        /* Animation d'entrée des pages */
+        .transitions-enhanced .page-content {
+          animation: pageEnter 0.4s ease-out;
         }
-        .transitions-enhanced .hover\\:scale-105:hover {
-          transform: scale(1.08);
+        @keyframes pageEnter {
+          0% { opacity: 0; transform: translateY(15px); }
+          100% { opacity: 1; transform: translateY(0); }
         }
+        
+        /* Glow pulsant sur les boutons importants */
+        .transitions-enhanced .glow-pulse {
+          animation: glowPulse 2s ease-in-out infinite;
+        }
+        @keyframes glowPulse {
+          0%, 100% { box-shadow: 0 0 5px rgba(99, 102, 241, 0.3); }
+          50% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.6), 0 0 40px rgba(99, 102, 241, 0.3); }
+        }
+        
+        /* Animation de succès pour les boutons */
+        .transitions-enhanced .success-pop {
+          animation: successPop 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        @keyframes successPop {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.2); }
+          100% { transform: scale(1); }
+        }
+        
+        /* Shake pour les erreurs */
+        .transitions-enhanced .error-shake {
+          animation: errorShake 0.5s ease-in-out;
+        }
+        @keyframes errorShake {
+          0%, 100% { transform: translateX(0); }
+          20%, 60% { transform: translateX(-8px); }
+          40%, 80% { transform: translateX(8px); }
+        }
+        
+        /* Animation du header avec gradient subtil */
+        .transitions-enhanced header {
+          background-size: 200% 200%;
+          animation: gradientShift 10s ease infinite;
+        }
+        @keyframes gradientShift {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        
+        /* ===== FIN ANIMATIONS+ ===== */
 
         /* Particules animées */
         .particle {
@@ -2547,7 +2580,6 @@ const QuestApp = () => {
         
         const isDoneToday = activeRiddleLevel && riddlesDoneToday.includes(activeRiddleLevel);
         
-        // L'icône reste visible même si faite, mais sans badge XP
         if (!activeRiddleLevel) return null;
         
         const config = {
@@ -2560,21 +2592,26 @@ const QuestApp = () => {
           <div
             id="puzzle-floating-icon"
             draggable="false"
+            className="fixed z-40"
             style={{
-              position: 'fixed',
-              bottom: '100px',
+              bottom: '130px',
               right: '20px',
-              zIndex: 40,
-              touchAction: 'none'
+              touchAction: 'none',
             }}
             onMouseDown={(e) => {
+              e.preventDefault();
               const el = e.currentTarget;
-              const startX = e.clientX - el.offsetLeft;
-              const startY = e.clientY - el.offsetTop;
+              const rect = el.getBoundingClientRect();
+              const startX = e.clientX - rect.left;
+              const startY = e.clientY - rect.top;
+              let moved = false;
               
               const onMouseMove = (e) => {
-                el.style.left = (e.clientX - startX) + 'px';
-                el.style.top = (e.clientY - startY) + 'px';
+                moved = true;
+                const newX = Math.max(10, Math.min(window.innerWidth - 60, e.clientX - startX));
+                const newY = Math.max(80, Math.min(window.innerHeight - 140, e.clientY - startY));
+                el.style.left = newX + 'px';
+                el.style.top = newY + 'px';
                 el.style.right = 'auto';
                 el.style.bottom = 'auto';
               };
@@ -2582,6 +2619,10 @@ const QuestApp = () => {
               const onMouseUp = () => {
                 document.removeEventListener('mousemove', onMouseMove);
                 document.removeEventListener('mouseup', onMouseUp);
+                if (!moved) {
+                  const riddle = getDailyRiddle(activeRiddleLevel);
+                  setShowRiddle({ level: activeRiddleLevel, riddle, alreadyDone: isDoneToday });
+                }
               };
               
               document.addEventListener('mousemove', onMouseMove);
@@ -2590,13 +2631,19 @@ const QuestApp = () => {
             onTouchStart={(e) => {
               const el = e.currentTarget;
               const touch = e.touches[0];
-              const startX = touch.clientX - el.offsetLeft;
-              const startY = touch.clientY - el.offsetTop;
+              const rect = el.getBoundingClientRect();
+              const startX = touch.clientX - rect.left;
+              const startY = touch.clientY - rect.top;
+              let moved = false;
+              const startTime = Date.now();
               
               const onTouchMove = (e) => {
+                moved = true;
                 const touch = e.touches[0];
-                el.style.left = (touch.clientX - startX) + 'px';
-                el.style.top = (touch.clientY - startY) + 'px';
+                const newX = Math.max(10, Math.min(window.innerWidth - 60, touch.clientX - startX));
+                const newY = Math.max(80, Math.min(window.innerHeight - 140, touch.clientY - startY));
+                el.style.left = newX + 'px';
+                el.style.top = newY + 'px';
                 el.style.right = 'auto';
                 el.style.bottom = 'auto';
               };
@@ -2604,35 +2651,32 @@ const QuestApp = () => {
               const onTouchEnd = () => {
                 document.removeEventListener('touchmove', onTouchMove);
                 document.removeEventListener('touchend', onTouchEnd);
+                if (!moved && Date.now() - startTime < 300) {
+                  const riddle = getDailyRiddle(activeRiddleLevel);
+                  setShowRiddle({ level: activeRiddleLevel, riddle, alreadyDone: isDoneToday });
+                }
               };
               
               document.addEventListener('touchmove', onTouchMove);
               document.addEventListener('touchend', onTouchEnd);
             }}
           >
-            <button
-              onClick={() => {
-                const riddle = getDailyRiddle(activeRiddleLevel);
-                setShowRiddle({ level: activeRiddleLevel, riddle, alreadyDone: isDoneToday });
-              }}
-              className={`puzzle-float cursor-grab active:cursor-grabbing relative ${isDoneToday ? 'opacity-70' : ''}`}
-              title={isDoneToday ? 'Énigme du jour (déjà faite)' : `Énigme du jour (+${config.xp} XP)`}
+            <div
+              className={`relative cursor-grab active:cursor-grabbing ${isDoneToday ? 'opacity-60' : ''}`}
+              style={{ filter: isDoneToday ? 'grayscale(50%)' : 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))' }}
             >
-              <span className="text-5xl drop-shadow-lg">🧩</span>
-              {/* Badge XP seulement si pas encore fait */}
-              {!isDoneToday && (
-                <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full shadow">
-                  +{config.xp}
-                </span>
-              )}
-              {/* Badge "fait" si déjà terminé */}
-              {isDoneToday && (
-                <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full shadow">
-                  ✓
-                </span>
-              )}
-            </button>
+              <span className="text-5xl">🧩</span>
+              <span 
+                className={`absolute -top-1 -right-1 text-xs font-bold px-1.5 py-0.5 rounded-full shadow ${
+                  isDoneToday ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'
+                }`}
+              >
+                {isDoneToday ? '✓' : `+${config.xp}`}
+              </span>
+            </div>
           </div>
+        );
+      })()}
         );
       })()}
 
@@ -2746,6 +2790,16 @@ const QuestApp = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal d'invitation de partage */}
+      {pendingShareInvitation && (
+        <ShareInvitationModal
+          invitation={pendingShareInvitation}
+          onAccept={acceptShareInvitation}
+          onDecline={declineShareInvitation}
+          onClose={() => setPendingShareInvitation(null)}
+        />
       )}
     </div>
   );

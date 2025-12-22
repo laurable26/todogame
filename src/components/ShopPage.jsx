@@ -16,6 +16,10 @@ export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippe
     .filter(item => item.type === activeTab)
     .sort((a, b) => a.price - b.price);
 
+  // Debug: afficher le nombre d'améliorations
+  console.log('ShopPage - activeTab:', activeTab, 'filteredItems:', filteredItems.length, 'shopItems total:', shopItems.length);
+  console.log('Améliorations:', shopItems.filter(i => i.type === 'amelioration').map(i => ({ id: i.id, name: i.name })));
+
   const isOwned = (itemId) => ownedItems.includes(itemId);
   const isEquipped = (itemId) => equippedItems.includes(itemId);
   const isUpgradeActive = (itemId) => activeUpgrades[itemId] !== false; // Actif par défaut

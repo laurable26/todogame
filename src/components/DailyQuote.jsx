@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 
 // Citations modernes et inspirantes en français
 const QUOTES = [
@@ -106,22 +107,61 @@ export const DailyQuoteCard = ({ onClose, userId }) => {
   const [isRevealed, setIsRevealed] = useState(false);
   const [isFlipping, setIsFlipping] = useState(false);
   const [hasClaimedToday, setHasClaimedToday] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Obtenir la date du jour au format YYYY-MM-DD
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
 
   useEffect(() => {
-    // Vérifier si déjà réclamé aujourd'hui
-    const lastClaim = localStorage.getItem('todogame_lastQuoteClaim');
-    const today = new Date().toDateString();
-    
-    if (lastClaim === today) {
-      setHasClaimedToday(true);
-      const savedQuote = localStorage.getItem('todogame_todayQuote');
-      if (savedQuote) {
-        setSelectedCard({ quote: JSON.parse(savedQuote) });
-        setIsRevealed(true);
+    const loadQuoteState = async () => {
+      setIsLoading(true);
+      const today = getTodayDate();
+      
+      if (userId) {
+        // Essayer de charger depuis Supabase
+        try {
+          const { data, error } = await supabase
+            .from('daily_quotes')
+            .select('quote_data, quote_date')
+            .eq('user_id', userId)
+            .eq('quote_date', today)
+            .single();
+          
+          if (data && !error) {
+            // Citation déjà choisie aujourd'hui sur un autre appareil
+            setHasClaimedToday(true);
+            setSelectedCard({ quote: data.quote_data });
+            setIsRevealed(true);
+            setIsLoading(false);
+            return;
+          }
+        } catch (e) {
+          // Table n'existe peut-être pas, continuer avec localStorage
+          console.log('Supabase daily_quotes not available, using localStorage');
+        }
       }
-    } else {
-      generateCards();
-    }
+      
+      // Fallback sur localStorage
+      const lastClaim = localStorage.getItem('todogame_lastQuoteClaim');
+      const todayString = new Date().toDateString();
+      
+      if (lastClaim === todayString) {
+        setHasClaimedToday(true);
+        const savedQuote = localStorage.getItem('todogame_todayQuote');
+        if (savedQuote) {
+          setSelectedCard({ quote: JSON.parse(savedQuote) });
+          setIsRevealed(true);
+        }
+      } else {
+        generateCards();
+      }
+      setIsLoading(false);
+    };
+    
+    loadQuoteState();
   }, [userId]);
 
   const generateCards = () => {
@@ -138,19 +178,41 @@ export const DailyQuoteCard = ({ onClose, userId }) => {
     setCards(newCards);
   };
 
-  const handleSelectCard = (card) => {
+  const handleSelectCard = async (card) => {
     if (hasClaimedToday || selectedCard || isFlipping) return;
     
     setSelectedCard(card);
     setIsFlipping(true);
     
-    setTimeout(() => {
+    setTimeout(async () => {
       setIsRevealed(true);
       setIsFlipping(false);
       
-      const today = new Date().toDateString();
-      localStorage.setItem('todogame_lastQuoteClaim', today);
+      const today = new Date();
+      const todayDate = getTodayDate();
+      
+      // Sauvegarder dans localStorage
+      localStorage.setItem('todogame_lastQuoteClaim', today.toDateString());
       localStorage.setItem('todogame_todayQuote', JSON.stringify(card.quote));
+      
+      // Sauvegarder dans Supabase pour synchronisation multi-appareils
+      if (userId) {
+        try {
+          await supabase
+            .from('daily_quotes')
+            .upsert({
+              user_id: userId,
+              quote_date: todayDate,
+              quote_data: card.quote,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id,quote_date'
+            });
+        } catch (e) {
+          console.log('Could not save to Supabase:', e);
+        }
+      }
+      
       setHasClaimedToday(true);
     }, 600);
   };
@@ -268,7 +330,15 @@ export const DailyQuoteCard = ({ onClose, userId }) => {
 export const DailyQuoteButton = ({ onClick }) => {
   const [position, setPosition] = useState(() => {
     const saved = localStorage.getItem('todogame_quoteButtonPosition');
-    return saved ? JSON.parse(saved) : { x: 20, y: 280 };
+    if (saved) {
+      const pos = JSON.parse(saved);
+      // Vérifier si la position est valide (pas dans le footer)
+      if (pos.y > window.innerHeight - 120) {
+        return { x: 20, y: 200 };
+      }
+      return pos;
+    }
+    return { x: 20, y: 200 };
   });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -288,8 +358,9 @@ export const DailyQuoteButton = ({ onClick }) => {
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     
-    const newX = Math.max(0, Math.min(window.innerWidth - 56, clientX - dragStart.x));
-    const newY = Math.max(60, Math.min(window.innerHeight - 56, clientY - dragStart.y));
+    // Limites : éviter le header (80px) et le footer navigation (100px)
+    const newX = Math.max(10, Math.min(window.innerWidth - 70, clientX - dragStart.x));
+    const newY = Math.max(100, Math.min(window.innerHeight - 120, clientY - dragStart.y));
     
     if (Math.abs(newX - position.x) > 5 || Math.abs(newY - position.y) > 5) {
       setHasMoved(true);
@@ -327,21 +398,50 @@ export const DailyQuoteButton = ({ onClick }) => {
     }
   }, [isDragging, dragStart]);
 
+  // Vérifier et corriger la position si elle est hors limites
+  useEffect(() => {
+    const maxY = window.innerHeight - 140;
+    const maxX = window.innerWidth - 60;
+    if (position.y > maxY || position.x > maxX || position.y < 80) {
+      const newPos = { 
+        x: Math.min(Math.max(20, position.x), maxX), 
+        y: Math.min(Math.max(100, position.y), maxY) 
+      };
+      setPosition(newPos);
+      localStorage.setItem('todogame_quoteButtonPosition', JSON.stringify(newPos));
+    }
+  }, []);
+
   return (
-    <button
-      onClick={handleClick}
-      onMouseDown={handleDragStart}
-      onTouchStart={handleDragStart}
-      className={`fixed z-40 w-14 h-14 rounded-full bg-gradient-to-br from-violet-100 to-purple-100 shadow-lg shadow-violet-200/50 flex items-center justify-center text-2xl transition-all border border-violet-200/50 ${
-        isDragging ? 'scale-110 cursor-grabbing' : 'hover:scale-110 hover:shadow-xl cursor-grab'
-      }`}
-      style={{
-        left: position.x,
-        top: position.y,
-        touchAction: 'none',
-      }}
-    >
-      <span className="text-violet-500">✦</span>
-    </button>
+    <>
+      <style>{`
+        @keyframes oracle-glow {
+          0%, 100% { 
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.4), 0 0 20px rgba(139, 92, 246, 0.2);
+          }
+          50% { 
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.6), 0 0 30px rgba(139, 92, 246, 0.3);
+          }
+        }
+        .oracle-glow {
+          animation: oracle-glow 2s ease-in-out infinite;
+        }
+      `}</style>
+      <button
+        onClick={handleClick}
+        onMouseDown={handleDragStart}
+        onTouchStart={handleDragStart}
+        className={`fixed z-40 w-12 h-12 rounded-full bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center shadow-lg cursor-grab active:cursor-grabbing ${
+          isDragging ? 'scale-110' : 'oracle-glow'
+        }`}
+        style={{
+          left: position.x,
+          top: position.y,
+          touchAction: 'none',
+        }}
+      >
+        <span className="text-white text-xl font-bold">✦</span>
+      </button>
+    </>
   );
 };

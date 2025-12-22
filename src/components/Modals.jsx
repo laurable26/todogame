@@ -1,12 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 
-// Modal de création/édition de tâche
-export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getStatusColor, missionMode, ownedItems = [], activeUpgrades = {}, existingTags = [], userId, friends = [] }) => {
+// Modal unifié de création/édition de tâche ou événement
+export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getStatusColor, missionMode, ownedItems = [], activeUpgrades = {}, existingTags = [], userId, userPseudo, userAvatar, friends = [] }) => {
+  // Détecter si c'est un événement (a une heure)
+  const isEvent = initialTask?.time || initialTask?.isEvent;
+  
   const [title, setTitle] = useState(initialTask?.title || '');
-  const [status, setStatus] = useState(initialTask?.status || 'à faire');
-  const [duration, setDuration] = useState(initialTask?.duration || '1h-2h');
   const [date, setDate] = useState(initialTask?.date ? new Date(initialTask.date).toISOString().split('T')[0] : '');
+  const [duration, setDuration] = useState(initialTask?.duration || '1h-2h');
+  
+  // Champs "Plus" (repliables) - toujours replié par défaut
+  const [showMore, setShowMore] = useState(false);
+  const [time, setTime] = useState(initialTask?.time || '');
+  const [location, setLocation] = useState(initialTask?.location || '');
+  const [reminder, setReminder] = useState(initialTask?.reminder || 'none');
+  const [status, setStatus] = useState(initialTask?.status || 'à faire');
   const [recurrence, setRecurrence] = useState(initialTask?.recurrence || 'none');
   const [recurrenceDays, setRecurrenceDays] = useState(initialTask?.recurrenceDays || []);
   const [tags, setTags] = useState(initialTask?.tags?.join(', ') || '');
@@ -18,13 +27,84 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const [participants, setParticipants] = useState(initialTask?.participants || []);
   const [showFriendsList, setShowFriendsList] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
+  const autoSaveTimerRef = useRef(null);
+  
+  // Pour la création : générer un ID unique et tracker si déjà créé
+  const taskIdRef = useRef(initialTask?.id || crypto.randomUUID());
+  const [hasBeenCreated, setHasBeenCreated] = useState(!!initialTask);
 
   const isEditing = !!initialTask;
   
   // Notes étendues : 2000 caractères au lieu de 500 (possédé ET actif)
   const hasExtendedNotes = ownedItems.includes(72) && activeUpgrades[72] !== false;
   const hasPhotoNotes = ownedItems.includes(86) && activeUpgrades[86] !== false;
+  const hasRichTextEditor = ownedItems.includes(85) && activeUpgrades[85] !== false;
   const notesMaxLength = hasExtendedNotes ? 2000 : 500;
+
+  // Auto-save : enregistre directement après chaque modification
+  const doAutoSave = useCallback(() => {
+    if (!title.trim()) return;
+    
+    setSaveStatus('saving');
+    
+    const isEventSubmit = time !== '';
+    
+    // Si on a des participants mais que le créateur n'y est pas, l'ajouter
+    let finalParticipants = [...participants];
+    if (finalParticipants.length > 0 && userPseudo) {
+      const creatorExists = finalParticipants.some(p => p.pseudo === userPseudo);
+      if (!creatorExists) {
+        finalParticipants = [
+          { pseudo: userPseudo, avatar: userAvatar || '😀', accepted: true },
+          ...finalParticipants
+        ];
+      }
+    }
+    
+    const taskData = {
+      id: taskIdRef.current,
+      title: title.trim(),
+      status,
+      duration,
+      date: date ? new Date(date) : null,
+      time: time || null,
+      location: location.trim() || null,
+      reminder: reminder,
+      recurrence,
+      recurrenceDays: (recurrence === 'weekly' || recurrence === 'monthly') ? recurrenceDays : [],
+      tags: tags.split(',').map(t => t.trim()).filter(t => t),
+      notes: notes.trim(),
+      photos: photos,
+      assignedTo: assignedTo || null,
+      participants: finalParticipants,
+      isEvent: isEventSubmit,
+    };
+    
+    onCreate(taskData, true); // true = silent save (pas de fermeture)
+    setHasBeenCreated(true);
+    
+    setTimeout(() => setSaveStatus('saved'), 300);
+    setTimeout(() => setSaveStatus(''), 2000);
+  }, [title, date, duration, time, location, reminder, status, recurrence, recurrenceDays, tags, notes, photos, assignedTo, participants, onCreate, userPseudo, userAvatar]);
+
+  // Déclencher l'auto-save après chaque modification
+  useEffect(() => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    
+    // Auto-save si on a un titre
+    if (title.trim()) {
+      autoSaveTimerRef.current = setTimeout(doAutoSave, 1000);
+    }
+    
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [title, date, duration, time, location, reminder, status, recurrence, recurrenceDays, tags, notes, photos, assignedTo, participants, doAutoSave]);
 
   const weekDays = [
     { value: 1, label: 'Lun' },
@@ -38,6 +118,15 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
 
   const monthDays = Array.from({ length: 31 }, (_, i) => i + 1);
 
+  const reminders = [
+    { value: 'none', label: 'Aucun' },
+    { value: '0min', label: 'À l\'heure' },
+    { value: '15min', label: '15 min avant' },
+    { value: '30min', label: '30 min avant' },
+    { value: '1h', label: '1h avant' },
+    { value: '1day', label: '1 jour avant' },
+  ];
+
   const toggleDay = (day) => {
     if (recurrenceDays.includes(day)) {
       setRecurrenceDays(recurrenceDays.filter(d => d !== day));
@@ -49,633 +138,679 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
   const handleSubmit = () => {
     if (!title.trim()) return;
     
+    // Déterminer si c'est un événement (a une heure)
+    const isEventSubmit = time !== '';
+    
+    // Si on a des participants mais que le créateur n'y est pas, l'ajouter
+    let finalParticipants = [...participants];
+    if (finalParticipants.length > 0 && userPseudo) {
+      const creatorExists = finalParticipants.some(p => p.pseudo === userPseudo);
+      if (!creatorExists) {
+        // Ajouter le créateur au début avec accepted: true
+        finalParticipants = [
+          { pseudo: userPseudo, avatar: userAvatar || '😀', accepted: true },
+          ...finalParticipants
+        ];
+      }
+    }
+    
     onCreate({
+      id: taskIdRef.current,
       title: title.trim(),
       status,
       duration,
       date: date ? new Date(date) : null,
+      time: time || null,
+      location: location.trim() || null,
+      reminder: reminder,
       recurrence,
       recurrenceDays: (recurrence === 'weekly' || recurrence === 'monthly') ? recurrenceDays : [],
       tags: tags.split(',').map(t => t.trim()).filter(t => t),
       notes: notes.trim(),
       photos: photos,
       assignedTo: assignedTo || null,
-      participants: participants,
+      participants: finalParticipants,
+      isEvent: isEventSubmit,
     });
+    onClose();
   };
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto">
-      {/* Overlay bleu pour les tâches */}
+      {/* Overlay bleu */}
       <div className="fixed inset-0 bg-blue-500" onClick={onClose}></div>
       
       {/* Conteneur centré */}
       <div className="min-h-full flex items-center justify-center p-4">
         {/* Modal */}
-        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[85vh] overflow-hidden flex flex-col border border-slate-200">
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col border border-slate-200">
+          {/* Header */}
           <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">
-                {isEditing ? 'Modifier la tâche' : 'Nouvelle tâche'}
-              </h2>
-              {missionMode && (
-                <p className="text-sm text-slate-500">Pour : {missionMode.title}</p>
+            <h2 className="text-xl font-bold text-slate-900">
+              {isEditing ? 'Modifier' : 'Nouveau'}
+            </h2>
+            {missionMode && (
+              <p className="text-sm text-slate-500">Pour : {missionMode.title}</p>
+            )}
+            <div className="flex items-center gap-3">
+              {saveStatus && (
+                <span className={`text-xs ${saveStatus === 'saving' ? 'text-amber-500' : 'text-green-500'}`}>
+                  {saveStatus === 'saving' ? '⏳ Sauvegarde...' : '✓ Enregistré'}
+                </span>
               )}
+              <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">✕</button>
             </div>
-            <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">✕</button>
           </div>
 
           <div className="p-5 space-y-4 overflow-y-auto flex-1">
+            {/* === CHAMPS PRINCIPAUX === */}
+            
             {/* Titre */}
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Titre *</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value.slice(0, 100))}
-                placeholder="Ex: Finir le rapport"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                placeholder="Titre de la tâche..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-blue-500"
+                autoFocus
               />
               <div className="text-xs text-slate-400 text-right mt-1">{title.length}/100</div>
             </div>
 
-            {/* Importance */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Importance</label>
-              <div className="grid grid-cols-3 gap-2">
-                {['urgent', 'à faire', 'délégué'].map(s => (
-                  <button
-                    key={s}
-                    onClick={() => setStatus(s)}
-                    className={`py-3 rounded-xl border-2 font-semibold transition-all ${
-                      status === s 
-                        ? s === 'urgent' ? 'bg-red-50 border-red-300 text-red-700' 
-                          : s === 'à faire' ? 'bg-blue-50 border-blue-300 text-blue-700'
-                          : 'bg-purple-50 border-purple-300 text-purple-700'
-                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Durée */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Durée</label>
-              <div className="grid grid-cols-4 gap-2">
-                {['-1h', '1h-2h', '1/2 jour', '1 jour'].map(d => (
-                  <button
-                    key={d}
-                    onClick={() => setDuration(d)}
-                    className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all ${
-                      duration === d 
-                        ? 'bg-blue-500 text-white border-blue-500' 
-                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                    }`}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Date - masqué en mode mission normale, mais avec un champ optionnel pour missions */}
+            {/* Date et Durée sur la même ligne */}
             {!missionMode && (
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Date</label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            )}
-
-            {/* Récurrence - masqué en mode mission */}
-            {!missionMode && (
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Récurrence</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { value: 'none', label: 'Aucune' },
-                    { value: 'daily', label: 'Quotidien' },
-                    { value: 'weekly', label: 'Hebdo' },
-                    { value: 'monthly', label: 'Mensuel' },
-                  ].map(r => (
-                    <button
-                      key={r.value}
-                      onClick={() => {
-                        setRecurrence(r.value);
-                        if (r.value !== 'weekly' && r.value !== 'monthly') {
-                          setRecurrenceDays([]);
-                        }
-                      }}
-                      className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all ${
-                        recurrence === r.value 
-                          ? 'bg-blue-500 text-white border-blue-500' 
-                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                      }`}
-                    >
-                      {r.label}
-                    </button>
-                  ))}
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Date</label>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                  />
                 </div>
-
-                {/* Sélection des jours de la semaine */}
-                {recurrence === 'weekly' && (
-                  <div className="mt-3">
-                    <p className="text-xs text-slate-500 mb-2">Sélectionner les jours :</p>
-                    <div className="grid grid-cols-7 gap-1">
-                      {weekDays.map(day => (
-                        <button
-                          key={day.value}
-                          onClick={() => toggleDay(day.value)}
-                          className={`py-2 rounded-lg border-2 font-semibold text-xs transition-all ${
-                            recurrenceDays.includes(day.value)
-                              ? 'bg-blue-500 text-white border-blue-500'
-                              : 'border-slate-200 text-slate-600 hover:border-blue-300'
-                          }`}
-                        >
-                          {day.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Sélection des jours du mois */}
-                {recurrence === 'monthly' && (
-                  <div className="mt-3">
-                    <p className="text-xs text-slate-500 mb-2">Sélectionner les jours du mois :</p>
-                    <div className="grid grid-cols-7 gap-1">
-                      {monthDays.map(day => (
-                        <button
-                          key={day}
-                          onClick={() => toggleDay(day)}
-                          className={`py-2 rounded-lg border-2 font-semibold text-xs transition-all ${
-                            recurrenceDays.includes(day)
-                              ? 'bg-blue-500 text-white border-blue-500'
-                              : 'border-slate-200 text-slate-600 hover:border-blue-300'
-                          }`}
-                        >
-                          {day}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <div className="flex-1">
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Durée</label>
+                  <select
+                    value={duration}
+                    onChange={(e) => setDuration(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="-1h">-1h</option>
+                    <option value="1h-2h">1h-2h</option>
+                    <option value="1/2 jour">½ jour</option>
+                    <option value="1 jour">1 jour</option>
+                  </select>
+                </div>
               </div>
             )}
 
-            {/* Participants (amis) - pas en mode mission */}
-            {!missionMode && friends.length > 0 && (
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Participants ({participants.length}) <span className="text-xs text-green-500 font-normal">points x2 !</span>
-                </label>
-                
-                {/* Participants sélectionnés */}
-                {participants.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {participants.map((p, i) => (
-                      <div 
-                        key={i}
-                        onClick={() => setParticipants(participants.filter(pp => pp.pseudo !== p.pseudo))}
-                        className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-full cursor-pointer hover:bg-indigo-100"
-                      >
-                        <span className="emoji-display">{p.avatar}</span>
-                        <span className="text-sm font-medium text-indigo-700">{p.pseudo}</span>
-                        <span className="text-indigo-400">✕</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {/* Bouton ajouter */}
-                <button
-                  type="button"
-                  onClick={() => setShowFriendsList(!showFriendsList)}
-                  className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-all"
-                >
-                  + Ajouter des participants
-                </button>
-                
-                {/* Liste des amis */}
-                {showFriendsList && (
-                  <div className="mt-3 bg-slate-50 rounded-xl p-3 max-h-40 overflow-y-auto">
-                    {friends.map((friend, i) => (
-                      <div
-                        key={i}
-                        onClick={() => {
-                          if (participants.some(p => p.pseudo === friend.pseudo)) {
-                            setParticipants(participants.filter(p => p.pseudo !== friend.pseudo));
-                          } else {
-                            setParticipants([...participants, { pseudo: friend.pseudo, avatar: friend.avatar }]);
-                          }
-                        }}
-                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
-                          participants.some(p => p.pseudo === friend.pseudo)
-                            ? 'bg-indigo-100 border border-indigo-300'
-                            : 'hover:bg-slate-100'
-                        }`}
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-lg flex items-center justify-center">
-                          <span className="emoji-display text-sm">{friend.avatar}</span>
-                        </div>
-                        <span className="font-medium text-slate-700">{friend.pseudo}</span>
-                        {participants.some(p => p.pseudo === friend.pseudo) && (
-                          <span className="ml-auto text-indigo-500">✓</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Assignation - uniquement en mode mission */}
-            {missionMode && missionMode.participants && (
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Assigner à</label>
-                <select
-                  value={assignedTo}
-                  onChange={(e) => setAssignedTo(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Non assignée</option>
-                  {missionMode.participants.map(p => (
-                    <option key={p.pseudo} value={p.pseudo}>{p.pseudo}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Date optionnelle - en mode mission */}
-            {missionMode && (
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Date (optionnelle)</label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            )}
-
-            {/* Tags avec autocomplétion */}
-            <div className="relative">
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Catégories (séparées par des virgules)</label>
-              <input
-                type="text"
-                value={tags}
-                onChange={(e) => {
-                  setTags(e.target.value);
-                  setShowTagSuggestions(true);
-                }}
-                onFocus={() => setShowTagSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
-                placeholder="Ex: BTS, Site web"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
-              />
+            {/* === SECTION REPLIABLE "PLUS" === */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowMore(!showMore)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+              >
+                <span className="font-semibold text-slate-700">Plus d'options</span>
+                <span className={`text-slate-400 transition-transform ${showMore ? 'rotate-180' : ''}`}>
+                  ▼
+                </span>
+              </button>
               
-              {/* Suggestions de tags */}
-              {showTagSuggestions && existingTags.length > 0 && (() => {
-                // Récupérer le dernier mot tapé après la dernière virgule
-                const currentInput = tags.split(',').pop().trim().toLowerCase();
-                const alreadyUsedTags = tags.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
-                
-                // Filtrer les suggestions
-                const suggestions = existingTags.filter(tag => 
-                  tag.toLowerCase().includes(currentInput) && 
-                  !alreadyUsedTags.includes(tag.toLowerCase())
-                ).slice(0, 5);
-                
-                if (suggestions.length === 0) return null;
-                
-                return (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
-                    {suggestions.map((suggestion, index) => (
-                      <button
-                        key={index}
-                        type="button"
-                        className="w-full px-4 py-2 text-left hover:bg-indigo-50 text-slate-700 text-sm"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          // Remplacer le dernier mot par la suggestion
-                          const parts = tags.split(',');
-                          parts.pop();
-                          const newTags = parts.length > 0 
-                            ? parts.join(', ').trim() + ', ' + suggestion + ', '
-                            : suggestion + ', ';
-                          setTags(newTags);
-                        }}
-                      >
-                        #{suggestion}
-                      </button>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Notes avec éditeur de texte */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Notes {hasExtendedNotes && <span className="text-indigo-500 text-xs">(étendu)</span>}
-              </label>
-              
-              {/* Barre d'outils éditeur - si amélioration achetée et active */}
-              {(ownedItems.includes(85) && activeUpgrades[85] !== false) || hasPhotoNotes ? (
-                <div className="flex items-center gap-1 p-2 bg-slate-100 rounded-t-lg flex-wrap border border-b-0 border-slate-200">
-                  {/* Outils liste et checkbox */}
-                  {ownedItems.includes(85) && activeUpgrades[85] !== false && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          // Ajouter une nouvelle ligne avec puce
-                          setNotes(notes ? notes + '\n• ' : '• ');
-                        }}
-                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
-                        title="Liste à puces"
-                      >
-                        • Liste
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          // Ajouter une nouvelle ligne avec checkbox
-                          setNotes(notes ? notes + '\n[ ] ' : '[ ] ');
-                        }}
-                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
-                        title="Checkbox"
-                      >
-                        ☐ Check
-                      </button>
-                      <div className="w-px h-6 bg-slate-300 mx-1"></div>
-                    </>
+              {showMore && (
+                <div className="p-4 space-y-4 border-t border-slate-200">
+                  {/* Heure et Lieu */}
+                  {!missionMode && (
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Heure</label>
+                        <input
+                          type="time"
+                          value={time}
+                          onChange={(e) => setTime(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Lieu</label>
+                        <input
+                          type="text"
+                          value={location}
+                          onChange={(e) => setLocation(e.target.value)}
+                          placeholder="Optionnel"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
                   )}
-                  
-                  {/* Bouton photo */}
-                  {hasPhotoNotes && (
-                    <label className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer flex items-center gap-1">
-                      {uploadingPhoto ? (
-                        <span className="animate-spin">⏳</span>
-                      ) : (
-                        <>📷 Photo</>
+
+                  {/* Rappel */}
+                  {!missionMode && (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Rappel</label>
+                      <select
+                        value={reminder}
+                        onChange={(e) => setReminder(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                      >
+                        {reminders.map(r => (
+                          <option key={r.value} value={r.value}>{r.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Importance */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Importance</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {['urgent', 'à faire', 'délégué'].map(s => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setStatus(s)}
+                          className={`py-2.5 rounded-xl border-2 font-semibold text-sm transition-all ${
+                            status === s 
+                              ? s === 'urgent' ? 'bg-red-50 border-red-300 text-red-700' 
+                                : s === 'à faire' ? 'bg-blue-50 border-blue-300 text-blue-700'
+                                : 'bg-purple-50 border-purple-300 text-purple-700'
+                              : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Récurrence */}
+                  {!missionMode && (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Récurrence</label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { value: 'none', label: 'Aucune' },
+                          { value: 'daily', label: 'Jour' },
+                          { value: 'weekly', label: 'Semaine' },
+                          { value: 'monthly', label: 'Mois' },
+                        ].map(r => (
+                          <button
+                            key={r.value}
+                            type="button"
+                            onClick={() => {
+                              setRecurrence(r.value);
+                              if (r.value !== 'weekly' && r.value !== 'monthly') {
+                                setRecurrenceDays([]);
+                              }
+                            }}
+                            className={`py-2.5 rounded-xl border-2 font-semibold text-sm transition-all ${
+                              recurrence === r.value 
+                                ? 'bg-blue-500 text-white border-blue-500' 
+                                : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                            }`}
+                          >
+                            {r.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Sélection des jours */}
+                      {recurrence === 'weekly' && (
+                        <div className="mt-3">
+                          <p className="text-xs text-slate-500 mb-2">Jours de la semaine :</p>
+                          <div className="grid grid-cols-7 gap-1">
+                            {weekDays.map(day => (
+                              <button
+                                key={day.value}
+                                type="button"
+                                onClick={() => toggleDay(day.value)}
+                                className={`py-2 rounded-lg border-2 font-semibold text-xs transition-all ${
+                                  recurrenceDays.includes(day.value)
+                                    ? 'bg-blue-500 text-white border-blue-500'
+                                    : 'border-slate-200 text-slate-600 hover:border-blue-300'
+                                }`}
+                              >
+                                {day.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       )}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={uploadingPhoto}
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          
-                          setUploadingPhoto(true);
-                          try {
-                            // Convertir en base64 pour stockage simple
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setPhotos([...photos, reader.result]);
-                              setUploadingPhoto(false);
-                            };
-                            reader.readAsDataURL(file);
-                          } catch (error) {
-                            console.error('Erreur upload:', error);
-                            setUploadingPhoto(false);
-                          }
-                          e.target.value = '';
-                        }}
-                      />
-                    </label>
+
+                      {recurrence === 'monthly' && (
+                        <div className="mt-3">
+                          <p className="text-xs text-slate-500 mb-2">Jours du mois :</p>
+                          <div className="grid grid-cols-7 gap-1 max-h-32 overflow-y-auto">
+                            {monthDays.map(day => (
+                              <button
+                                key={day}
+                                type="button"
+                                onClick={() => toggleDay(day)}
+                                className={`py-2 rounded-lg border-2 font-semibold text-xs transition-all ${
+                                  recurrenceDays.includes(day)
+                                    ? 'bg-blue-500 text-white border-blue-500'
+                                    : 'border-slate-200 text-slate-600 hover:border-blue-300'
+                                }`}
+                              >
+                                {day}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
-                </div>
-              ) : null}
-              
-              {/* Photos uploadées */}
-              {photos.length > 0 && (
-                <div className="flex gap-2 mb-2 flex-wrap p-2 bg-slate-50 border-x border-slate-200">
-                  {photos.map((url, i) => (
-                    <div key={i} className="relative group">
-                      <img 
-                        src={url} 
-                        alt={`Photo ${i + 1}`}
-                        className="w-20 h-20 object-cover rounded-lg border border-slate-200 cursor-pointer hover:opacity-80"
-                        onClick={() => setFullscreenPhoto(url)}
-                      />
+
+                  {/* Participants - juste après récurrence */}
+                  {!missionMode && friends.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">
+                        Participants ({participants.length}) <span className="text-xs text-green-500 font-normal">points x2</span>
+                      </label>
+                      
+                      {participants.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {participants.map((p, i) => (
+                            <div 
+                              key={i}
+                              onClick={() => setParticipants(participants.filter(pp => pp.pseudo !== p.pseudo))}
+                              className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-full cursor-pointer hover:bg-indigo-100"
+                            >
+                              <span>{p.avatar}</span>
+                              <span className="text-sm font-medium text-indigo-700">{p.pseudo}</span>
+                              <span className="text-indigo-400">✕</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPhotos(photos.filter((_, idx) => idx !== i));
-                        }}
-                        className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => setShowFriendsList(!showFriendsList)}
+                        className="w-full py-2.5 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-all text-sm"
                       >
-                        ✕
+                        + Ajouter des participants
                       </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Zone de notes */}
-              {ownedItems.includes(85) && activeUpgrades[85] !== false ? (
-                // Mode éditeur enrichi - zone unique avec checkboxes cliquables
-                <div 
-                  className={`w-full bg-slate-50 border border-slate-200 ${(ownedItems.includes(85) && activeUpgrades[85] !== false) || hasPhotoNotes ? 'rounded-b-xl rounded-t-none' : 'rounded-xl'} px-4 py-3 min-h-[100px] max-h-[200px] overflow-y-auto`}
-                  style={{ minHeight: hasExtendedNotes ? '150px' : '100px' }}
-                >
-                  {notes ? (
-                    notes.split('\n').map((line, i) => {
-                      const trimmed = line.trimStart();
                       
-                      // Checkbox non cochée
-                      if (trimmed.startsWith('[ ] ')) {
-                        const text = trimmed.substring(4);
-                        return (
-                          <div key={i} className="flex items-center gap-2 py-1">
-                            <span 
-                              className="w-5 h-5 border-2 border-slate-300 rounded cursor-pointer hover:border-green-400 flex-shrink-0 transition-colors"
+                      {showFriendsList && (
+                        <div className="mt-3 bg-slate-50 rounded-xl p-3 max-h-32 overflow-y-auto">
+                          {friends.map((friend, i) => (
+                            <div
+                              key={i}
                               onClick={() => {
-                                const lines = notes.split('\n');
-                                lines[i] = line.replace('[ ] ', '[x] ');
-                                setNotes(lines.join('\n'));
-                              }}
-                            />
-                            <input
-                              type="text"
-                              value={text}
-                              onChange={(e) => {
-                                const lines = notes.split('\n');
-                                lines[i] = '[ ] ' + e.target.value;
-                                setNotes(lines.join('\n'));
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  const lines = notes.split('\n');
-                                  lines.splice(i + 1, 0, '[ ] ');
-                                  setNotes(lines.join('\n'));
-                                }
-                                if (e.key === 'Backspace' && text === '') {
-                                  e.preventDefault();
-                                  const lines = notes.split('\n');
-                                  lines.splice(i, 1);
-                                  setNotes(lines.join('\n') || '');
+                                if (participants.some(p => p.pseudo === friend.pseudo)) {
+                                  setParticipants(participants.filter(p => p.pseudo !== friend.pseudo));
+                                } else {
+                                  // Nouveau participant : accepted = false jusqu'à ce qu'il accepte
+                                  setParticipants([...participants, { 
+                                    pseudo: friend.pseudo, 
+                                    avatar: friend.avatar,
+                                    accepted: false // En attente d'acceptation
+                                  }]);
                                 }
                               }}
-                              className="flex-1 bg-transparent border-none outline-none text-slate-700"
-                              placeholder="Tâche..."
-                            />
-                          </div>
-                        );
-                      }
-                      
-                      // Checkbox cochée
-                      if (trimmed.startsWith('[x] ') || trimmed.startsWith('[X] ')) {
-                        const text = trimmed.substring(4);
-                        return (
-                          <div key={i} className="flex items-center gap-2 py-1">
-                            <span 
-                              className="w-5 h-5 bg-green-500 border-2 border-green-500 rounded flex items-center justify-center text-white text-xs cursor-pointer flex-shrink-0"
-                              onClick={() => {
-                                const lines = notes.split('\n');
-                                lines[i] = line.replace(/\[x\] /i, '[ ] ');
-                                setNotes(lines.join('\n'));
-                              }}
+                              className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                                participants.some(p => p.pseudo === friend.pseudo)
+                                  ? 'bg-indigo-100 border border-indigo-300'
+                                  : 'hover:bg-slate-100'
+                              }`}
                             >
-                              ✓
-                            </span>
-                            <input
-                              type="text"
-                              value={text}
-                              onChange={(e) => {
-                                const lines = notes.split('\n');
-                                lines[i] = '[x] ' + e.target.value;
-                                setNotes(lines.join('\n'));
-                              }}
-                              className="flex-1 bg-transparent border-none outline-none text-slate-400 line-through"
-                            />
-                          </div>
-                        );
-                      }
-                      
-                      // Puce
-                      if (trimmed.startsWith('• ')) {
-                        const text = trimmed.substring(2);
-                        return (
-                          <div key={i} className="flex items-center gap-2 py-1">
-                            <span className="text-indigo-500 font-bold flex-shrink-0">•</span>
-                            <input
-                              type="text"
-                              value={text}
-                              onChange={(e) => {
-                                const lines = notes.split('\n');
-                                lines[i] = '• ' + e.target.value;
-                                setNotes(lines.join('\n'));
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  const lines = notes.split('\n');
-                                  lines.splice(i + 1, 0, '• ');
-                                  setNotes(lines.join('\n'));
-                                }
-                                if (e.key === 'Backspace' && text === '') {
-                                  e.preventDefault();
-                                  const lines = notes.split('\n');
-                                  lines.splice(i, 1);
-                                  setNotes(lines.join('\n') || '');
-                                }
-                              }}
-                              className="flex-1 bg-transparent border-none outline-none text-slate-700"
-                              placeholder="Élément..."
-                            />
-                          </div>
-                        );
-                      }
-                      
-                      // Texte normal
-                      return (
-                        <div key={i} className="py-1">
-                          <input
-                            type="text"
-                            value={line}
-                            onChange={(e) => {
-                              const lines = notes.split('\n');
-                              lines[i] = e.target.value;
-                              setNotes(lines.join('\n'));
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                const lines = notes.split('\n');
-                                lines.splice(i + 1, 0, '');
-                                setNotes(lines.join('\n'));
-                              }
-                              if (e.key === 'Backspace' && line === '' && notes.split('\n').length > 1) {
-                                e.preventDefault();
-                                const lines = notes.split('\n');
-                                lines.splice(i, 1);
-                                setNotes(lines.join('\n'));
-                              }
-                            }}
-                            className="w-full bg-transparent border-none outline-none text-slate-700"
-                            placeholder="Note..."
-                          />
+                              <div className="w-8 h-8 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-lg flex items-center justify-center">
+                                <span className="text-sm">{friend.avatar}</span>
+                              </div>
+                              <span className="font-medium text-slate-700">{friend.pseudo}</span>
+                              {participants.some(p => p.pseudo === friend.pseudo) && (
+                                <span className="ml-auto text-indigo-500">✓</span>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      );
-                    })
-                  ) : (
+                      )}
+                    </div>
+                  )}
+
+                  {/* Catégories/Tags */}
+                  <div className="relative">
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Catégories</label>
                     <input
                       type="text"
-                      value=""
-                      onChange={(e) => setNotes(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          setNotes(notes + '\n');
-                        }
+                      value={tags}
+                      onChange={(e) => {
+                        setTags(e.target.value);
+                        setShowTagSuggestions(true);
                       }}
-                      className="w-full bg-transparent border-none outline-none text-slate-700"
-                      placeholder="Écris tes notes ici..."
+                      onFocus={() => setShowTagSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
+                      placeholder="Ex: Travail, Perso (séparées par virgules)"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
                     />
+                    
+                    {/* Suggestions de tags */}
+                    {showTagSuggestions && existingTags.length > 0 && (() => {
+                      const currentInput = tags.split(',').pop().trim().toLowerCase();
+                      const alreadyUsedTags = tags.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
+                      const suggestions = existingTags.filter(tag => 
+                        tag.toLowerCase().includes(currentInput) && 
+                        !alreadyUsedTags.includes(tag.toLowerCase())
+                      ).slice(0, 5);
+                      
+                      if (suggestions.length === 0) return null;
+                      
+                      return (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                          {suggestions.map((suggestion, index) => (
+                            <button
+                              key={index}
+                              type="button"
+                              className="w-full px-4 py-2 text-left hover:bg-indigo-50 text-slate-700 text-sm"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                const parts = tags.split(',');
+                                parts.pop();
+                                const newTags = parts.length > 0 
+                                  ? parts.join(', ').trim() + ', ' + suggestion + ', '
+                                  : suggestion + ', ';
+                                setTags(newTags);
+                              }}
+                            >
+                              #{suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Notes */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Notes {hasExtendedNotes && <span className="text-indigo-500 text-xs">(étendu)</span>}
+                    </label>
+                    
+                    {/* Barre d'outils */}
+                    {(hasRichTextEditor || hasPhotoNotes) && (
+                      <div className="flex items-center gap-1 p-2 bg-slate-100 rounded-t-lg flex-wrap border border-b-0 border-slate-200">
+                        {hasRichTextEditor && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const prefix = notes && !notes.endsWith('\n') ? '\n• ' : '• ';
+                                const newNotes = notes + prefix;
+                                if (newNotes.length <= notesMaxLength) {
+                                  setNotes(newNotes);
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
+                            >
+                              • Liste
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const prefix = notes && !notes.endsWith('\n') ? '\n☐ ' : '☐ ';
+                                const newNotes = notes + prefix;
+                                if (newNotes.length <= notesMaxLength) {
+                                  setNotes(newNotes);
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
+                            >
+                              ☐ Check
+                            </button>
+                          </>
+                        )}
+                        
+                        {hasPhotoNotes && (
+                          <label className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer flex items-center gap-1">
+                            {uploadingPhoto ? <span className="animate-spin">⏳</span> : <>📷 Photo</>}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              disabled={uploadingPhoto}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setUploadingPhoto(true);
+                                try {
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    setPhotos([...photos, reader.result]);
+                                    setUploadingPhoto(false);
+                                  };
+                                  reader.readAsDataURL(file);
+                                } catch (error) {
+                                  setUploadingPhoto(false);
+                                }
+                                e.target.value = '';
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Photos */}
+                    {photos.length > 0 && (
+                      <div className="flex gap-2 mb-2 flex-wrap p-2 bg-slate-50 border-x border-slate-200">
+                        {photos.map((url, i) => (
+                          <div key={i} className="relative group">
+                            <img 
+                              src={url} 
+                              alt={`Photo ${i + 1}`}
+                              className="w-16 h-16 object-cover rounded-lg border border-slate-200 cursor-pointer"
+                              onClick={() => setFullscreenPhoto(url)}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setPhotos(photos.filter((_, idx) => idx !== i))}
+                              className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Zone de notes avec checkboxes interactives */}
+                    <div className={`bg-slate-50 border border-slate-200 ${(hasRichTextEditor || hasPhotoNotes) ? 'rounded-b-xl rounded-t-none' : 'rounded-xl'} px-4 py-3 min-h-[80px] focus-within:border-blue-500`}>
+                      {notes.split('\n').map((line, idx, allLines) => {
+                        const isUnchecked = line.startsWith('☐ ');
+                        const isChecked = line.startsWith('☑ ');
+                        const isBullet = line.startsWith('• ');
+                        
+                        if (isUnchecked || isChecked) {
+                          const text = line.substring(2);
+                          return (
+                            <div key={idx} className="flex items-start gap-2 py-0.5">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  const lines = notes.split('\n');
+                                  if (isChecked) {
+                                    lines[idx] = '☐ ' + text;
+                                  } else {
+                                    lines[idx] = '☑ ' + text;
+                                  }
+                                  setNotes(lines.join('\n'));
+                                }}
+                                className="w-4 h-4 mt-1 rounded border-slate-300 text-blue-500 focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                              />
+                              <textarea
+                                ref={(el) => {
+                                  // Auto-focus sur nouvelle ligne
+                                  if (el && text === '' && idx === allLines.length - 1) {
+                                    setTimeout(() => el.focus(), 0);
+                                  }
+                                }}
+                                value={text}
+                                onChange={(e) => {
+                                  const lines = notes.split('\n');
+                                  const prefix = isChecked ? '☑ ' : '☐ ';
+                                  lines[idx] = prefix + e.target.value;
+                                  const newNotes = lines.join('\n');
+                                  if (newNotes.length <= notesMaxLength) {
+                                    setNotes(newNotes);
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const lines = notes.split('\n');
+                                    lines.splice(idx + 1, 0, '☐ ');
+                                    setNotes(lines.join('\n'));
+                                  } else if (e.key === 'Backspace' && text === '') {
+                                    e.preventDefault();
+                                    const lines = notes.split('\n');
+                                    lines.splice(idx, 1);
+                                    if (lines.length === 0) lines.push('');
+                                    setNotes(lines.join('\n'));
+                                  }
+                                }}
+                                rows={1}
+                                className={`flex-1 bg-transparent outline-none resize-none overflow-hidden ${isChecked ? 'line-through text-slate-400' : 'text-slate-700'}`}
+                                placeholder="Tâche..."
+                                style={{ minHeight: '24px' }}
+                                onInput={(e) => {
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = e.target.scrollHeight + 'px';
+                                }}
+                              />
+                            </div>
+                          );
+                        } else if (isBullet) {
+                          const text = line.substring(2);
+                          return (
+                            <div key={idx} className="flex items-start gap-2 py-0.5">
+                              <span className="text-blue-500 mt-1 flex-shrink-0">•</span>
+                              <textarea
+                                ref={(el) => {
+                                  if (el && text === '' && idx === allLines.length - 1) {
+                                    setTimeout(() => el.focus(), 0);
+                                  }
+                                }}
+                                value={text}
+                                onChange={(e) => {
+                                  const lines = notes.split('\n');
+                                  lines[idx] = '• ' + e.target.value;
+                                  const newNotes = lines.join('\n');
+                                  if (newNotes.length <= notesMaxLength) {
+                                    setNotes(newNotes);
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const lines = notes.split('\n');
+                                    lines.splice(idx + 1, 0, '• ');
+                                    setNotes(lines.join('\n'));
+                                  } else if (e.key === 'Backspace' && text === '') {
+                                    e.preventDefault();
+                                    const lines = notes.split('\n');
+                                    lines.splice(idx, 1);
+                                    if (lines.length === 0) lines.push('');
+                                    setNotes(lines.join('\n'));
+                                  }
+                                }}
+                                rows={1}
+                                className="flex-1 bg-transparent outline-none text-slate-700 resize-none overflow-hidden"
+                                placeholder="Élément..."
+                                style={{ minHeight: '24px' }}
+                                onInput={(e) => {
+                                  e.target.style.height = 'auto';
+                                  e.target.style.height = e.target.scrollHeight + 'px';
+                                }}
+                              />
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <textarea
+                              key={idx}
+                              ref={(el) => {
+                                if (el && line === '' && idx === allLines.length - 1 && allLines.length > 1) {
+                                  setTimeout(() => el.focus(), 0);
+                                }
+                              }}
+                              value={line}
+                              onChange={(e) => {
+                                const lines = notes.split('\n');
+                                lines[idx] = e.target.value;
+                                const newNotes = lines.join('\n');
+                                if (newNotes.length <= notesMaxLength) {
+                                  setNotes(newNotes);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const lines = notes.split('\n');
+                                  lines.splice(idx + 1, 0, '');
+                                  setNotes(lines.join('\n'));
+                                } else if (e.key === 'Backspace' && line === '' && notes.split('\n').length > 1) {
+                                  e.preventDefault();
+                                  const lines = notes.split('\n');
+                                  lines.splice(idx, 1);
+                                  setNotes(lines.join('\n'));
+                                }
+                              }}
+                              rows={1}
+                              className="w-full bg-transparent outline-none text-slate-700 py-0.5 resize-none overflow-hidden"
+                              placeholder={idx === 0 && notes === '' ? "Ajouter des notes..." : ""}
+                              style={{ minHeight: '24px' }}
+                              onInput={(e) => {
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.scrollHeight + 'px';
+                              }}
+                            />
+                          );
+                        }
+                      })}
+                    </div>
+                    <div className={`text-xs text-right mt-1 ${notes.length >= notesMaxLength ? 'text-red-500' : 'text-slate-400'}`}>
+                      {notes.length}/{notesMaxLength}
+                    </div>
+                  </div>
+
+                  {/* Assignation - mode mission */}
+                  {missionMode && missionMode.participants && (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Assigner à</label>
+                      <select
+                        value={assignedTo}
+                        onChange={(e) => setAssignedTo(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="">Non assignée</option>
+                        {missionMode.participants.map(p => (
+                          <option key={p.pseudo} value={p.pseudo}>{p.pseudo}</option>
+                        ))}
+                      </select>
+                    </div>
                   )}
                 </div>
-              ) : (
-                // Mode simple sans éditeur enrichi
-                <textarea
-                  id="notes-textarea"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value.slice(0, notesMaxLength))}
-                  placeholder="Ajouter des notes ou détails..."
-                  rows={hasExtendedNotes ? 6 : 4}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 resize-none"
-                />
               )}
-              <div className="text-xs text-slate-400 text-right mt-1">{notes.length}/{notesMaxLength}</div>
             </div>
           </div>
 
-          <div className="p-6 border-t border-slate-200 flex gap-3">
+          {/* Boutons d'action */}
+          <div className="p-4 border-t border-slate-200 flex gap-3 shrink-0">
             <button
               onClick={handleSubmit}
               disabled={!title.trim()}
-              className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50"
+              className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-3.5 rounded-xl font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50"
             >
-              Enregistrer
+              {isEditing ? 'Enregistrer' : 'Créer'}
             </button>
-            
             {isEditing && onDelete && (
               <button
                 onClick={onDelete}
-                className="px-6 bg-red-100 hover:bg-red-200 text-red-600 py-4 rounded-xl font-bold text-xl"
+                className="px-5 bg-red-100 hover:bg-red-200 text-red-600 py-3.5 rounded-xl font-bold text-xl"
               >
                 🗑️
               </button>
@@ -709,23 +844,29 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
 };
 
 // Modal coffre ouvert
-export const ChestOpenedModal = ({ chest, onClose }) => {
+export const ChestOpenedModal = ({ chest, onClose, hasAnimationsPlus = false }) => {
+  const chestEmoji = {
+    bronze: '🥉',
+    silver: '🥈', 
+    gold: '🥇',
+    legendary: '👑'
+  }[chest.type] || '📦';
+
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto">
-      {/* Overlay blanc pour les popups */}
+      {/* Overlay */}
       <div className="fixed inset-0 bg-slate-100"></div>
       
       {/* Conteneur centré */}
       <div className="min-h-full flex items-center justify-center p-4">
-        {/* Modal */}
-        <div className="relative bg-white rounded-3xl p-8 w-full max-w-lg h-[85vh] overflow-y-auto text-center shadow-2xl border border-slate-200 flex flex-col justify-center">
-          <div className="text-6xl mb-4 animate-bounce">📦</div>
+        <div className="relative bg-white rounded-3xl p-8 w-full max-w-lg h-[85vh] overflow-y-auto text-center shadow-2xl border border-slate-200 flex flex-col justify-center animate-bounce-in">
+          <div className={`text-6xl mb-4 ${hasAnimationsPlus ? 'animate-bounce' : ''}`}>📦</div>
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Coffre {chest.type} ouvert !</h2>
           
           <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 my-6 border-2 border-amber-200">
-            <div className="text-4xl mb-2">🥔</div>
+            <div className="text-4xl mb-2">{chestEmoji}</div>
             <div className="text-3xl font-black text-amber-700">+{chest.rewards.points}</div>
-            <div className="text-sm text-amber-600">patates</div>
+            <div className="text-sm text-amber-600">🥔 patates</div>
           </div>
 
           {chest.rewards.items && chest.rewards.items.length > 0 && (
@@ -749,40 +890,95 @@ export const ChestOpenedModal = ({ chest, onClose }) => {
           </button>
         </div>
       </div>
+      
+      <style>{`
+        @keyframes bounce-in {
+          0% { transform: scale(0.3); opacity: 0; }
+          50% { transform: scale(1.05); }
+          70% { transform: scale(0.9); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-bounce-in { animation: bounce-in 0.6s ease-out; }
+      `}</style>
     </div>
   );
 };
 
 // Modal tâche complétée avec confettis
-export const TaskCompletedModal = ({ task, onClose }) => {
-  const encouragements = [
-    "Bravo, continue comme ça !",
-    "Tu es sur la bonne voie !",
-    "Excellent travail !",
-    "Tu gères !",
-    "Rien ne t'arrête !",
-    "Champion !",
-    "Une tâche de plus !",
-    "Tu assures !",
-    "Impressionnant !",
-    "Keep going !",
-  ];
-  const randomMessage = encouragements[Math.floor(Math.random() * encouragements.length)];
+export const TaskCompletedModal = ({ task, onClose, hasAnimationsPlus = false }) => {
+  // Message d'encouragement unique (pas de défilement)
+  const [message] = useState(() => {
+    const encouragements = [
+      "Bravo, continue comme ça !",
+      "Tu es sur la bonne voie !",
+      "Excellent travail !",
+      "Tu gères !",
+      "Rien ne t'arrête !",
+      "Champion !",
+      "Une tâche de plus !",
+      "Tu assures !",
+      "Impressionnant !",
+      "Keep going !",
+    ];
+    return encouragements[Math.floor(Math.random() * encouragements.length)];
+  });
+  
+  // Animation de compteur pour les XP/points (seulement si Animations+)
+  const [displayXP, setDisplayXP] = useState(hasAnimationsPlus ? 0 : task.xp);
+  const [displayPoints, setDisplayPoints] = useState(hasAnimationsPlus ? 0 : task.points);
+  
+  useEffect(() => {
+    if (hasAnimationsPlus) {
+      const duration = 800;
+      const startTime = Date.now();
+      
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        setDisplayXP(Math.round(task.xp * progress));
+        setDisplayPoints(Math.round(task.points * progress));
+        
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        }
+      };
+      
+      requestAnimationFrame(animate);
+    }
+  }, [task.xp, task.points, hasAnimationsPlus]);
+
+  // Nombre de confettis
+  const confettiCount = hasAnimationsPlus ? 100 : 60;
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-hidden">
-      {/* Overlay bleu pour les tâches */}
-      <div className="fixed inset-0 bg-indigo-500"></div>
+      {/* Overlay dégradé style défis du mois */}
+      <div className="fixed inset-0 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500"></div>
       
-      {/* Confettis animés */}
+      {/* Cercles décoratifs animés en arrière-plan */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        {/* Grands cercles qui pulsent */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full border-2 border-white/10 animate-pulse-slow"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full border-2 border-white/15 animate-pulse-slow" style={{ animationDelay: '0.5s' }}></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full border-2 border-white/20 animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full border-2 border-white/25 animate-pulse-slow" style={{ animationDelay: '1.5s' }}></div>
+        
+        {/* Cercles décoratifs dans les coins */}
+        <div className="absolute -top-20 -left-20 w-64 h-64 rounded-full bg-white/5"></div>
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 rounded-full bg-white/5"></div>
+        <div className="absolute top-20 -right-10 w-32 h-32 rounded-full bg-yellow-400/10"></div>
+        <div className="absolute -bottom-10 left-10 w-48 h-48 rounded-full bg-pink-400/10"></div>
+      </div>
+      
+      {/* Confettis */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {[...Array(80)].map((_, i) => {
-          const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#06b6d4'];
-          const size = 6 + Math.random() * 10;
+        {[...Array(confettiCount)].map((_, i) => {
+          const colors = ['#fbbf24', '#f472b6', '#a78bfa', '#34d399', '#60a5fa', '#f87171', '#38bdf8'];
+          const size = 8 + Math.random() * 12;
           const left = Math.random() * 100;
-          const delay = Math.random() * 0.5;
-          const duration = 2 + Math.random() * 2;
-          const rotation = Math.random() * 360;
+          const delay = Math.random() * 0.8;
+          const duration = 2.5 + Math.random() * 2;
           
           return (
             <div
@@ -794,8 +990,7 @@ export const TaskCompletedModal = ({ task, onClose }) => {
                 width: `${size}px`,
                 height: `${size}px`,
                 backgroundColor: colors[Math.floor(Math.random() * colors.length)],
-                borderRadius: Math.random() > 0.5 ? '50%' : '2px',
-                transform: `rotate(${rotation}deg)`,
+                borderRadius: Math.random() > 0.5 ? '50%' : '3px',
                 animation: `confettiFall ${duration}s ease-out ${delay}s forwards`,
               }}
             />
@@ -803,35 +998,34 @@ export const TaskCompletedModal = ({ task, onClose }) => {
         })}
       </div>
 
-      {/* Cercles de célébration */}
-      <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-10">
-        <div className="w-64 h-64 rounded-full border-4 border-yellow-400 animate-ping opacity-20"></div>
-        <div className="absolute w-48 h-48 rounded-full border-4 border-purple-400 animate-ping opacity-30" style={{ animationDelay: '0.2s' }}></div>
-        <div className="absolute w-32 h-32 rounded-full border-4 border-green-400 animate-ping opacity-40" style={{ animationDelay: '0.4s' }}></div>
-      </div>
-
       {/* Conteneur centré */}
       <div className="min-h-full flex items-center justify-center p-4 relative z-20">
-        <div className="bg-white rounded-3xl p-8 w-full max-w-lg h-[85vh] overflow-y-auto flex flex-col justify-center text-center animate-bounce-in shadow-2xl border border-slate-200">
-          <h2 className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-500 to-emerald-500 mb-2">
+        <div className="bg-white rounded-3xl p-8 w-full max-w-md text-center animate-bounce-in shadow-2xl">
+          
+          {/* Emoji célébration */}
+          <div className="text-6xl mb-4">🎉</div>
+          
+          <h2 className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-2">
             Tâche terminée !
           </h2>
-          <p className="text-slate-600 mb-6 text-lg">{randomMessage}</p>
+          <p className="text-slate-600 mb-6 text-lg">{message}</p>
           
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="bg-gradient-to-br from-indigo-50 to-blue-100 rounded-2xl p-4 border-2 border-indigo-200">
-              <div className="text-3xl sm:text-4xl font-black text-indigo-600">+{task.xp}</div>
-              <div className="text-3xl mt-1">⚡</div>
+              <div className="text-3xl sm:text-4xl font-black text-indigo-600">+{displayXP}</div>
+              <div className="text-2xl mt-1">⚡</div>
+              <div className="text-xs text-indigo-500 font-medium">XP</div>
             </div>
             <div className="bg-gradient-to-br from-amber-50 to-yellow-100 rounded-2xl p-4 border-2 border-amber-200">
-              <div className="text-3xl sm:text-4xl font-black text-amber-600">+{task.points}</div>
-              <div className="text-3xl mt-1">🥔</div>
+              <div className="text-3xl sm:text-4xl font-black text-amber-600">+{displayPoints}</div>
+              <div className="text-2xl mt-1">🥔</div>
+              <div className="text-xs text-amber-500 font-medium">Patates</div>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform"
+            className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-opacity shadow-lg"
           >
             Continuer
           </button>
@@ -840,34 +1034,21 @@ export const TaskCompletedModal = ({ task, onClose }) => {
 
       <style>{`
         @keyframes confettiFall {
-          0% {
-            transform: translateY(0) rotate(0deg) scale(1);
-            opacity: 1;
-          }
-          100% {
-            transform: translateY(100vh) rotate(720deg) scale(0.5);
-            opacity: 0;
-          }
+          0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+          100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
         }
         @keyframes bounce-in {
-          0% {
-            transform: scale(0.3);
-            opacity: 0;
-          }
-          50% {
-            transform: scale(1.05);
-          }
-          70% {
-            transform: scale(0.9);
-          }
-          100% {
-            transform: scale(1);
-            opacity: 1;
-          }
+          0% { transform: scale(0.3); opacity: 0; }
+          50% { transform: scale(1.05); }
+          70% { transform: scale(0.95); }
+          100% { transform: scale(1); opacity: 1; }
         }
-        .animate-bounce-in {
-          animation: bounce-in 0.6s ease-out;
+        .animate-bounce-in { animation: bounce-in 0.5s ease-out; }
+        @keyframes pulse-slow {
+          0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+          50% { transform: translate(-50%, -50%) scale(1.05); opacity: 0.7; }
         }
+        .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
       `}</style>
     </div>
   );
@@ -2231,774 +2412,6 @@ export const BadgeUnlockedModal = ({ badge, onClose }) => {
 // Placeholder pour EditMissionQuestModal
 export const EditMissionQuestModal = CreateMissionQuestModal;
 
-// Modal de création/édition d'événement
-export const CreateEventModal = ({ onClose, onCreate, onDelete, initialEvent, friends = [], missionMode = null, missionParticipants = [], ownedItems = [], activeUpgrades = {}, existingTags = [], userId }) => {
-  const [title, setTitle] = useState(initialEvent?.title || '');
-  const [description, setDescription] = useState(initialEvent?.description || '');
-  const [date, setDate] = useState(initialEvent?.date ? new Date(initialEvent.date).toISOString().split('T')[0] : '');
-  const [time, setTime] = useState(initialEvent?.time || '');
-  const [duration, setDuration] = useState(initialEvent?.duration || '1h-2h');
-  const [location, setLocation] = useState(initialEvent?.location || '');
-  const [participants, setParticipants] = useState(initialEvent?.participants || []);
-  const [reminder, setReminder] = useState(initialEvent?.reminder || 'none');
-  const [recurrence, setRecurrence] = useState(initialEvent?.recurrence || 'none');
-  const [recurrenceDays, setRecurrenceDays] = useState(initialEvent?.recurrenceDays || []);
-  const [assignedTo, setAssignedTo] = useState(initialEvent?.assignedTo || '');
-  const [showFriendsList, setShowFriendsList] = useState(false);
-  const [tags, setTags] = useState(initialEvent?.tags?.join(', ') || '');
-  const [notes, setNotes] = useState(initialEvent?.notes || '');
-  const [photos, setPhotos] = useState(initialEvent?.photos || []);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
-  const [fullscreenPhoto, setFullscreenPhoto] = useState(null);
-
-  const isEditing = !!initialEvent;
-  const isMissionEvent = !!missionMode;
-  
-  // Améliorations
-  const hasExtendedNotes = ownedItems.includes(72) && activeUpgrades[72] !== false;
-  const hasPhotoNotes = ownedItems.includes(86) && activeUpgrades[86] !== false;
-  const hasRichTextEditor = ownedItems.includes(85) && activeUpgrades[85] !== false;
-  const notesMaxLength = hasExtendedNotes ? 2000 : 500;
-  
-  // Liste des participants disponibles (amis ou participants de mission)
-  const availableParticipants = isMissionEvent ? missionParticipants : friends;
-
-  const durations = ['-1h', '1h-2h', '1/2 jour', '1 jour'];
-  const reminders = [
-    { value: 'none', label: 'Pas de rappel' },
-    { value: '0min', label: 'À l\'heure' },
-    { value: '15min', label: '15 minutes avant' },
-    { value: '30min', label: '30 minutes avant' },
-    { value: '1h', label: '1 heure avant' },
-    { value: '1day', label: '1 jour avant' },
-  ];
-  
-  const weekDays = [
-    { value: 1, label: 'Lun' },
-    { value: 2, label: 'Mar' },
-    { value: 3, label: 'Mer' },
-    { value: 4, label: 'Jeu' },
-    { value: 5, label: 'Ven' },
-    { value: 6, label: 'Sam' },
-    { value: 0, label: 'Dim' },
-  ];
-  
-  const toggleRecurrenceDay = (day) => {
-    if (recurrenceDays.includes(day)) {
-      setRecurrenceDays(recurrenceDays.filter(d => d !== day));
-    } else {
-      setRecurrenceDays([...recurrenceDays, day]);
-    }
-  };
-
-  const toggleParticipant = (participant) => {
-    const pseudo = participant.pseudo;
-    if (participants.some(p => p.pseudo === pseudo)) {
-      setParticipants(participants.filter(p => p.pseudo !== pseudo));
-    } else {
-      setParticipants([...participants, { pseudo, avatar: participant.avatar }]);
-    }
-  };
-
-  const handleSubmit = () => {
-    if (!title.trim() || !date || !time) return;
-    
-    onCreate({
-      title: title.trim(),
-      description: description.trim(),
-      date: new Date(date),
-      time,
-      duration,
-      location: location.trim(),
-      participants,
-      reminder,
-      recurrence,
-      recurrenceDays: (recurrence === 'weekly' || recurrence === 'monthly') ? recurrenceDays : [],
-      assignedTo: isMissionEvent ? assignedTo : null,
-      isEvent: true,
-      tags: tags.split(',').map(t => t.trim()).filter(t => t),
-      notes: notes.trim(),
-      photos: photos,
-    });
-  };
-
-  // Calculer les récompenses basées sur la durée
-  const getDurationXP = (dur) => {
-    const base = { '-1h': 10, '1h-2h': 20, '1/2 jour': 40, '1 jour': 80 };
-    return base[dur] || 10;
-  };
-
-  return (
-    <div className="fixed inset-0 z-[9999] overflow-y-auto">
-      {/* Overlay vert pour les événements */}
-      <div className="fixed inset-0 bg-emerald-500" onClick={onClose}></div>
-      
-      {/* Conteneur centré */}
-      <div className="min-h-full flex items-center justify-center p-4">
-        {/* Modal */}
-        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[85vh] overflow-hidden flex flex-col border border-slate-200">
-          <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">
-                {isEditing ? 'Modifier l\'événement' : 'Nouvel événement'}
-              </h2>
-              {isMissionEvent && (
-                <p className="text-sm text-emerald-600">
-                  Mission: {missionMode.title}
-                </p>
-              )}
-            </div>
-            <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">✕</button>
-          </div>
-
-          <div className="p-5 space-y-4 overflow-y-auto flex-1">
-            {/* Titre */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Titre *</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value.slice(0, 100))}
-                placeholder="Ex: Réunion équipe, Cinéma..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            {/* Date, Heure et Durée */}
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Date *</label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 focus:outline-none focus:border-emerald-500 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Heure *</label>
-                <input
-                  type="time"
-                  value={time}
-                  onChange={(e) => setTime(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 focus:outline-none focus:border-emerald-500 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Durée</label>
-                <select
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 focus:outline-none focus:border-emerald-500 text-sm"
-                >
-                  {durations.map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Rappel */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Rappel</label>
-              <select
-                value={reminder}
-                onChange={(e) => setReminder(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500"
-              >
-                {reminders.map(r => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Récurrence */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Récurrence</label>
-              <div className="grid grid-cols-4 gap-2">
-                {[
-                  { value: 'none', label: 'Aucune' },
-                  { value: 'daily', label: 'Quotidien' },
-                  { value: 'weekly', label: 'Hebdo' },
-                  { value: 'monthly', label: 'Mensuel' },
-                ].map(r => (
-                  <button
-                    key={r.value}
-                    type="button"
-                    onClick={() => {
-                      setRecurrence(r.value);
-                      if (r.value !== 'weekly' && r.value !== 'monthly') {
-                        setRecurrenceDays([]);
-                      }
-                    }}
-                    className={`py-3 rounded-xl border-2 font-semibold text-sm transition-all ${
-                      recurrence === r.value 
-                        ? 'bg-emerald-500 text-white border-emerald-500' 
-                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                    }`}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Sélection des jours de la semaine */}
-              {recurrence === 'weekly' && (
-                <div className="mt-3">
-                  <p className="text-xs text-slate-500 mb-2">Sélectionner les jours :</p>
-                  <div className="grid grid-cols-7 gap-1">
-                    {weekDays.map(day => (
-                      <button
-                        key={day.value}
-                        type="button"
-                        onClick={() => toggleRecurrenceDay(day.value)}
-                        className={`py-2 rounded-lg border-2 font-semibold text-xs transition-all ${
-                          recurrenceDays.includes(day.value)
-                            ? 'bg-emerald-500 text-white border-emerald-500'
-                            : 'border-slate-200 text-slate-600 hover:border-emerald-300'
-                        }`}
-                      >
-                        {day.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Sélection des jours du mois */}
-              {recurrence === 'monthly' && (
-                <div className="mt-3">
-                  <p className="text-xs text-slate-500 mb-2">Sélectionner les jours du mois :</p>
-                  <div className="grid grid-cols-7 gap-1">
-                    {[...Array(31)].map((_, i) => {
-                      const day = i + 1;
-                      return (
-                        <button
-                          key={day}
-                          type="button"
-                          onClick={() => toggleRecurrenceDay(day)}
-                          className={`py-2 rounded-lg border-2 font-semibold text-xs transition-all ${
-                            recurrenceDays.includes(day)
-                              ? 'bg-emerald-500 text-white border-emerald-500'
-                              : 'border-slate-200 text-slate-600 hover:border-emerald-300'
-                          }`}
-                        >
-                          {day}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Lieu */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Lieu</label>
-              <input
-                type="text"
-                value={location}
-                onChange={(e) => setLocation(e.target.value.slice(0, 100))}
-                placeholder="Ex: Salle de réunion, Cinéma UGC..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            {/* Participants (mode mission - sélection multiple parmi les membres) */}
-            {isMissionEvent && missionParticipants.length > 0 && (
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Participants ({participants.length})
-                </label>
-                
-                {/* Participants sélectionnés */}
-                {participants.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {participants.map((p, i) => (
-                      <div 
-                        key={i}
-                        onClick={() => toggleParticipant(p)}
-                        className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100"
-                      >
-                        <span className="emoji-display">{p.avatar}</span>
-                        <span className="text-sm font-medium text-emerald-700">{p.pseudo}</span>
-                        <span className="text-emerald-400">✕</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {/* Bouton ajouter */}
-                <button
-                  type="button"
-                  onClick={() => setShowFriendsList(!showFriendsList)}
-                  className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-emerald-400 hover:text-emerald-600 transition-all"
-                >
-                  + Ajouter des participants
-                </button>
-                
-                {/* Liste des participants de la mission */}
-                {showFriendsList && (
-                  <div className="mt-3 bg-slate-50 rounded-xl p-3 max-h-40 overflow-y-auto">
-                    {missionParticipants.map((member, i) => (
-                      <div
-                        key={i}
-                        onClick={() => toggleParticipant(member)}
-                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
-                          participants.some(p => p.pseudo === member.pseudo)
-                            ? 'bg-emerald-100 border border-emerald-300'
-                            : 'hover:bg-slate-100'
-                        }`}
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-lg flex items-center justify-center">
-                          <span className="emoji-display text-sm">{member.avatar}</span>
-                        </div>
-                        <span className="font-medium text-slate-700">{member.pseudo}</span>
-                        {participants.some(p => p.pseudo === member.pseudo) && (
-                          <span className="ml-auto text-emerald-500">✓</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Participants (hors mode mission) */}
-            {!isMissionEvent && (
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Participants ({participants.length}) <span className="text-xs text-green-500 font-normal">points x2 !</span>
-                </label>
-                
-                {/* Participants sélectionnés */}
-                {participants.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {participants.map((p, i) => (
-                      <div 
-                        key={i}
-                        onClick={() => toggleParticipant(p)}
-                        className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full cursor-pointer hover:bg-emerald-100"
-                      >
-                        <span className="emoji-display">{p.avatar}</span>
-                        <span className="text-sm font-medium text-emerald-700">{p.pseudo}</span>
-                        <span className="text-emerald-400">✕</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {/* Bouton ajouter */}
-                <button
-                  type="button"
-                  onClick={() => setShowFriendsList(!showFriendsList)}
-                  className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-emerald-400 hover:text-emerald-600 transition-all"
-                >
-                  + Ajouter des participants
-                </button>
-                
-                {/* Liste des amis */}
-                {showFriendsList && availableParticipants.length > 0 && (
-                  <div className="mt-3 bg-slate-50 rounded-xl p-3 max-h-40 overflow-y-auto">
-                    {availableParticipants.map((friend, i) => (
-                      <div
-                        key={i}
-                        onClick={() => toggleParticipant(friend)}
-                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
-                          participants.some(p => p.pseudo === friend.pseudo)
-                            ? 'bg-emerald-100 border border-emerald-300'
-                            : 'hover:bg-slate-100'
-                        }`}
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-lg flex items-center justify-center">
-                          <span className="emoji-display text-sm">{friend.avatar}</span>
-                        </div>
-                        <span className="font-medium text-slate-700">{friend.pseudo}</span>
-                        {participants.some(p => p.pseudo === friend.pseudo) && (
-                          <span className="ml-auto text-emerald-500">✓</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Tags */}
-            <div className="relative">
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Catégories</label>
-              <input
-                type="text"
-                value={tags}
-                onChange={(e) => {
-                  setTags(e.target.value);
-                  setShowTagSuggestions(true);
-                }}
-                onFocus={() => setShowTagSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
-                placeholder="Ex: Travail, Loisir, RDV..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500"
-              />
-              
-              {/* Suggestions de tags */}
-              {showTagSuggestions && existingTags.length > 0 && (() => {
-                const currentInput = tags.split(',').pop().trim().toLowerCase();
-                const alreadyUsedTags = tags.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
-                const suggestions = existingTags.filter(tag => 
-                  tag.toLowerCase().includes(currentInput) && 
-                  !alreadyUsedTags.includes(tag.toLowerCase())
-                ).slice(0, 5);
-                
-                if (suggestions.length === 0) return null;
-                
-                return (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
-                    {suggestions.map((suggestion, index) => (
-                      <button
-                        key={index}
-                        type="button"
-                        className="w-full px-4 py-2 text-left hover:bg-emerald-50 text-slate-700 text-sm"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          const tagsList = tags.split(',');
-                          tagsList[tagsList.length - 1] = suggestion;
-                          setTags(tagsList.join(', ') + ', ');
-                          setShowTagSuggestions(false);
-                        }}
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Notes */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Notes</label>
-              
-              {/* Barre d'outils notes - si amélioration achetée */}
-              {(hasRichTextEditor || hasPhotoNotes) && (
-                <div className="flex items-center gap-1 p-2 bg-slate-100 rounded-t-lg flex-wrap border border-b-0 border-slate-200">
-                  {hasRichTextEditor && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setNotes(notes ? notes + '\n• ' : '• ')}
-                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
-                        title="Liste à puces"
-                      >
-                        • Liste
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setNotes(notes ? notes + '\n[ ] ' : '[ ] ')}
-                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50"
-                        title="Checkbox"
-                      >
-                        ☐ Check
-                      </button>
-                      <div className="w-px h-6 bg-slate-300 mx-1"></div>
-                    </>
-                  )}
-                  
-                  {hasPhotoNotes && (
-                    <label className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm hover:bg-slate-50 cursor-pointer flex items-center gap-1">
-                      📷 Photo
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={async (e) => {
-                          const file = e.target.files[0];
-                          if (!file) return;
-                          setUploadingPhoto(true);
-                          try {
-                            // Convertir en base64 pour stockage simple
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setPhotos([...photos, reader.result]);
-                              setUploadingPhoto(false);
-                            };
-                            reader.readAsDataURL(file);
-                          } catch (error) {
-                            console.error('Erreur upload photo:', error);
-                            setUploadingPhoto(false);
-                          }
-                        }}
-                      />
-                      {uploadingPhoto && <span className="animate-spin">⏳</span>}
-                    </label>
-                  )}
-                </div>
-              )}
-              
-              {hasRichTextEditor ? (
-                <div className={`w-full bg-slate-50 border border-slate-200 ${(hasRichTextEditor || hasPhotoNotes) ? 'rounded-b-xl rounded-t-none' : 'rounded-xl'} px-4 py-3 min-h-[100px] max-h-[150px] overflow-y-auto`}>
-                  {notes ? (
-                    notes.split('\n').map((line, i) => {
-                      const trimmed = line.trimStart();
-                      
-                      if (trimmed.startsWith('[ ] ')) {
-                        const text = trimmed.substring(4);
-                        return (
-                          <div key={i} className="flex items-center gap-2 py-1">
-                            <span 
-                              className="w-5 h-5 border-2 border-slate-300 rounded cursor-pointer hover:border-green-400 flex-shrink-0"
-                              onClick={() => {
-                                const lines = notes.split('\n');
-                                lines[i] = line.replace('[ ] ', '[x] ');
-                                setNotes(lines.join('\n'));
-                              }}
-                            />
-                            <input
-                              type="text"
-                              value={text}
-                              onChange={(e) => {
-                                const lines = notes.split('\n');
-                                lines[i] = '[ ] ' + e.target.value;
-                                setNotes(lines.join('\n'));
-                              }}
-                              className="flex-1 bg-transparent border-none outline-none text-slate-700"
-                            />
-                          </div>
-                        );
-                      }
-                      
-                      if (trimmed.startsWith('[x] ') || trimmed.startsWith('[X] ')) {
-                        const text = trimmed.substring(4);
-                        return (
-                          <div key={i} className="flex items-center gap-2 py-1">
-                            <span 
-                              className="w-5 h-5 bg-green-500 border-2 border-green-500 rounded flex items-center justify-center text-white text-xs cursor-pointer flex-shrink-0"
-                              onClick={() => {
-                                const lines = notes.split('\n');
-                                lines[i] = line.replace(/\[x\] /i, '[ ] ');
-                                setNotes(lines.join('\n'));
-                              }}
-                            >
-                              ✓
-                            </span>
-                            <input
-                              type="text"
-                              value={text}
-                              onChange={(e) => {
-                                const lines = notes.split('\n');
-                                lines[i] = '[x] ' + e.target.value;
-                                setNotes(lines.join('\n'));
-                              }}
-                              className="flex-1 bg-transparent border-none outline-none text-slate-400 line-through"
-                            />
-                          </div>
-                        );
-                      }
-                      
-                      if (trimmed.startsWith('• ')) {
-                        const text = trimmed.substring(2);
-                        return (
-                          <div key={i} className="flex items-center gap-2 py-1">
-                            <span className="text-emerald-500 font-bold flex-shrink-0">•</span>
-                            <input
-                              type="text"
-                              value={text}
-                              onChange={(e) => {
-                                const lines = notes.split('\n');
-                                lines[i] = '• ' + e.target.value;
-                                setNotes(lines.join('\n'));
-                              }}
-                              className="flex-1 bg-transparent border-none outline-none text-slate-700"
-                            />
-                          </div>
-                        );
-                      }
-                      
-                      return (
-                        <div key={i} className="py-1">
-                          <input
-                            type="text"
-                            value={line}
-                            onChange={(e) => {
-                              const lines = notes.split('\n');
-                              lines[i] = e.target.value;
-                              setNotes(lines.join('\n'));
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                const lines = notes.split('\n');
-                                lines.splice(i + 1, 0, '');
-                                setNotes(lines.join('\n'));
-                              }
-                            }}
-                            className="w-full bg-transparent border-none outline-none text-slate-700"
-                            placeholder="Note..."
-                          />
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <input
-                      type="text"
-                      value=""
-                      onChange={(e) => setNotes(e.target.value)}
-                      className="w-full bg-transparent border-none outline-none text-slate-700"
-                      placeholder="Ajouter des notes..."
-                    />
-                  )}
-                </div>
-              ) : (
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value.slice(0, notesMaxLength))}
-                  placeholder="Ajouter des notes..."
-                  rows={3}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 resize-none"
-                />
-              )}
-              <div className="text-xs text-slate-400 mt-1 text-right">{notes.length}/{notesMaxLength}</div>
-            </div>
-
-            {/* Photos */}
-            {photos.length > 0 && (
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Photos ({photos.length})</label>
-                <div className="flex flex-wrap gap-2">
-                  {photos.map((photo, index) => (
-                    <div key={index} className="relative group">
-                      <img 
-                        src={photo} 
-                        alt="" 
-                        className="w-16 h-16 object-cover rounded-lg cursor-pointer hover:opacity-80"
-                        onClick={() => setFullscreenPhoto(photo)}
-                      />
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPhotos(photos.filter((_, i) => i !== index));
-                        }}
-                        className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="p-6 border-t border-slate-200 flex gap-3">
-            <button
-              onClick={handleSubmit}
-              disabled={!title.trim() || !date || !time}
-              className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50"
-            >
-              {isEditing ? 'Modifier' : 'Créer l\'événement'}
-            </button>
-            
-            {isEditing && onDelete && (
-              <button
-                onClick={onDelete}
-                className="px-6 bg-red-100 hover:bg-red-200 text-red-600 py-4 rounded-xl font-bold text-xl"
-              >
-                🗑️
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Modal photo plein écran */}
-      {fullscreenPhoto && (
-        <div 
-          className="fixed inset-0 z-[10000] bg-black/90 flex items-center justify-center p-4"
-          onClick={() => setFullscreenPhoto(null)}
-        >
-          <button
-            onClick={() => setFullscreenPhoto(null)}
-            className="absolute top-4 right-4 text-white text-3xl hover:text-gray-300 z-10"
-          >
-            ✕
-          </button>
-          <img 
-            src={fullscreenPhoto} 
-            alt="Photo en plein écran"
-            className="max-w-full max-h-full object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Modal événement complété
-export const EventCompletedModal = ({ event, onClose }) => {
-  const xpGained = event.xp || 5;
-  const pointsGained = event.points || 5;
-  const isShared = event.shared || (event.participants?.length > 0);
-  
-  return (
-    <div className="fixed inset-0 z-[9999] overflow-hidden">
-      {/* Overlay vert */}
-      <div className="fixed inset-0 bg-emerald-500"></div>
-      
-      {/* Conteneur centré */}
-      <div className="min-h-full flex items-center justify-center p-4 relative z-20">
-        <div className="bg-white rounded-3xl p-8 w-full max-w-lg h-[85vh] overflow-y-auto flex flex-col justify-center text-center shadow-2xl border border-slate-200">
-          <div className="text-6xl mb-4">🎉</div>
-          <h2 className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-teal-500 mb-2">
-            Événement terminé !
-          </h2>
-          <p className="text-slate-600 mb-6 text-lg">{event.title}</p>
-          
-          {isShared && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
-              <p className="text-green-700 font-semibold text-sm">🤝 Bonus partage x2 !</p>
-            </div>
-          )}
-          
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-4 border-2 border-blue-200">
-              <div className="text-2xl font-black text-blue-600">+{xpGained}</div>
-              <div className="text-2xl mt-1">⚡</div>
-              <div className="text-xs text-blue-500">XP</div>
-            </div>
-            <div className="bg-gradient-to-br from-amber-50 to-yellow-100 rounded-2xl p-4 border-2 border-amber-200">
-              <div className="text-2xl font-black text-amber-600">+{pointsGained}</div>
-              <div className="text-2xl mt-1">🥔</div>
-              <div className="text-xs text-amber-500">Patates</div>
-            </div>
-          </div>
-
-          {event.participants?.length > 0 && (
-            <div className="mb-6">
-              <p className="text-sm text-slate-500 mb-2">Participants</p>
-              <div className="flex justify-center gap-2 flex-wrap">
-                {event.participants.map((p, i) => (
-                  <div key={i} className="bg-emerald-50 px-3 py-1 rounded-full text-sm text-emerald-700">
-                    {p.avatar} {p.pseudo}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <button
-            onClick={onClose}
-            className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform"
-          >
-            Super ! 🎉
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // Modal Énigme quotidienne
 export const RiddleModal = ({ riddle, level, onClose, onSuccess, onFail, alreadyDone = false }) => {
   const [answer, setAnswer] = useState('');
@@ -3258,6 +2671,72 @@ export const RiddleModal = ({ riddle, level, onClose, onSuccess, onFail, already
                 Fermer
               </button>
             )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Modal d'invitation de partage de tâche
+export const ShareInvitationModal = ({ invitation, onAccept, onDecline, onClose }) => {
+  if (!invitation) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        {/* Header */}
+        <div className="p-6 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-center">
+          <div className="text-5xl mb-3">🤝</div>
+          <h2 className="text-xl font-bold">Invitation de partage</h2>
+        </div>
+
+        <div className="p-6">
+          {/* Info du créateur */}
+          <div className="flex items-center gap-3 mb-4 p-3 bg-slate-50 rounded-xl">
+            <div className="w-12 h-12 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl flex items-center justify-center text-xl">
+              {invitation.ownerAvatar || '😀'}
+            </div>
+            <div>
+              <p className="font-bold text-slate-900">{invitation.ownerPseudo}</p>
+              <p className="text-sm text-slate-500">t'invite à participer</p>
+            </div>
+          </div>
+
+          {/* Tâche */}
+          <div className="bg-indigo-50 rounded-xl p-4 mb-4 border-2 border-indigo-200">
+            <h3 className="font-bold text-indigo-900 mb-1">{invitation.taskTitle}</h3>
+            {invitation.taskDate && (
+              <p className="text-sm text-indigo-600">
+                📅 {new Date(invitation.taskDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </p>
+            )}
+            {invitation.taskTime && (
+              <p className="text-sm text-indigo-600">🕐 {invitation.taskTime}</p>
+            )}
+          </div>
+
+          {/* Bonus */}
+          <div className="text-center mb-4">
+            <span className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-semibold">
+              ✨ Récompenses x2 si partagé !
+            </span>
+          </div>
+
+          {/* Boutons */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => onDecline(invitation.taskId)}
+              className="flex-1 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
+            >
+              Refuser
+            </button>
+            <button
+              onClick={() => onAccept(invitation.taskId)}
+              className="flex-1 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-indigo-500 to-purple-500 hover:opacity-90 transition-all"
+            >
+              Accepter
+            </button>
           </div>
         </div>
       </div>

@@ -93,7 +93,7 @@ export const riddles = {
     },
     {
       id: 12,
-      question: "Plus on en enlève, plus je suis grande. Que suis-je ?",
+      question: "Plus on en enlève, plus je suis grand. Que suis-je ?",
       answer: "trou",
       acceptedAnswers: ["trou", "un trou", "le trou", "fosse", "une fosse"],
       explanation: "Quand on creuse et enlève de la terre, le trou devient plus grand.",
@@ -117,7 +117,7 @@ export const riddles = {
     },
     {
       id: 15,
-      question: "Je suis plein de trous mais je retiens l'eau. Que suis-je ?",
+      question: "Je suis pleine de trous mais je retiens l'eau. Que suis-je ?",
       answer: "eponge",
       acceptedAnswers: ["eponge", "éponge", "une éponge", "une eponge", "l'éponge"],
       explanation: "L'éponge a plein de trous (pores) mais absorbe et retient l'eau.",
@@ -253,10 +253,10 @@ export const riddles = {
   level3: [
     {
       id: 201,
-      question: "XJSF = ? (chaque lettre est décalée de -4)",
+      question: "XMVI = ? (chaque lettre est décalée de -4)",
       answer: "TIRE",
       acceptedAnswers: ["tire", "TIRE"],
-      explanation: "X-4=T, J-4=F... Non, recalculons : X(24)-4=T(20), J(10)-4=F(6)... En fait : X→T, J→F, S→O, F→B = TFOB ? Vérifions : T+4=X ✓, I+4=M ✗. Correction : XMVI → TIRE",
+      explanation: "X(24)-4=T(20), M(13)-4=I(9), V(22)-4=R(18), I(9)-4=E(5). XMVI → TIRE.",
       xpReward: 100
     },
     {
@@ -309,18 +309,18 @@ export const riddles = {
     },
     {
       id: 208,
-      question: "Un mot de 8 lettres contient seulement une lettre. Quel est ce mot ?",
+      question: "Un mot de 9 lettres contient seulement une lettre. Quel est ce mot ?",
       answer: "enveloppe",
       acceptedAnswers: ["enveloppe", "une enveloppe"],
-      explanation: "Le mot 'enveloppe' a 9 lettres... Le vrai mot est 'LETTRÉES' ? Non. La réponse classique : une ENVELOPPE contient une LETTRE dedans !",
+      explanation: "Une ENVELOPPE (9 lettres) contient une LETTRE dedans ! C'est un jeu de mots.",
       xpReward: 100
     },
     {
       id: 209,
       question: "Si A=1, B=2, C=3... Quelle est la valeur de CONNAISSANCE ?",
-      answer: "123",
-      acceptedAnswers: ["123"],
-      explanation: "C(3)+O(15)+N(14)+N(14)+A(1)+I(9)+S(19)+S(19)+A(1)+N(14)+C(3)+E(5) = 3+15+14+14+1+9+19+19+1+14+3+5 = 117. Recalculons : 3+15=18, +14=32, +14=46, +1=47, +9=56, +19=75, +19=94, +1=95, +14=109, +3=112, +5=117",
+      answer: "117",
+      acceptedAnswers: ["117"],
+      explanation: "C(3)+O(15)+N(14)+N(14)+A(1)+I(9)+S(19)+S(19)+A(1)+N(14)+C(3)+E(5) = 117.",
       xpReward: 100
     },
     {
@@ -365,10 +365,10 @@ export const riddles = {
     },
     {
       id: 215,
-      question: "Quel mot français de 7 lettres contient toutes les voyelles (a, e, i, o, u) une seule fois ?",
+      question: "Quel mot français de 6 lettres contient toutes les voyelles (a, e, i, o, u) une seule fois ?",
       answer: "oiseau",
       acceptedAnswers: ["oiseau", "un oiseau"],
-      explanation: "OISEAU contient O, I, E, A, U = les 5 voyelles (sans Y). Mais c'est 6 lettres ! Le mot à 7 lettres serait OISEAUX.",
+      explanation: "OISEAU contient O, I, S, E, A, U = les 5 voyelles en 6 lettres seulement !",
       xpReward: 100
     }
   ]

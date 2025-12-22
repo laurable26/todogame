@@ -38,7 +38,7 @@ export const useGameData = (supabaseUser) => {
   });
 
   const [tasks, setTasks] = useState([]);
-  const [events, setEvents] = useState([]);
+  // events est maintenant dérivé de tasks (ceux avec time)
   const [missions, setMissions] = useState([]);
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
@@ -69,7 +69,7 @@ export const useGameData = (supabaseUser) => {
   // Format: { id: 1, type: 'xp_x2', expiresAt: Date, multiplier: 2 }
 
   const [badges, setBadges] = useState([
-    { id: 1, name: 'Premier Pas', description: 'Complète des quêtes', emoji: '👣', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: 'Complète 1 quête', silver: 'Complète 50 quêtes', gold: 'Complète 500 quêtes' }, thresholds: { bronze: 1, silver: 50, gold: 500 }, stat: 'tasksCompleted' },
+    { id: 1, name: 'Premier Pas', description: 'Complète des tâches', emoji: '👣', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: 'Complète 1 tâche', silver: 'Complète 50 tâches', gold: 'Complète 500 tâches' }, thresholds: { bronze: 1, silver: 50, gold: 500 }, stat: 'tasksCompleted' },
     { id: 2, name: 'Régularité', description: 'Enchaîne les jours', emoji: '📅', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '7 jours d\'affilée', silver: '30 jours d\'affilée', gold: '365 jours d\'affilée' }, thresholds: { bronze: 7, silver: 30, gold: 365 }, stat: 'streak' },
     { id: 3, name: 'Équipier', description: 'Participe à des missions', emoji: '🤝', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: 'Participe à 1 mission', silver: 'Participe à 25 missions', gold: 'Participe à 100 missions' }, thresholds: { bronze: 1, silver: 25, gold: 100 }, stat: 'missionsParticipated' },
     { id: 4, name: 'Collectionneur', description: 'Ouvre des coffres', emoji: '📦', bronze: false, silver: false, gold: false, category: 'collection', requirements: { bronze: 'Ouvre 10 coffres', silver: 'Ouvre 100 coffres', gold: 'Ouvre 500 coffres' }, thresholds: { bronze: 10, silver: 100, gold: 500 }, stat: 'chestsOpened' },
@@ -77,14 +77,11 @@ export const useGameData = (supabaseUser) => {
     { id: 6, name: 'Ascension', description: 'Monte en niveau', emoji: '⬆️', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: 'Atteins niveau 10', silver: 'Atteins niveau 50', gold: 'Atteins niveau 100' }, thresholds: { bronze: 10, silver: 50, gold: 100 }, stat: 'level' },
     { id: 7, name: 'Leader', description: 'Crée des missions', emoji: '🎯', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: 'Crée 5 missions', silver: 'Crée 50 missions', gold: 'Crée 200 missions' }, thresholds: { bronze: 5, silver: 50, gold: 200 }, stat: 'missionsCreated' },
     { id: 8, name: 'Social', description: 'Ajoute des amis', emoji: '👥', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: 'Ajoute 3 amis', silver: 'Ajoute 20 amis', gold: 'Ajoute 50 amis' }, thresholds: { bronze: 3, silver: 20, gold: 50 }, stat: 'friendsCount' },
-    { id: 9, name: 'Marathonien', description: 'Quêtes longues', emoji: '🏃', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '50 quêtes "1 jour"', silver: '200 quêtes "1 jour"', gold: '1000 quêtes "1 jour"' }, thresholds: { bronze: 50, silver: 200, gold: 1000 }, stat: 'longQuests' },
-    { id: 10, name: 'Perfectionniste', description: 'Quêtes urgentes à temps', emoji: '⚡', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '100 urgentes à temps', silver: '500 urgentes à temps', gold: '2000 urgentes à temps' }, thresholds: { bronze: 100, silver: 500, gold: 2000 }, stat: 'urgentCompleted' },
-    { id: 11, name: 'Organisateur', description: 'Planifie des événements', emoji: '📅', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: 'Complète 10 événements', silver: 'Complète 50 événements', gold: 'Complète 200 événements' }, thresholds: { bronze: 10, silver: 50, gold: 200 }, stat: 'eventsCompleted' },
-    { id: 12, name: 'Vétéran', description: 'Ancienneté', emoji: '🎖️', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '6 mois d\'utilisation', silver: '2 ans d\'utilisation', gold: '5 ans d\'utilisation' }, thresholds: { bronze: 180, silver: 730, gold: 1825 }, stat: 'daysPlayed' },
-    { id: 13, name: 'Légende', description: 'Le summum', emoji: '👑', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: 'Niveau 50 + 100 missions', silver: 'Niveau 75 + 365 jours', gold: 'Niveau 100 + tous badges argent' }, thresholds: { bronze: 1, silver: 1, gold: 1 }, stat: 'legend' },
+    { id: 9, name: 'Marathonien', description: 'Tâches longues', emoji: '🏃', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '50 tâches "1 jour"', silver: '200 tâches "1 jour"', gold: '1000 tâches "1 jour"' }, thresholds: { bronze: 50, silver: 200, gold: 1000 }, stat: 'longQuests' },
+    { id: 10, name: 'Perfectionniste', description: 'Tâches urgentes à temps', emoji: '⚡', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '100 urgentes à temps', silver: '500 urgentes à temps', gold: '2000 urgentes à temps' }, thresholds: { bronze: 100, silver: 500, gold: 2000 }, stat: 'urgentCompleted' },
+    { id: 11, name: 'Ponctuel', description: 'Tâches planifiées', emoji: '⏰', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: 'Complète 10 tâches planifiées', silver: 'Complète 50 tâches planifiées', gold: 'Complète 200 tâches planifiées' }, thresholds: { bronze: 10, silver: 50, gold: 200 }, stat: 'scheduledTasksCompleted' },
     { id: 14, name: 'Milliardaire', description: 'Richesse ultime', emoji: '💎', bronze: false, silver: false, gold: false, category: 'collection', requirements: { bronze: 'Dépense 50 000 patates', silver: 'Dépense 500 000 patates', gold: 'Dépense 5 000 000 patates' }, thresholds: { bronze: 50000, silver: 500000, gold: 5000000 }, stat: 'totalSpent' },
-    { id: 15, name: 'Architecte', description: 'Créateur prolifique', emoji: '🏗️', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: '1000 quêtes créées', silver: '5000 quêtes créées', gold: '20 000 quêtes créées' }, thresholds: { bronze: 1000, silver: 5000, gold: 20000 }, stat: 'questsCreated' },
-    { id: 16, name: 'Immortel', description: 'Persévérance', emoji: '♾️', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '1000 quêtes complétées', silver: '10 000 quêtes complétées', gold: '50 000 quêtes complétées' }, thresholds: { bronze: 1000, silver: 10000, gold: 50000 }, stat: 'tasksCompleted' },
+    { id: 15, name: 'Architecte', description: 'Créateur prolifique', emoji: '🏗️', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: '100 tâches créées', silver: '500 tâches créées', gold: '2000 tâches créées' }, thresholds: { bronze: 100, silver: 500, gold: 2000 }, stat: 'questsCreated' },
   ]);
 
   const [shopItems] = useState([
@@ -100,7 +97,7 @@ export const useGameData = (supabaseUser) => {
     { id: 29, name: 'Fantôme', price: 400, type: 'avatar', image: '👻' },
     { id: 30, name: 'Citrouille', price: 400, type: 'avatar', image: '🎃' },
     { id: 31, name: 'Danseuse', price: 500, type: 'avatar', image: '💃' },
-    { id: 32, name: 'Ninja', price: 500, type: 'avatar', image: '🥷' },
+    { id: 32, name: 'Épéiste', price: 500, type: 'avatar', image: '🤺' },
     { id: 33, name: 'Pirate', price: 600, type: 'avatar', image: '🏴‍☠️' },
     { id: 34, name: 'Cowboy', price: 600, type: 'avatar', image: '🤠' },
     { id: 35, name: 'Robot', price: 800, type: 'avatar', image: '🤖' },
@@ -130,28 +127,29 @@ export const useGameData = (supabaseUser) => {
     { id: 63, name: 'Argent', price: 1500, type: 'fond', image: '🥈', colors: 'from-slate-300 to-slate-500' },
     { id: 64, name: 'Arc-en-ciel', price: 3000, type: 'fond', image: '🌈', colors: 'from-red-500 via-yellow-500 to-blue-500' },
     { id: 65, name: 'Aurore Boréale', price: 5000, type: 'fond', image: '🌠', colors: 'from-green-400 via-blue-500 to-purple-600' },
-    // Améliorations - triées par prix
-    { id: 71, name: 'Bordures Dorées', price: 500, type: 'amelioration', image: '✨', description: 'Bordure dorée sur ton avatar', isGoldenBorder: true },
-    { id: 72, name: 'Notes Étendues', price: 300, type: 'amelioration', image: '📝', description: 'Notes plus longues sur les quêtes', isExtendedNotes: true },
-    { id: 85, name: 'Listes & Checkboxes', price: 400, type: 'amelioration', image: '✅', description: 'Ajoute des listes à puces et des checkboxes dans les notes', isRichTextEditor: true },
-    { id: 86, name: 'Photos Notes', price: 600, type: 'amelioration', image: '📷', description: 'Ajouter des photos dans les notes', isPhotoNotes: true },
+    // Améliorations - triées par prix croissant
     { id: 90, name: 'Oracle du Jour', price: 200, type: 'amelioration', image: '✦', description: 'Oracle quotidien avec cartes à choisir', isDailyQuote: true },
-    { id: 91, name: 'Journaling', price: 1000, type: 'amelioration', image: '🦋', description: 'Journal quotidien avec bilan hebdomadaire', isJournaling: true },
+    { id: 72, name: 'Notes Étendues', price: 300, type: 'amelioration', image: '📝', description: 'Notes plus longues sur les quêtes', isExtendedNotes: true },
+    { id: 87, name: 'Énigmes Faciles', price: 300, type: 'amelioration', image: '🧩', description: 'Énigme quotidienne niveau facile (+25 XP)', riddleLevel: 1 },
     { id: 73, name: 'Thème Rose', price: 400, type: 'amelioration', image: '💗', description: 'Change les couleurs en rose', themeColor: 'rose' },
     { id: 74, name: 'Thème Vert', price: 400, type: 'amelioration', image: '💚', description: 'Change les couleurs en vert', themeColor: 'vert' },
     { id: 75, name: 'Thème Bleu', price: 400, type: 'amelioration', image: '💙', description: 'Change les couleurs en bleu', themeColor: 'bleu' },
     { id: 76, name: 'Thème Violet', price: 400, type: 'amelioration', image: '💜', description: 'Change les couleurs en violet', themeColor: 'violet' },
+    { id: 85, name: 'Listes & Checkboxes', price: 400, type: 'amelioration', image: '✅', description: 'Listes à puces et checkboxes dans les notes', isRichTextEditor: true },
+    { id: 71, name: 'Bordures Dorées', price: 500, type: 'amelioration', image: '✨', description: 'Bordure dorée sur ton avatar', isGoldenBorder: true },
     { id: 77, name: 'Tri Avancé', price: 600, type: 'amelioration', image: '🔀', description: 'Options de tri supplémentaires', isAdvancedSort: true },
+    { id: 86, name: 'Photos Notes', price: 600, type: 'amelioration', image: '📷', description: 'Ajouter des photos dans les notes', isPhotoNotes: true },
+    { id: 88, name: 'Énigmes Moyennes', price: 600, type: 'amelioration', image: '🧠', description: 'Énigme quotidienne niveau moyen (+50 XP)', riddleLevel: 2 },
     { id: 84, name: 'Filtre de Tâches', price: 800, type: 'amelioration', image: '🔍', description: 'Filtre par statut et durée', isQuestFilter: true },
     { id: 78, name: 'Mode Sombre', price: 1000, type: 'amelioration', image: '🌙', description: 'Active le thème sombre', isDarkMode: true },
+    { id: 89, name: 'Énigmes Difficiles', price: 1000, type: 'amelioration', image: '🎓', description: 'Énigme quotidienne niveau difficile (+100 XP)', riddleLevel: 3 },
+    { id: 91, name: 'Journaling', price: 1000, type: 'amelioration', image: '🦋', description: 'Journal quotidien avec bilan hebdomadaire', isJournaling: true },
     { id: 79, name: 'Titre Personnalisé', price: 1500, type: 'amelioration', image: '🏷️', description: 'Affiche un titre sous ton pseudo', isCustomTitle: true },
-    { id: 80, name: 'Animations +', price: 2000, type: 'amelioration', image: '💫', description: 'Animations améliorées', isAnimations: true },
+    { id: 80, name: 'Animations +', price: 2000, type: 'amelioration', image: '💫', description: 'Animations spectaculaires et effets visuels', isAnimations: true },
+    { id: 92, name: 'Mode Hors Ligne', price: 2000, type: 'amelioration', image: '📴', description: 'Utilise l\'app sans connexion internet', isOfflineMode: true },
     { id: 81, name: 'Statistiques Pro', price: 2500, type: 'amelioration', image: '📊', description: 'Stats détaillées', unlocksStats: true },
     { id: 82, name: 'Fond Animé', price: 3000, type: 'amelioration', image: '🌠', description: 'Fond avec particules animées', isAnimatedBg: true },
     { id: 83, name: 'Badge VIP', price: 5000, type: 'amelioration', image: '👑', description: 'Badge VIP à côté du pseudo', isVipBadge: true },
-    { id: 87, name: 'Énigmes Faciles', price: 300, type: 'amelioration', image: '🧩', description: 'Énigme quotidienne niveau facile (+25 XP)', riddleLevel: 1 },
-    { id: 88, name: 'Énigmes Moyennes', price: 600, type: 'amelioration', image: '🧠', description: 'Énigme quotidienne niveau moyen (+50 XP)', riddleLevel: 2 },
-    { id: 89, name: 'Énigmes Difficiles', price: 1000, type: 'amelioration', image: '🎓', description: 'Énigme quotidienne niveau difficile (+100 XP)', riddleLevel: 3 },
     // Boosts temporaires - consommables (prix élevés car réutilisables)
     { id: 2, name: 'Lucky Chest', price: 150, type: 'boost', duration: 'Instantané', image: '🍀', description: 'Coffre aléatoire (chance de rare)', boostType: 'lucky_chest', instant: true },
     { id: 3, name: 'Coffre Splendide', price: 300, type: 'boost', duration: 'Instantané', image: '🎀', description: 'Reçois un coffre splendide', boostType: 'instant_silver_chest', instant: true },
@@ -176,233 +174,263 @@ export const useGameData = (supabaseUser) => {
   useEffect(() => {
     if (!supabaseUser) return;
 
-    const channel = supabase
-      .channel('missions-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'missions',
-        },
-        async (payload) => {
-          // Recharger les missions quand il y a un changement
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('pseudo')
-            .eq('id', supabaseUser.id)
-            .single();
+    let channel;
+    let tasksChannel;
+    let profilesChannel;
+    
+    const setupSubscriptions = () => {
+      channel = supabase
+        .channel('missions-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'missions',
+          },
+          async (payload) => {
+            try {
+              // Recharger les missions quand il y a un changement
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('pseudo')
+                .eq('id', supabaseUser.id)
+                .single();
 
-          if (profile) {
-            const { data: missionsData } = await supabase
-              .from('missions')
-              .select('*');
+              if (profile) {
+                const { data: missionsData } = await supabase
+                  .from('missions')
+                  .select('*');
 
-            if (missionsData) {
-              const userMissions = missionsData.filter(m => 
-                m.participant_pseudos?.includes(profile.pseudo) || m.created_by === profile.pseudo
-              );
-              setMissions(userMissions.map(m => ({
-                id: m.id,
-                title: m.title,
-                description: m.description || '',
-                participants: m.participants || [],
-                quests: m.quests || [],
-                createdBy: m.created_by,
-              })));
+                if (missionsData) {
+                  const userMissions = missionsData.filter(m => 
+                    m.participant_pseudos?.includes(profile.pseudo) || m.created_by === profile.pseudo
+                  );
+                  setMissions(userMissions.map(m => ({
+                    id: m.id,
+                    title: m.title,
+                    description: m.description || '',
+                    participants: m.participants || [],
+                    quests: m.quests || [],
+                    createdBy: m.created_by,
+                  })));
+                }
+              }
+            } catch (error) {
+              console.error('Erreur subscription missions:', error);
             }
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') {
+            console.error('Erreur channel missions, reconnexion...');
+            setTimeout(setupSubscriptions, 5000);
+          }
+        });
 
     // Souscription pour les tâches (mise à jour des tâches partagées)
-    const tasksChannel = supabase
-      .channel('tasks-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tasks',
-        },
-        async (payload) => {
-          // Recharger les tâches partagées quand il y a un changement
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('pseudo')
-            .eq('id', supabaseUser.id)
-            .single();
-
-          if (profile) {
-            // Charger les tâches propres
-            const { data: tasksData } = await supabase
-              .from('tasks')
-              .select('*')
-              .eq('user_id', supabaseUser.id)
-              .order('created_at', { ascending: false });
-
-            // Charger les tâches partagées
-            const { data: allOtherTasks } = await supabase
-              .from('tasks')
-              .select('*')
-              .neq('user_id', supabaseUser.id);
-
-            const sharedTasksData = (allOtherTasks || []).filter(t => {
-              if (!t.participants || !Array.isArray(t.participants) || t.participants.length === 0) return false;
-              return t.participants.some(p => p.pseudo === profile.pseudo);
-            });
-
-            const allTasks = [...(tasksData || []), ...sharedTasksData];
-
-            setTasks(allTasks.map(t => ({
-              id: t.id,
-              title: t.title,
-              status: t.status,
-              duration: t.duration,
-              date: t.date ? new Date(t.date) : null,
-              category: t.category,
-              completed: t.completed,
-              tags: t.tags || [],
-              recurrence: t.recurrence || 'none',
-              recurrenceDays: t.recurrence_days || [],
-              notes: t.notes || '',
-              photos: t.photos || [],
-              participants: t.participants || [],
-              ownerId: t.user_id,
-              isSharedWithMe: t.user_id !== supabaseUser.id,
-            })));
-          }
-        }
-      )
-      .subscribe();
-
-    // Souscription pour les événements (mise à jour des événements partagés)
-    const eventsChannel = supabase
-      .channel('events-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'events',
-        },
-        async (payload) => {
-          // Recharger les événements partagés quand il y a un changement
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('pseudo')
-            .eq('id', supabaseUser.id)
-            .single();
-
-          if (profile) {
-            // Charger les événements propres
-            const { data: eventsData } = await supabase
-              .from('events')
-              .select('*')
-              .eq('user_id', supabaseUser.id)
-              .order('date', { ascending: true });
-
-            // Charger les événements partagés
-            const { data: allOtherEvents } = await supabase
-              .from('events')
-              .select('*')
-              .neq('user_id', supabaseUser.id);
-
-            const sharedEventsData = (allOtherEvents || []).filter(e => {
-              if (!e.participants || !Array.isArray(e.participants) || e.participants.length === 0) return false;
-              return e.participants.some(p => p.pseudo === profile.pseudo);
-            });
-
-            const allEvents = [...(eventsData || []), ...sharedEventsData];
-
-            setEvents(allEvents.map(e => ({
-              id: e.id,
-              title: e.title,
-              description: e.description || '',
-              date: e.date ? new Date(e.date) : null,
-              time: e.time || '',
-              duration: e.duration || '1h-2h',
-              location: e.location || '',
-              participants: e.participants || [],
-              reminder: e.reminder || 'none',
-              completed: e.completed || false,
-              completedBy: e.completed_by || [],
-              tags: e.tags || [],
-              notes: e.notes || '',
-              photos: e.photos || [],
-              ownerId: e.user_id,
-              isSharedWithMe: e.user_id !== supabaseUser.id,
-            })));
-          }
-        }
-      )
-      .subscribe();
-
-    // Souscription pour les profils (mise à jour des PQ des amis)
-    const profilesChannel = supabase
-      .channel('profiles-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'profiles',
-        },
-        async () => {
-          // Recharger les amis avec leurs PQ mis à jour
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('pseudo')
-            .eq('id', supabaseUser.id)
-            .single();
-
-          if (profile) {
-            const { data: friendsData } = await supabase
-              .from('friends')
-              .select('friend_pseudo')
-              .eq('user_pseudo', profile.pseudo);
-
-            if (friendsData && friendsData.length > 0) {
-              const friendPseudos = friendsData.map(f => f.friend_pseudo);
-              const { data: friendProfiles } = await supabase
+      tasksChannel = supabase
+        .channel('tasks-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'tasks',
+          },
+          async (payload) => {
+            console.log('📥 REALTIME tasks event:', payload.eventType, payload.new?.title || payload.old?.id);
+            
+            try {
+              // Recharger les tâches partagées quand il y a un changement
+              const { data: profile } = await supabase
                 .from('profiles')
-                .select('pseudo, avatar, avatar_bg, level, pq_season, owned_items, custom_title')
-                .in('pseudo', friendPseudos);
+                .select('pseudo')
+                .eq('id', supabaseUser.id)
+                .single();
 
-              if (friendProfiles) {
-                setFriends(friendProfiles.map(f => ({
-                  pseudo: f.pseudo,
-                  avatar: f.avatar || '😀',
-                  avatarBg: f.avatar_bg || 'from-indigo-400 to-purple-500',
-                  level: f.level || 1,
-                  pqSeason: f.pq_season || 0,
-                  ownedItems: f.owned_items || [],
-                  customTitle: f.custom_title || '',
+              if (profile) {
+                console.log('📥 Mon pseudo pour filtrage:', profile.pseudo);
+                
+                // Charger les tâches propres
+                const { data: tasksData } = await supabase
+                  .from('tasks')
+                  .select('*')
+                  .eq('user_id', supabaseUser.id)
+                  .order('created_at', { ascending: false });
+
+                // Charger les tâches partagées - DEBUG complet
+                const { data: allOtherTasks, error: otherTasksError } = await supabase
+                  .from('tasks')
+                  .select('*')
+                  .neq('user_id', supabaseUser.id);
+
+                if (otherTasksError) {
+                  console.error('❌ Erreur chargement tâches autres:', otherTasksError);
+                }
+                console.log('📥 Tâches des autres utilisateurs:', allOtherTasks?.length, 'Erreur:', otherTasksError);
+
+                const sharedTasksData = (allOtherTasks || []).filter(t => {
+                  if (!t.participants || !Array.isArray(t.participants) || t.participants.length === 0) return false;
+                  
+                  // Trouver ma participation
+                  const myParticipation = t.participants.find(p => p.pseudo === profile.pseudo);
+                  if (!myParticipation) return false;
+                  
+                  // Ne PAS inclure si accepted === false (invitation en attente)
+                  // Inclure si accepted === true OU si accepted n'existe pas (anciennes tâches)
+                  const isAccepted = myParticipation.accepted !== false;
+                  
+                  if (t.participants.length > 0) {
+                    console.log('📥 Vérif tâche:', t.title, '| Mon pseudo:', profile.pseudo, '| Ma participation:', myParticipation, '| Acceptée:', isAccepted);
+                  }
+                  
+                  return isAccepted;
+                });
+
+                console.log('📥 Tâches partagées ACCEPTÉES:', sharedTasksData.length, sharedTasksData.map(t => ({ title: t.title, participants: t.participants })));
+
+                const allTasks = [...(tasksData || []), ...sharedTasksData];
+
+                setTasks(allTasks.map(t => ({
+                  id: t.id,
+                  title: t.title,
+                  status: t.status || 'à faire',
+                  duration: t.duration,
+                  date: t.date ? new Date(t.date) : null,
+                  category: t.category,
+                  completed: t.completed,
+                  tags: t.tags || [],
+                  recurrence: t.recurrence || 'none',
+                  recurrenceDays: t.recurrence_days || [],
+                  notes: t.notes || '',
+                  photos: t.photos || [],
+                  participants: t.participants || [],
+                  ownerId: t.user_id,
+                  isSharedWithMe: t.user_id !== supabaseUser.id,
+                  // Champs événement (fusion)
+                  time: t.time || '',
+                  location: t.location || '',
+                  reminder: t.reminder || 'none',
+                  description: t.description || '',
+                  completedBy: t.completed_by || [],
+                  missionId: t.mission_id,
+                  assignedTo: t.assigned_to,
                 })));
               }
+            } catch (error) {
+              console.error('Erreur subscription tasks:', error);
             }
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') {
+            console.error('Erreur channel tasks, reconnexion...');
+            setTimeout(setupSubscriptions, 5000);
+          }
+        });
+
+      // Souscription pour les profils (mise à jour des PQ des amis)
+      profilesChannel = supabase
+        .channel('profiles-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+          },
+          async () => {
+            try {
+              // Recharger les amis avec leurs PQ mis à jour
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('pseudo')
+                .eq('id', supabaseUser.id)
+                .single();
+
+              if (profile) {
+                const { data: friendsData } = await supabase
+                  .from('friends')
+                  .select('friend_pseudo')
+                  .eq('user_pseudo', profile.pseudo);
+
+                if (friendsData && friendsData.length > 0) {
+                  const friendPseudos = friendsData.map(f => f.friend_pseudo);
+                  const { data: friendProfiles } = await supabase
+                    .from('profiles')
+                    .select('pseudo, avatar, avatar_bg, level, pq_season, owned_items, custom_title')
+                    .in('pseudo', friendPseudos);
+
+                  if (friendProfiles) {
+                    setFriends(friendProfiles.map(f => ({
+                      pseudo: f.pseudo,
+                      avatar: f.avatar || '😀',
+                      avatarBg: f.avatar_bg || 'from-indigo-400 to-purple-500',
+                      level: f.level || 1,
+                      pqSeason: f.pq_season || 0,
+                      ownedItems: f.owned_items || [],
+                      customTitle: f.custom_title || '',
+                    })));
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('Erreur subscription profiles:', error);
+            }
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') {
+            console.error('Erreur channel profiles, reconnexion...');
+            setTimeout(setupSubscriptions, 5000);
+          }
+        });
+    };
+    
+    setupSubscriptions();
 
     return () => {
-      supabase.removeChannel(channel);
-      supabase.removeChannel(tasksChannel);
-      supabase.removeChannel(eventsChannel);
-      supabase.removeChannel(profilesChannel);
+      if (channel) supabase.removeChannel(channel);
+      if (tasksChannel) supabase.removeChannel(tasksChannel);
+      if (profilesChannel) supabase.removeChannel(profilesChannel);
     };
   }, [supabaseUser]);
 
-  const loadUserData = async (userId) => {
+  const loadUserData = async (userId, retryCount = 0) => {
+    const MAX_RETRIES = 3;
+    const TIMEOUT_MS = 10000; // 10 secondes timeout
+    
+    // Helper pour ajouter un timeout aux requêtes
+    const withTimeout = (promise, ms) => {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), ms)
+        )
+      ]);
+    };
+    
     try {
-      // Charger le profil
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      // Charger le profil avec timeout
+      const { data: profile, error: profileError } = await withTimeout(
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single(),
+        TIMEOUT_MS
+      );
+
+      if (profileError) {
+        console.error('Erreur profil:', profileError);
+        // Si erreur réseau et pas encore max retries, réessayer
+        if (retryCount < MAX_RETRIES && (profileError.message?.includes('network') || profileError.message?.includes('fetch'))) {
+          console.log(`Retry ${retryCount + 1}/${MAX_RETRIES}...`);
+          await new Promise(r => setTimeout(r, 1000 * (retryCount + 1))); // Backoff exponentiel
+          return loadUserData(userId, retryCount + 1);
+        }
+      }
 
       if (profile) {
         setUser({
@@ -454,38 +482,47 @@ export const useGameData = (supabaseUser) => {
 
       // Charger aussi les tâches où l'utilisateur est participant
       // On récupère toutes les tâches des autres utilisateurs et on filtre côté client
-      const { data: allOtherTasks } = await supabase
+      const { data: allOtherTasks, error: otherTasksError } = await supabase
         .from('tasks')
         .select('*')
         .neq('user_id', userId);
 
+      if (otherTasksError) {
+        console.error('❌ Erreur chargement tâches autres (init):', otherTasksError);
+      }
       console.log('Mon pseudo:', profile?.pseudo);
-      console.log('Toutes les tâches des autres:', allOtherTasks?.length, allOtherTasks);
+      console.log('Toutes les tâches des autres:', allOtherTasks?.length, allOtherTasks, 'Erreur:', otherTasksError);
 
       // Filtrer les tâches partagées avec l'utilisateur courant
+      // IMPORTANT: Ne pas inclure les tâches où accepted === false (invitations en attente)
       const sharedTasksData = (allOtherTasks || []).filter(t => {
         if (!t.participants || !Array.isArray(t.participants) || t.participants.length === 0) {
           return false;
         }
-        const isParticipant = t.participants.some(p => {
-          const match = p.pseudo === profile?.pseudo;
-          if (t.participants.length > 0) {
-            console.log('Vérification tâche:', t.title, '| Participants:', t.participants.map(pp => pp.pseudo), '| Mon pseudo:', profile?.pseudo, '| Match:', match);
-          }
-          return match;
-        });
-        return isParticipant;
+        
+        // Trouver ma participation
+        const myParticipation = t.participants.find(p => p.pseudo === profile?.pseudo);
+        if (!myParticipation) return false;
+        
+        // Ne PAS inclure si accepted === false (invitation en attente)
+        // Inclure si accepted === true OU si accepted n'existe pas (anciennes tâches)
+        const isAccepted = myParticipation.accepted !== false;
+        
+        console.log('Vérification tâche:', t.title, '| Ma participation:', myParticipation, '| Acceptée:', isAccepted);
+        
+        return isAccepted;
       });
 
-      console.log('Tâches partagées trouvées:', sharedTasksData.length, sharedTasksData);
+      console.log('Tâches partagées ACCEPTÉES:', sharedTasksData.length, sharedTasksData);
 
       const allTasks = [...(tasksData || []), ...sharedTasksData];
 
       // Toujours mettre à jour les tâches même si vide
+      // Les événements sont maintenant des tâches avec un champ time
       setTasks(allTasks.map(t => ({
         id: t.id,
         title: t.title,
-        status: t.status,
+        status: t.status || 'à faire',
         duration: t.duration,
         date: t.date ? new Date(t.date) : null,
         category: t.category,
@@ -498,62 +535,18 @@ export const useGameData = (supabaseUser) => {
         participants: t.participants || [],
         ownerId: t.user_id,
         isSharedWithMe: t.user_id !== userId,
+        // Champs événement (fusion)
+        time: t.time || '',
+        location: t.location || '',
+        reminder: t.reminder || 'none',
+        description: t.description || '',
+        completedBy: t.completed_by || [],
+        missionId: t.mission_id,
+        assignedTo: t.assigned_to,
       })));
 
-      // Charger les événements (propres + partagés)
-      const { data: eventsData } = await supabase
-        .from('events')
-        .select('*')
-        .eq('user_id', userId)
-        .order('date', { ascending: true });
-
-      // Charger aussi les événements où l'utilisateur est participant
-      const { data: allOtherEvents } = await supabase
-        .from('events')
-        .select('*')
-        .neq('user_id', userId);
-
-      console.log('Tous les événements des autres:', allOtherEvents?.length);
-
-      // Filtrer les événements partagés avec l'utilisateur courant
-      const sharedEventsData = (allOtherEvents || []).filter(e => {
-        if (!e.participants || !Array.isArray(e.participants) || e.participants.length === 0) {
-          return false;
-        }
-        const isParticipant = e.participants.some(p => {
-          const match = p.pseudo === profile?.pseudo;
-          if (e.participants.length > 0) {
-            console.log('Vérification événement:', e.title, '| Participants:', e.participants.map(pp => pp.pseudo), '| Mon pseudo:', profile?.pseudo, '| Match:', match);
-          }
-          return match;
-        });
-        return isParticipant;
-      });
-
-      console.log('Événements partagés trouvés:', sharedEventsData.length, sharedEventsData);
-
-      const allEvents = [...(eventsData || []), ...sharedEventsData];
-
-      // Toujours mettre à jour les événements même si vide
-      setEvents(allEvents.map(e => ({
-        id: e.id,
-        title: e.title,
-        description: e.description || '',
-        date: e.date ? new Date(e.date) : null,
-        time: e.time || '',
-        duration: e.duration || '1h-2h',
-        location: e.location || '',
-        participants: e.participants || [],
-        reminder: e.reminder || 'none',
-        completed: e.completed || false,
-        completedBy: e.completed_by || [],
-        tags: e.tags || [],
-        notes: e.notes || '',
-        photos: e.photos || [],
-        createdAt: e.created_at,
-        ownerId: e.user_id,
-        isSharedWithMe: e.user_id !== userId,
-      })));
+      // Les événements ne sont plus chargés séparément
+      // Ils sont maintenant dans tasks avec time != ''
 
       // Charger les amis (depuis la table friends)
       const { data: friendsData } = await supabase
@@ -665,6 +658,13 @@ export const useGameData = (supabaseUser) => {
       }
     } catch (error) {
       console.error('Erreur chargement données:', error);
+      
+      // Retry automatique en cas d'erreur réseau ou timeout
+      if (retryCount < MAX_RETRIES && (error.message === 'Timeout' || error.message?.includes('network') || error.message?.includes('fetch') || error.message?.includes('Failed to fetch'))) {
+        console.log(`Retry après erreur ${retryCount + 1}/${MAX_RETRIES}...`);
+        await new Promise(r => setTimeout(r, 2000 * (retryCount + 1))); // Backoff exponentiel
+        return loadUserData(userId, retryCount + 1);
+      }
     }
   };
 
@@ -735,53 +735,58 @@ export const useGameData = (supabaseUser) => {
     }
   };
 
-  // Sauvegarder un événement
-  const saveEvent = async (event) => {
+  // Sauvegarder une tâche (avec tous les champs, y compris time/location pour les événements)
+  const saveTask = async (task) => {
     if (!supabaseUser) return;
     
     try {
-      const eventData = {
-        id: event.id,
+      const taskData = {
+        id: task.id,
         user_id: supabaseUser.id,
-        title: event.title,
-        description: event.description || '',
-        date: event.date instanceof Date ? event.date.toISOString() : event.date,
-        time: event.time || '',
-        duration: event.duration || '1h-2h',
-        location: event.location || '',
-        participants: event.participants || [],
-        reminder: event.reminder || 'none',
-        completed: event.completed || false,
-        completed_by: event.completedBy || [],
-        tags: event.tags || [],
-        notes: event.notes || '',
-        photos: event.photos || [],
+        title: task.title,
+        status: task.status || 'à faire',
+        duration: task.duration || '1h-2h',
+        date: task.date instanceof Date ? task.date.toISOString() : task.date,
+        recurrence: task.recurrence || 'none',
+        recurrence_days: task.recurrenceDays || [],
+        tags: task.tags || [],
+        notes: task.notes || '',
+        photos: task.photos || [],
+        participants: task.participants || [],
+        category: task.date ? 'today' : 'bucketlist',
+        completed: task.completed || false,
+        // Champs pour les tâches avec heure (anciennement événements)
+        time: task.time || null,
+        location: task.location || null,
+        reminder: task.reminder || 'none',
+        description: task.description || '',
+        completed_by: task.completedBy || [],
+        mission_id: task.missionId || null,
+        assigned_to: task.assignedTo || null,
         updated_at: new Date().toISOString(),
       };
       
+      // DEBUG: Log des participants sauvegardés
+      if (taskData.participants && taskData.participants.length > 0) {
+        console.log('📤 SAVE TASK avec participants:', {
+          taskId: taskData.id,
+          title: taskData.title,
+          participants: taskData.participants,
+          user_id: taskData.user_id
+        });
+      }
+      
       const { error } = await supabase
-        .from('events')
-        .upsert(eventData, { onConflict: 'id' });
+        .from('tasks')
+        .upsert(taskData, { onConflict: 'id' });
       
       if (error) {
-        console.error('Erreur Supabase saveEvent:', error);
+        console.error('Erreur Supabase saveTask:', error);
+      } else if (taskData.participants && taskData.participants.length > 0) {
+        console.log('✅ Tâche partagée sauvegardée avec succès');
       }
     } catch (error) {
-      console.error('Erreur sauvegarde événement:', error);
-    }
-  };
-
-  // Supprimer un événement
-  const deleteEvent = async (eventId) => {
-    if (!supabaseUser) return;
-    
-    try {
-      const { error } = await supabase.from('events').delete().eq('id', eventId);
-      if (error) {
-        console.error('Erreur Supabase deleteEvent:', error);
-      }
-    } catch (error) {
-      console.error('Erreur suppression événement:', error);
+      console.error('Erreur sauvegarde tâche:', error);
     }
   };
 
@@ -1025,6 +1030,9 @@ export const useGameData = (supabaseUser) => {
           case 'questsCreated':
             statValue = stats.questsCreated || 0;
             break;
+          case 'scheduledTasksCompleted':
+            statValue = stats.scheduledTasksCompleted || 0;
+            break;
           default:
             statValue = 0;
         }
@@ -1108,6 +1116,9 @@ export const useGameData = (supabaseUser) => {
           case 'questsCreated':
             statValue = stats.questsCreated || 0;
             break;
+          case 'scheduledTasksCompleted':
+            statValue = stats.scheduledTasksCompleted || 0;
+            break;
           default:
             statValue = 0;
         }
@@ -1161,8 +1172,6 @@ export const useGameData = (supabaseUser) => {
     updateChests,
     tasks,
     setTasks,
-    events,
-    setEvents,
     missions,
     setMissions,
     friends,
@@ -1186,8 +1195,7 @@ export const useGameData = (supabaseUser) => {
     saveFriend,
     saveMission,
     deleteMission,
-    saveEvent,
-    deleteEvent,
+    saveTask,
     checkPseudoAvailable,
     // Thème
     theme,
