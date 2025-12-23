@@ -136,6 +136,11 @@ const QuestApp = () => {
   const [showDailyQuote, setShowDailyQuote] = useState(false);
   const [pendingNotification, setPendingNotification] = useState(null);
   const [pendingShareInvitation, setPendingShareInvitation] = useState(null);
+  const [ignoredInvitations, setIgnoredInvitations] = useState(() => {
+    // Charger les invitations ignorées depuis localStorage
+    const saved = localStorage.getItem('ignoredInvitations');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   // Hook pour le journaling
   const journaling = useJournaling(supabaseUser?.id);
@@ -232,37 +237,47 @@ const QuestApp = () => {
 
   // Détecter les invitations de partage en attente
   useEffect(() => {
-    if (!supabaseUser || !user.pseudo) return;
+    if (!supabaseUser || !user.pseudo) {
+      console.log('🔍 Skip invitation check - pas de user:', { supabaseUser: !!supabaseUser, pseudo: user.pseudo });
+      return;
+    }
     
     const checkPendingInvitations = async () => {
-      console.log('🔍 Recherche invitations pour:', user.pseudo);
+      console.log('🔍 ========== RECHERCHE INVITATIONS ==========');
+      console.log('🔍 Mon user_id:', supabaseUser.id);
+      console.log('🔍 Mon pseudo:', user.pseudo);
       
-      // Chercher directement dans Supabase les tâches où on est participant avec accepted: false
-      const { data: allOtherTasks, error } = await supabase
+      // Chercher TOUTES les tâches sans filtre RLS - utiliser une approche différente
+      const { data: allTasks, error: allError } = await supabase
         .from('tasks')
-        .select('*')
-        .neq('user_id', supabaseUser.id);
+        .select('*');
       
-      if (error) {
-        console.error('❌ Erreur recherche invitations:', error);
-        return;
-      }
+      console.log('🔍 TOUTES les tâches visibles:', allTasks?.length, 'Erreur:', allError);
       
-      // Filtrer les tâches où je suis invité avec accepted: false
-      const pendingInvitations = (allOtherTasks || []).filter(task => {
+      // Filtrer côté client les tâches où je suis invité avec accepted: false
+      const pendingInvitations = (allTasks || []).filter(task => {
+        // Ignorer mes propres tâches
+        if (task.user_id === supabaseUser.id) return false;
+        
+        // Ignorer les invitations déjà ignorées/refusées
+        if (ignoredInvitations.includes(task.id)) return false;
+        
         if (!task.participants || !Array.isArray(task.participants)) return false;
         
         const myParticipation = task.participants.find(p => p.pseudo === user.pseudo);
+        console.log('🔍 Check tâche:', task.title, '| user_id:', task.user_id, '| Mon pseudo:', user.pseudo, '| Ma participation:', myParticipation);
+        
         const isPending = myParticipation && myParticipation.accepted === false;
         
         if (isPending) {
-          console.log('🔍 Invitation trouvée:', task.title, '| participants:', task.participants);
+          console.log('✅ INVITATION TROUVÉE:', task.title);
         }
         
         return isPending;
       });
       
       console.log('🔍 Total invitations en attente:', pendingInvitations.length);
+      console.log('🔍 ============================================');
       
       // Afficher la première invitation en attente
       if (pendingInvitations.length > 0 && !pendingShareInvitation) {
@@ -281,6 +296,10 @@ const QuestApp = () => {
           taskTitle: invitation.title,
           taskDate: invitation.date ? new Date(invitation.date) : null,
           taskTime: invitation.time,
+          taskDuration: invitation.duration,
+          taskStatus: invitation.status,
+          taskTags: invitation.tags || [],
+          taskLocation: invitation.location,
           ownerPseudo: ownerParticipant?.pseudo || 'Un ami',
           ownerAvatar: ownerParticipant?.avatar || '😀',
         });
@@ -293,7 +312,7 @@ const QuestApp = () => {
     const interval = setInterval(checkPendingInvitations, 10000);
     
     return () => clearInterval(interval);
-  }, [user.pseudo, supabaseUser, pendingShareInvitation]);
+  }, [user.pseudo, supabaseUser, pendingShareInvitation, ignoredInvitations]);
 
   // Accepter une invitation de partage
   const acceptShareInvitation = async (taskId) => {
@@ -363,6 +382,11 @@ const QuestApp = () => {
   // Refuser une invitation de partage
   const declineShareInvitation = async (taskId) => {
     console.log('❌ Refus invitation pour tâche:', taskId);
+    
+    // Ajouter aux invitations ignorées et sauvegarder
+    const newIgnored = [...ignoredInvitations, taskId];
+    setIgnoredInvitations(newIgnored);
+    localStorage.setItem('ignoredInvitations', JSON.stringify(newIgnored));
     
     // Récupérer la tâche depuis Supabase
     const { data: taskData, error } = await supabase
@@ -2790,16 +2814,6 @@ const QuestApp = () => {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Modal d'invitation de partage */}
-      {pendingShareInvitation && (
-        <ShareInvitationModal
-          invitation={pendingShareInvitation}
-          onAccept={acceptShareInvitation}
-          onDecline={declineShareInvitation}
-          onClose={() => setPendingShareInvitation(null)}
-        />
       )}
     </div>
   );

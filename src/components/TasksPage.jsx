@@ -174,6 +174,8 @@ export const TasksPage = ({
   const todayTasks = useMemo(() => {
     const regularTasks = activeTasks.filter(t => {
       if (!t.date) return false;
+      // Exclure les tâches avec heure (elles sont affichées comme événements)
+      if (t.time && t.time !== '') return false;
       const taskDate = new Date(t.date);
       taskDate.setHours(0, 0, 0, 0);
       return taskDate.getTime() === today.getTime();
@@ -219,6 +221,8 @@ export const TasksPage = ({
   const weekTasks = useMemo(() => weekDates.map(date => {
     const tasksForDate = activeTasks.filter(t => {
       if (!t.date) return false;
+      // Exclure les tâches avec heure (elles sont affichées comme événements)
+      if (t.time && t.time !== '') return false;
       const taskDate = new Date(t.date);
       taskDate.setHours(0, 0, 0, 0);
       return taskDate.getTime() === date.getTime();
@@ -314,30 +318,30 @@ export const TasksPage = ({
                   {task.title}
                 </h3>
                 {/* Avatars des participants avec statut */}
-                {isShared && !compact && (
+                {isShared && (
                   <div className="flex -space-x-1 flex-shrink-0">
-                    {task.participants.slice(0, 3).map((p, i) => {
+                    {task.participants.slice(0, compact ? 2 : 3).map((p, i) => {
                       const isAccepted = p.accepted !== false; // true par défaut si pas défini
                       return (
                         <div 
                           key={i} 
-                          className={`w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow-sm transition-all ${
+                          className={`${compact ? 'w-5 h-5' : 'w-6 h-6'} rounded-full flex items-center justify-center border-2 border-white shadow-sm transition-all relative ${
                             isAccepted 
                               ? 'bg-gradient-to-br from-indigo-400 to-purple-500' 
                               : 'bg-slate-300 grayscale opacity-60'
                           }`}
                           title={`${p.pseudo}${isAccepted ? '' : ' (en attente)'}`}
                         >
-                          <span className={`text-xs ${isAccepted ? '' : 'opacity-50'}`}>{p.avatar}</span>
+                          <span className={`${compact ? 'text-[10px]' : 'text-xs'} ${isAccepted ? '' : 'opacity-50'}`}>{p.avatar}</span>
                           {!isAccepted && (
                             <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-amber-400 rounded-full border border-white" title="En attente"></span>
                           )}
                         </div>
                       );
                     })}
-                    {task.participants.length > 3 && (
-                      <div className="w-6 h-6 rounded-full bg-slate-300 flex items-center justify-center border-2 border-white text-xs text-slate-600">
-                        +{task.participants.length - 3}
+                    {task.participants.length > (compact ? 2 : 3) && (
+                      <div className={`${compact ? 'w-5 h-5 text-[10px]' : 'w-6 h-6 text-xs'} rounded-full bg-slate-300 flex items-center justify-center border-2 border-white text-slate-600`}>
+                        +{task.participants.length - (compact ? 2 : 3)}
                       </div>
                     )}
                   </div>
@@ -533,45 +537,74 @@ export const TasksPage = ({
 
       {/* Bandeau invitation de partage */}
       {pendingInvitation && (
-        <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-4 shadow-lg border-2 border-white/20">
-          <div className="flex items-center gap-4 flex-wrap">
-            {/* Avatar de l'expéditeur */}
-            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-2xl flex-shrink-0 border-2 border-white/30">
+        <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-3 shadow-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-lg">
               {pendingInvitation.ownerAvatar}
             </div>
-            
-            {/* Détails */}
-            <div className="flex-1 min-w-0">
-              <p className="text-white/80 text-sm">
-                <span className="font-bold text-white">{pendingInvitation.ownerPseudo}</span> t'invite à participer à :
-              </p>
-              <h3 className="text-white font-bold text-lg truncate">
-                📋 {pendingInvitation.taskTitle}
-              </h3>
-              {(pendingInvitation.taskDate || pendingInvitation.taskTime) && (
-                <p className="text-white/70 text-sm">
-                  📅 {pendingInvitation.taskDate && new Date(pendingInvitation.taskDate).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
-                  {pendingInvitation.taskTime && ` à ${pendingInvitation.taskTime}`}
-                </p>
-              )}
-              <p className="text-yellow-200 text-xs mt-1 font-medium">
-                ✨ Points et XP x2 en participant !
-              </p>
+            <p className="text-white text-sm">
+              <span className="font-bold">{pendingInvitation.ownerPseudo}</span> t'invite à participer :
+            </p>
+          </div>
+          
+          {/* Carte tâche style normal */}
+          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+            <div className="flex items-start gap-2">
+              <div className="flex-1 min-w-0">
+                {/* Titre + XP/Patates */}
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="font-semibold text-base text-slate-900">
+                    {pendingInvitation.taskTitle}
+                  </h3>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <span className="px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
+                      ⚡x2
+                    </span>
+                    <span className="px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
+                      🥔x2
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Infos : date, heure, durée */}
+                <div className="flex items-center gap-2 flex-wrap mt-2">
+                  {pendingInvitation.taskDate && (
+                    <span className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs font-medium text-slate-600">
+                      📅 {new Date(pendingInvitation.taskDate).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    </span>
+                  )}
+                  {pendingInvitation.taskTime && (
+                    <span className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs font-medium text-slate-600">
+                      🕐 {pendingInvitation.taskTime}
+                    </span>
+                  )}
+                  {pendingInvitation.taskDuration && (
+                    <span className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs font-medium text-slate-600">
+                      {pendingInvitation.taskDuration}
+                    </span>
+                  )}
+                  {pendingInvitation.taskStatus && (
+                    <span className={`px-2 py-1 rounded-lg border text-xs font-medium ${getStatusColor(pendingInvitation.taskStatus)}`}>
+                      {pendingInvitation.taskStatus}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
             
             {/* Boutons */}
-            <div className="flex gap-2 flex-shrink-0">
+            <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
               <button
                 onClick={() => onDeclineInvitation(pendingInvitation.taskId)}
-                className="px-4 py-2 bg-white/20 hover:bg-red-500/50 text-white rounded-xl font-semibold transition-all border border-white/30"
+                className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-semibold transition-all text-sm border border-slate-200"
               >
-                ✕ Refuser
+                Refuser
               </button>
               <button
                 onClick={() => onAcceptInvitation(pendingInvitation.taskId)}
-                className="px-4 py-2 bg-white hover:bg-green-100 text-purple-600 rounded-xl font-bold transition-all shadow-md"
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-bold transition-all text-sm shadow-md hover:opacity-90"
               >
-                ✓ Accepter
+                Accepter
               </button>
             </div>
           </div>
