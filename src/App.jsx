@@ -480,20 +480,15 @@ const QuestApp = () => {
     localStorage.setItem('todogame_tasksView', tasksView);
   }, [tasksView]);
 
-  // Reporter automatiquement les tâches non faites d'hier à aujourd'hui
+  // Reporter automatiquement les tâches non faites à des dates passées vers aujourd'hui
   useEffect(() => {
-    const checkAndReportTasks = async () => {
+    const checkAndReportAllTasks = async () => {
       if (!tasks || tasks.length === 0 || !supabaseUser) return;
       
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().split('T')[0];
       
-      // Éviter de retraiter plusieurs fois le même jour
-      const lastReportKey = `todogame_lastTaskReport_${supabaseUser.id}`;
-      const lastReport = localStorage.getItem(lastReportKey);
-      if (lastReport === todayStr) return;
-      
+      // Trouver TOUTES les tâches passées non terminées (avec ou sans heure)
       const tasksToReport = tasks.filter(task => {
         if (task.completed) return false;
         if (!task.date) return false;
@@ -507,12 +502,9 @@ const QuestApp = () => {
         return taskDate < today;
       });
       
-      if (tasksToReport.length === 0) {
-        localStorage.setItem(lastReportKey, todayStr);
-        return;
-      }
+      if (tasksToReport.length === 0) return;
       
-      console.log(`Report de ${tasksToReport.length} tâche(s) non terminée(s) à aujourd'hui`);
+      console.log(`Report automatique de ${tasksToReport.length} tâche(s) non terminée(s) à aujourd'hui`);
       
       // Mettre à jour les tâches localement
       const updatedTasks = tasks.map(task => {
@@ -526,76 +518,19 @@ const QuestApp = () => {
       
       // Mettre à jour dans Supabase - en batch pour plus de fiabilité
       const taskIds = tasksToReport.map(t => t.id);
-      await supabase
-        .from('tasks')
-        .update({ date: today.toISOString() })
-        .in('id', taskIds);
-      
-      localStorage.setItem(lastReportKey, todayStr);
+      try {
+        await supabase
+          .from('tasks')
+          .update({ date: today.toISOString() })
+          .in('id', taskIds);
+        console.log('Tâches reportées avec succès dans Supabase');
+      } catch (error) {
+        console.error('Erreur lors du report des tâches:', error);
+      }
     };
     
     // Petit délai pour s'assurer que les tâches sont bien chargées
-    const timer = setTimeout(checkAndReportTasks, 500);
-    return () => clearTimeout(timer);
-  }, [tasks.length, supabaseUser]); // Se déclenche quand les tâches sont chargées
-
-  // Reporter automatiquement les tâches avec heure (événements) non faites d'hier à aujourd'hui
-  useEffect(() => {
-    const checkAndReportTasksWithTime = async () => {
-      // Filtrer les tâches avec heure (anciennement événements)
-      const tasksWithTime = tasks.filter(t => t.time && t.time !== '');
-      if (!tasksWithTime || tasksWithTime.length === 0 || !supabaseUser) return;
-      
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().split('T')[0];
-      
-      // Éviter de retraiter plusieurs fois le même jour
-      const lastReportKey = `todogame_lastEventReport_${supabaseUser.id}`;
-      const lastReport = localStorage.getItem(lastReportKey);
-      if (lastReport === todayStr) return;
-      
-      const tasksToReport = tasksWithTime.filter(task => {
-        if (task.completed) return false;
-        if (!task.date) return false;
-        // Ne pas reporter les tâches partagées dont on n'est pas le propriétaire
-        if (task.isSharedWithMe) return false;
-        
-        const taskDate = new Date(task.date);
-        taskDate.setHours(0, 0, 0, 0);
-        
-        // Si la date de la tâche est avant aujourd'hui, on la reporte
-        return taskDate < today;
-      });
-      
-      if (tasksToReport.length === 0) {
-        localStorage.setItem(lastReportKey, todayStr);
-        return;
-      }
-      
-      console.log(`Report de ${tasksToReport.length} tâche(s) planifiée(s) non terminée(s) à aujourd'hui`);
-      
-      // Mettre à jour les tâches localement
-      const updatedTasks = tasks.map(task => {
-        if (tasksToReport.some(t => t.id === task.id)) {
-          return { ...task, date: today };
-        }
-        return task;
-      });
-      
-      setTasks(updatedTasks);
-      
-      // Mettre à jour dans Supabase - en batch
-      const taskIds = tasksToReport.map(t => t.id);
-      await supabase
-        .from('tasks')
-        .update({ date: today.toISOString() })
-        .in('id', taskIds);
-      
-      localStorage.setItem(lastReportKey, todayStr);
-    };
-    
-    const timer = setTimeout(checkAndReportTasksWithTime, 600);
+    const timer = setTimeout(checkAndReportAllTasks, 500);
     return () => clearTimeout(timer);
   }, [tasks.length, supabaseUser]); // Se déclenche quand les tâches sont chargées
 
@@ -1559,8 +1494,10 @@ const QuestApp = () => {
       taskDate.setHours(0, 0, 0, 0);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      console.log('Date tâche:', taskDate, 'Aujourd\'hui:', today, 'Passée?', taskDate < today);
       if (taskDate < today) {
         taskToEdit.date = today;
+        console.log('Date mise à jour à aujourd\'hui');
       }
     }
     

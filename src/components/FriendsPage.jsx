@@ -264,7 +264,7 @@ export const FriendsPage = ({
         <h2 className="text-lg font-bold text-slate-900 mb-4">Mes amis ({friends.length})</h2>
         
         {sortedFriends.length > 0 ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {sortedFriends.map((friend) => {
               const { sharedTasks, sharedTasksWithTime } = getSharedWithFriend(friend.pseudo);
               const sharedCount = sharedTasks.length + sharedTasksWithTime.length;
@@ -272,36 +272,29 @@ export const FriendsPage = ({
               return (
                 <div 
                   key={friend.pseudo} 
-                  className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-all"
+                  className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-all"
                 >
-                  <div 
-                    className="flex items-center gap-3 flex-1 cursor-pointer"
-                    onClick={() => setSelectedFriend(friend)}
-                  >
-                    <div className={`w-10 h-10 bg-gradient-to-br ${friend.avatarBg || 'from-indigo-400 to-purple-500'} rounded-xl flex items-center justify-center text-xl ${hasGoldenBorder(friend) ? 'ring-2 ring-yellow-400 ring-offset-1' : ''}`}>
-                      <span className="emoji-display">{friend.avatar}</span>
-                    </div>
-                    <div>
-                      <div className="font-bold text-slate-900 flex items-center gap-1">
-                        {friend.pseudo}
-                        {hasVipBadge(friend) && <span className="text-yellow-500 text-xs">👑</span>}
+                  {/* Ligne 1: Avatar + Pseudo + Boutons */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div 
+                      className="flex items-center gap-3 flex-1 cursor-pointer"
+                      onClick={() => setSelectedFriend(friend)}
+                    >
+                      <div className={`w-10 h-10 bg-gradient-to-br ${friend.avatarBg || 'from-indigo-400 to-purple-500'} rounded-xl flex items-center justify-center text-xl ${hasGoldenBorder(friend) ? 'ring-2 ring-yellow-400 ring-offset-1' : ''}`}>
+                        <span className="emoji-display">{friend.avatar}</span>
                       </div>
-                      <div className="text-xs text-slate-500 flex items-center gap-2">
-                        <span className="text-blue-500 font-medium">Niv. {friend.level} ⭐</span>
-                        {friend.potatoes !== undefined && (
-                          <span className="text-amber-600 font-medium">{friend.potatoes} 🥔</span>
+                      <div>
+                        <div className="font-bold text-slate-900 flex items-center gap-1">
+                          {friend.pseudo}
+                          {hasVipBadge(friend) && <span className="text-yellow-500 text-xs">👑</span>}
+                        </div>
+                        {hasCustomTitle(friend) && (
+                          <div className="text-xs text-slate-400">{friend.customTitle}</div>
                         )}
-                        {hasCustomTitle(friend) && <span>• {friend.customTitle}</span>}
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {sharedCount > 0 && (
-                      <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium mr-2">
-                        {sharedCount} partagé{sharedCount > 1 ? 's' : ''}
-                      </span>
-                    )}
-                    {/* Bouton supprimer - discret et petit */}
+                    
+                    {/* Bouton supprimer */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -312,15 +305,24 @@ export const FriendsPage = ({
                     >
                       ✕
                     </button>
-                    {/* Séparateur */}
-                    <div className="w-px h-6 bg-slate-200 mx-1"></div>
-                    {/* Bouton Défi Chifoumi - bien visible */}
+                  </div>
+                  
+                  {/* Ligne 2: Stats + Bouton Défi */}
+                  <div className="flex items-center justify-between ml-[52px]">
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="text-blue-500 font-medium">Niv. {friend.level} ⭐</span>
+                      {friend.potatoes !== undefined && (
+                        <span className="text-amber-600 font-medium">{friend.potatoes} 🥔</span>
+                      )}
+                    </div>
+                    
+                    {/* Bouton Défi Chifoumi */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setChallengeFriend(friend);
                       }}
-                      className="px-3 py-1.5 bg-amber-100 text-amber-700 hover:bg-amber-200 rounded-lg transition-all font-medium text-sm flex items-center gap-1"
+                      className="px-3 py-1.5 bg-amber-100 text-amber-700 hover:bg-amber-200 rounded-lg transition-all font-semibold text-xs flex items-center gap-1"
                       title="Défier au Chifoumi"
                     >
                       ⚔️ Défi

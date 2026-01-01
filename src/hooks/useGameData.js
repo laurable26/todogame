@@ -395,11 +395,12 @@ export const useGameData = (supabaseUser) => {
                   const friendPseudos = friendsData.map(f => f.friend_pseudo);
                   const { data: friendProfiles } = await supabase
                     .from('profiles')
-                    .select('pseudo, avatar, avatar_bg, level, pq_season, owned_items, custom_title, potatoes')
+                    .select('id, pseudo, avatar, avatar_bg, level, pq_season, owned_items, custom_title, potatoes')
                     .in('pseudo', friendPseudos);
 
                   if (friendProfiles) {
                     setFriends(friendProfiles.map(f => ({
+                      odUserId: f.id,
                       pseudo: f.pseudo,
                       avatar: f.avatar || '😀',
                       avatarBg: f.avatar_bg || 'from-indigo-400 to-purple-500',
@@ -609,11 +610,12 @@ export const useGameData = (supabaseUser) => {
         const friendPseudos = friendsData.map(f => f.friend_pseudo);
         const { data: friendProfiles } = await supabase
           .from('profiles')
-          .select('pseudo, avatar, avatar_bg, level, pq_season, owned_items, custom_title, potatoes')
+          .select('id, pseudo, avatar, avatar_bg, level, pq_season, owned_items, custom_title, potatoes')
           .in('pseudo', friendPseudos);
 
         if (friendProfiles) {
           setFriends(friendProfiles.map(f => ({
+            odUserId: f.id,
             pseudo: f.pseudo,
             avatar: f.avatar || '😀',
             avatarBg: f.avatar_bg || 'from-indigo-400 to-purple-500',
