@@ -9,13 +9,16 @@ import { AuthScreen, OnboardingScreen, LoadingScreen } from './components/AuthSc
 import { Header, Navigation } from './components/Header';
 import { TasksPage } from './components/TasksPage';
 import { FriendsPage } from './components/FriendsPage';
-import { ChestsPage, ChestOpeningModal } from './components/ChestsPage';
+import { ChestOpeningModal } from './components/ChestModal';
 import { BadgesPage } from './components/BadgesPage';
 import { ShopPage } from './components/ShopPage';
 import { StatsPage } from './components/StatsPage';
 import { DailyQuoteCard, DailyQuoteButton } from './components/DailyQuote';
 import { JournalingButterfly } from './components/JournalingButterfly';
 import { SeasonalChallengeBanner } from './components/SeasonalChallengeBanner';
+import { Vault, VaultButton } from './components/Vault';
+import { ControlCenter } from './components/ControlCenter';
+import { WidgetPage, WidgetInstructions } from './components/WidgetPage';
 import { 
   CreateTaskModal, 
   ChestOpenedModal, 
@@ -32,8 +35,14 @@ import {
 } from './components/Modals';
 import { getDailyRiddle } from './data/riddles';
 import { supabase } from './supabaseClient';
+import HabitTracker from './components/HabitTracker';
 
 const QuestApp = () => {
+  // Vérifier si on est sur la page widget
+  if (window.location.pathname === '/widget') {
+    return <WidgetPage />;
+  }
+
   // Auth
   const {
     isLoggedIn,
@@ -113,6 +122,7 @@ const QuestApp = () => {
     const saved = localStorage.getItem('todogame_currentPage');
     return saved || 'tasks';
   });
+  const [shopDefaultTab, setShopDefaultTab] = useState('avatar');
   const [tasksView, setTasksView] = useState(() => {
     const saved = localStorage.getItem('todogame_tasksView');
     return saved || 'today';
@@ -136,6 +146,7 @@ const QuestApp = () => {
   const [showDailyQuote, setShowDailyQuote] = useState(false);
   const [pendingNotification, setPendingNotification] = useState(null);
   const [pendingShareInvitation, setPendingShareInvitation] = useState(null);
+  const [showVault, setShowVault] = useState(false);
   const [ignoredInvitations, setIgnoredInvitations] = useState(() => {
     // Charger les invitations ignorées depuis localStorage
     const saved = localStorage.getItem('ignoredInvitations');
@@ -156,6 +167,12 @@ const QuestApp = () => {
   
   // Vérifier si l'amélioration Journaling est active
   const hasJournaling = ownedItems.includes(91) && activeUpgrades[91] !== false;
+
+  // Vérifier si l'amélioration Habit Tracker est active
+  const hasHabitTracker = ownedItems.includes(93) && activeUpgrades[93] !== false;
+  const [showHabitTracker, setShowHabitTracker] = useState(false);
+  const [showJournalingModal, setShowJournalingModal] = useState(false);
+  const [showWidgetInstructions, setShowWidgetInstructions] = useState(false);
 
   // Charger et écouter les notifications en temps réel
   useEffect(() => {
@@ -713,90 +730,108 @@ const QuestApp = () => {
   };
 
   // Actions
-  const fuseChests = (type) => {
-    let newChests = { ...chests };
-    if (type === 'bronze' && chests.bronze >= 3) {
-      newChests = { ...chests, bronze: chests.bronze - 3, silver: chests.silver + 1 };
-    } else if (type === 'silver' && chests.silver >= 5) {
-      newChests = { ...chests, silver: chests.silver - 5, gold: chests.gold + 1 };
-    }
-    updateChests(newChests);
-  };
+  // Supprimer fuseChests - plus de fusion dans le nouveau système
 
-  const openChest = (type) => {
-    if (chests[type] <= 0) return;
+  // Nouveau système d'ouverture de coffre avec clés
+  const openChest = () => {
+    if (chests.keys < 6) return;
 
-    // Les IDs doivent correspondre à ceux de shopItems dans useGameData.js
-    const possibleRewards = {
-      bronze: [
-        // Avatars basiques (prix 100-200)
-        { id: 21, name: 'Chat', type: 'avatar', image: '🐱' },
-        { id: 22, name: 'Chien', type: 'avatar', image: '🐶' },
-        { id: 23, name: 'Lapin', type: 'avatar', image: '🐰' },
-        { id: 24, name: 'Panda', type: 'avatar', image: '🐼' },
-        { id: 25, name: 'Renard', type: 'avatar', image: '🦊' },
-        { id: 26, name: 'Lion', type: 'avatar', image: '🦁' },
-      ],
-      silver: [
-        // Fonds basiques (prix 200-400)
-        { id: 50, name: 'Océan', type: 'fond', image: '🌊', colors: 'from-blue-400 to-cyan-500' },
-        { id: 51, name: 'Prairie', type: 'fond', image: '🌿', colors: 'from-green-400 to-lime-500' },
-        { id: 52, name: 'Forêt', type: 'fond', image: '🌲', colors: 'from-green-600 to-emerald-700' },
-        { id: 53, name: 'Ciel', type: 'fond', image: '☁️', colors: 'from-sky-300 to-blue-400' },
-        { id: 54, name: 'Coucher de soleil', type: 'fond', image: '🌅', colors: 'from-orange-400 to-pink-500' },
-        { id: 55, name: 'Aurore', type: 'fond', image: '🌄', colors: 'from-pink-400 to-orange-400' },
-        // Avatars moyens (prix 300-500)
-        { id: 27, name: 'Guerrier', type: 'avatar', image: '⚔️' },
-        { id: 28, name: 'Mage', type: 'avatar', image: '🧙' },
-        { id: 29, name: 'Fantôme', type: 'avatar', image: '👻' },
-        { id: 30, name: 'Citrouille', type: 'avatar', image: '🎃' },
-      ],
-      gold: [
-        // Fonds rares (prix 500-1000)
-        { id: 56, name: 'Nuit', type: 'fond', image: '🌙', colors: 'from-slate-700 to-slate-900' },
-        { id: 57, name: 'Minuit', type: 'fond', image: '🌑', colors: 'from-indigo-900 to-slate-900' },
-        { id: 58, name: 'Feu', type: 'fond', image: '🔥', colors: 'from-red-500 to-orange-500' },
-        { id: 59, name: 'Lave', type: 'fond', image: '🌋', colors: 'from-red-600 to-yellow-500' },
-        { id: 60, name: 'Galaxie', type: 'fond', image: '🌌', colors: 'from-purple-600 to-indigo-800' },
-        { id: 61, name: 'Nébuleuse', type: 'fond', image: '✨', colors: 'from-purple-500 to-pink-600' },
-        // Avatars rares (prix 600-1000)
-        { id: 33, name: 'Pirate', type: 'avatar', image: '🏴‍☠️' },
-        { id: 34, name: 'Cowboy', type: 'avatar', image: '🤠' },
-        { id: 35, name: 'Robot', type: 'avatar', image: '🤖' },
-        { id: 36, name: 'Extraterrestre', type: 'avatar', image: '👾' },
-      ],
-      legendary: [
-        // Fonds légendaires (prix 1500+)
-        { id: 62, name: 'Or', type: 'fond', image: '🏆', colors: 'from-yellow-400 to-amber-500' },
-        { id: 63, name: 'Argent', type: 'fond', image: '🥈', colors: 'from-slate-300 to-slate-500' },
-        { id: 64, name: 'Arc-en-ciel', type: 'fond', image: '🌈', colors: 'from-red-500 via-yellow-500 to-blue-500' },
-        { id: 65, name: 'Aurore Boréale', type: 'fond', image: '🌠', colors: 'from-green-400 via-blue-500 to-purple-600' },
-        // Avatars légendaires (prix 1500+)
-        { id: 38, name: 'Alien', type: 'avatar', image: '👽' },
-        { id: 39, name: 'Sirène', type: 'avatar', image: '🧜‍♀️' },
-        { id: 40, name: 'Licorne', type: 'avatar', image: '🦄' },
-        { id: 41, name: 'Fée', type: 'avatar', image: '🧚' },
-        { id: 43, name: 'Dragon', type: 'avatar', image: '🐉' },
-      ],
-    };
-
-    const pointsReward = { bronze: 50, silver: 150, gold: 400, legendary: 1000 };
-
-    const availableItems = possibleRewards[type].filter(item => !ownedItems.includes(item.id));
-    let wonItem = null;
+    // Incrémenter le compteur de super coffre
+    let newSuperCounter = chests.superChestCounter + 1;
     
-    if (availableItems.length > 0) {
-      wonItem = availableItems[Math.floor(Math.random() * availableItems.length)];
-      setOwnedItems(prev => [...prev, wonItem.id]);
+    // Déterminer si c'est un super coffre (garanti entre 10 et 15)
+    let isSuperChest = false;
+    if (newSuperCounter >= 15) {
+      isSuperChest = true;
+    } else if (newSuperCounter >= 10) {
+      // Entre 10 et 15, chance aléatoire croissante
+      const chanceOfSuper = (newSuperCounter - 9) * 0.2; // 20% à 10, 40% à 11, etc.
+      isSuperChest = Math.random() < chanceOfSuper;
+    }
+    
+    // Reset le compteur si super coffre
+    if (isSuperChest) {
+      newSuperCounter = 0;
     }
 
-    const rewards = { points: pointsReward[type], items: wonItem ? [wonItem] : [] };
-    const newChests = { ...chests, [type]: chests[type] - 1 };
-    const newUser = { ...user, potatoes: user.potatoes + rewards.points };
+    // Récompenses selon le type de coffre
+    let potatoes;
+    let wonItem = null;
+
+    if (isSuperChest) {
+      // SUPER COFFRE : 100-300 patates + amélioration OU boost
+      potatoes = 100 + Math.floor(Math.random() * 201);
+      
+      // Liste des améliorations et boosts possibles (ceux pas encore possédés pour les améliorations)
+      const possibleUpgrades = shopItems.filter(item => 
+        item.type === 'amelioration' && !ownedItems.includes(item.id)
+      );
+      
+      const possibleBoosts = shopItems.filter(item => 
+        item.type === 'boost'
+      );
+      
+      // 60% amélioration, 40% boost
+      if (possibleUpgrades.length > 0 && Math.random() < 0.6) {
+        wonItem = possibleUpgrades[Math.floor(Math.random() * possibleUpgrades.length)];
+      } else if (possibleBoosts.length > 0) {
+        wonItem = possibleBoosts[Math.floor(Math.random() * possibleBoosts.length)];
+      } else if (possibleUpgrades.length > 0) {
+        // Fallback si pas de boost
+        wonItem = possibleUpgrades[Math.floor(Math.random() * possibleUpgrades.length)];
+      }
+    } else {
+      // COFFRE NORMAL : 20-80 patates + 10% chance avatar/fond exclusif
+      potatoes = 20 + Math.floor(Math.random() * 61);
+      
+      // 10% de chance d'obtenir un avatar ou fond exclusif
+      if (Math.random() < 0.1) {
+        const exclusiveItems = shopItems.filter(item => 
+          item.chestExclusive && !ownedItems.includes(item.id)
+        );
+        
+        if (exclusiveItems.length > 0) {
+          wonItem = exclusiveItems[Math.floor(Math.random() * exclusiveItems.length)];
+        }
+      }
+    }
+
+    // Ajouter l'item gagné aux possessions
+    if (wonItem) {
+      setOwnedItems(prev => [...prev, wonItem.id]);
+      saveOwnedItems([...ownedItems, wonItem.id]);
+    }
+
+    // Mettre à jour les clés et le compteur
+    const newChests = { 
+      keys: chests.keys - 6, 
+      superChestCounter: newSuperCounter 
+    };
+    
+    // Mettre à jour les patates et stats
+    const newUser = { 
+      ...user, 
+      potatoes: user.potatoes + potatoes,
+      chestsOpened: (user.chestsOpened || 0) + 1
+    };
     
     updateChests(newChests);
     updateUser(newUser);
-    setOpeningChest({ type, rewards });
+    
+    // Afficher le modal avec les récompenses
+    setOpeningChest({ 
+      isSuperChest,
+      rewards: { 
+        potatoes, 
+        item: wonItem 
+      } 
+    });
+  };
+
+  // Ajouter une clé (appelé quand une tâche/événement est complété)
+  const addKey = () => {
+    const newChests = { ...chests, keys: chests.keys + 1 };
+    updateChests(newChests);
   };
 
   const buyItem = (item) => {
@@ -824,28 +859,27 @@ const QuestApp = () => {
             xpToNext: newXpToNext
           });
         } else if (item.boostType === 'lucky_chest') {
-          // Lucky chest - coffre aléatoire avec chance de rare
+          // Lucky chest - clés bonus avec chance de super coffre forcé
           const rand = Math.random();
-          let newChests = { ...chests };
-          if (rand < 0.5) {
-            newChests.bronze += 1; // 50% commun
-          } else if (rand < 0.8) {
-            newChests.silver += 1; // 30% splendide
-          } else if (rand < 0.95) {
-            newChests.gold += 1; // 15% diamant
-          } else {
-            newChests.legendary += 1; // 5% légendaire
+          let keysToAdd = 6; // Minimum pour ouvrir un coffre
+          if (rand < 0.3) {
+            keysToAdd = 12; // 30% chance de 2 ouvertures
+          } else if (rand < 0.1) {
+            keysToAdd = 18; // 10% chance de 3 ouvertures
           }
+          const newChests = { ...chests, keys: chests.keys + keysToAdd };
           setChests(newChests);
           saveChests(newChests);
           updateUser({ ...user, potatoes: user.potatoes - item.price });
         } else if (item.boostType === 'instant_silver_chest') {
-          const newChests = { ...chests, silver: chests.silver + 1 };
+          // Coffre splendide -> 10 clés
+          const newChests = { ...chests, keys: chests.keys + 10 };
           setChests(newChests);
           saveChests(newChests);
           updateUser({ ...user, potatoes: user.potatoes - item.price });
         } else if (item.boostType === 'instant_gold_chest') {
-          const newChests = { ...chests, gold: chests.gold + 1 };
+          // Coffre diamant -> 15 clés
+          const newChests = { ...chests, keys: chests.keys + 15 };
           setChests(newChests);
           saveChests(newChests);
           updateUser({ ...user, potatoes: user.potatoes - item.price });
@@ -923,6 +957,10 @@ const QuestApp = () => {
       }
       if (item.themeColor) {
         setColorTheme(item.themeColor);
+      }
+      // Afficher les instructions pour le widget
+      if (item.id === 96) {
+        setShowWidgetInstructions(true);
       }
     }
   };
@@ -1022,15 +1060,11 @@ const QuestApp = () => {
       saveProfile(newUser);
     }
 
-    // Coffre : toutes les 8 tâches (ou 6 si boost coffre actif)
-    const hasChestBoost = activeBoosts.some(b => b.type === 'chest_boost' && new Date(b.expiresAt) > new Date());
-    const chestThreshold = hasChestBoost ? 6 : 8;
-    if ((user.tasksCompleted + 1) % chestThreshold === 0) {
-      const newChests = { ...chests, bronze: chests.bronze + 1 };
-      setChests(newChests);
-      if (supabaseUser) {
-        saveChests(newChests);
-      }
+    // +1 clé par tâche complétée
+    const newChests = { ...chests, keys: chests.keys + 1 };
+    setChests(newChests);
+    if (supabaseUser) {
+      saveChests(newChests);
     }
 
     // Si c'est une tâche récurrente, créer la prochaine occurrence
@@ -1448,7 +1482,11 @@ const QuestApp = () => {
       />
     );
   } else if (openingChest) {
-    pageContent = <ChestOpeningModal chest={openingChest} onClose={() => setOpeningChest(null)} hasAnimationsPlus={ownedItems.includes(80) && activeUpgrades[80] !== false} />;
+    pageContent = <ChestOpeningModal 
+      onClose={() => setOpeningChest(null)} 
+      rewards={openingChest.rewards}
+      isSuperChest={openingChest.isSuperChest}
+    />;
   } else if (completingTask) {
     pageContent = <TaskCompletedModal task={completingTask} onClose={() => setCompletingTask(null)} hasAnimationsPlus={ownedItems.includes(80) && activeUpgrades[80] !== false} />;
   } else if (completingMission) {
@@ -1778,13 +1816,11 @@ const QuestApp = () => {
               tasksCompleted: newTasksCompleted,
             });
             
-            // Coffre toutes les 8 tâches
-            if (newTasksCompleted % 8 === 0) {
-              const newChests = { ...chests, bronze: chests.bronze + 1 };
-              setChests(newChests);
-              if (supabaseUser) {
-                saveChests(newChests);
-              }
+            // +1 clé par tâche complétée
+            const newChests = { ...chests, keys: chests.keys + 1 };
+            setChests(newChests);
+            if (supabaseUser) {
+              saveChests(newChests);
             }
           }
         }}
@@ -2086,13 +2122,11 @@ const QuestApp = () => {
               saveProfile(newUser);
             }
             
-            // Coffre toutes les 8 tâches (tâches de mission incluses)
-            if (newTasksCompleted % 8 === 0) {
-              const newChests = { ...chests, bronze: chests.bronze + 1 };
-              setChests(newChests);
-              if (supabaseUser) {
-                saveChests(newChests);
-              }
+            // +1 clé par tâche complétée
+            const newChests = { ...chests, keys: chests.keys + 1 };
+            setChests(newChests);
+            if (supabaseUser) {
+              saveChests(newChests);
             }
           }
         }}
@@ -2206,8 +2240,6 @@ const QuestApp = () => {
         ownedItems={ownedItems}
       />
     );
-  } else if (currentPage === 'chests') {
-    pageContent = <ChestsPage chests={chests} onFuseChests={fuseChests} onOpenChest={openChest} tasksCompleted={user.tasksCompleted} />;
   } else if (currentPage === 'badges') {
     pageContent = <BadgesPage badges={badges} />;
   } else if (currentPage === 'stats') {
@@ -2235,6 +2267,7 @@ const QuestApp = () => {
         activeBoosts={activeBoosts}
         activeUpgrades={activeUpgrades}
         onToggleUpgrade={toggleUpgrade}
+        defaultTab={shopDefaultTab}
       />
     );
   }
@@ -2306,6 +2339,16 @@ const QuestApp = () => {
         theme={theme}
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
+        keys={chests.keys}
+        onOpenChest={openChest}
+        onPotatoClick={() => {
+          setShopDefaultTab('amelioration');
+          setCurrentPage('shop');
+        }}
+        onXpClick={() => {
+          setShopDefaultTab('avatar');
+          setCurrentPage('shop');
+        }}
       />
 
       {/* Notification in-app */}
@@ -2335,9 +2378,11 @@ const QuestApp = () => {
 
       <Navigation 
         currentPage={currentPage} 
-        setCurrentPage={setCurrentPage}
+        setCurrentPage={(page) => {
+          if (page === 'shop') setShopDefaultTab('avatar');
+          setCurrentPage(page);
+        }}
         friendRequestsCount={friendRequests.length}
-        chestsCount={chests.bronze + chests.silver + chests.gold + chests.legendary}
         theme={theme}
         hasStats={hasStats}
       />
@@ -2594,8 +2639,8 @@ const QuestApp = () => {
         }
       `}</style>
 
-      {/* Icône flottante énigme du jour - déplaçable */}
-      {(() => {
+      {/* Icône flottante énigme du jour - déplaçable - seulement si pas de Centre de contrôle */}
+      {!(ownedItems.includes(95) && activeUpgrades[95] !== false) && (() => {
         // Récupérer le niveau d'énigme le plus élevé disponible
         let activeRiddleLevel = null;
         if (ownedItems.includes(89) && activeUpgrades[89] !== false) activeRiddleLevel = 3;
@@ -2612,6 +2657,9 @@ const QuestApp = () => {
           3: { xp: 100 }
         }[activeRiddleLevel];
         
+        // Seuil de mouvement en pixels avant de considérer comme un drag
+        const MOVE_THRESHOLD = 10;
+        
         return (
           <div
             id="puzzle-floating-icon"
@@ -2626,24 +2674,32 @@ const QuestApp = () => {
               e.preventDefault();
               const el = e.currentTarget;
               const rect = el.getBoundingClientRect();
-              const startX = e.clientX - rect.left;
-              const startY = e.clientY - rect.top;
-              let moved = false;
+              const startX = e.clientX;
+              const startY = e.clientY;
+              const offsetX = e.clientX - rect.left;
+              const offsetY = e.clientY - rect.top;
+              let totalMoved = 0;
               
               const onMouseMove = (e) => {
-                moved = true;
-                const newX = Math.max(10, Math.min(window.innerWidth - 60, e.clientX - startX));
-                const newY = Math.max(80, Math.min(window.innerHeight - 140, e.clientY - startY));
-                el.style.left = newX + 'px';
-                el.style.top = newY + 'px';
-                el.style.right = 'auto';
-                el.style.bottom = 'auto';
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                totalMoved = Math.sqrt(dx * dx + dy * dy);
+                
+                if (totalMoved > MOVE_THRESHOLD) {
+                  const newX = Math.max(10, Math.min(window.innerWidth - 60, e.clientX - offsetX));
+                  const newY = Math.max(80, Math.min(window.innerHeight - 140, e.clientY - offsetY));
+                  el.style.left = newX + 'px';
+                  el.style.top = newY + 'px';
+                  el.style.right = 'auto';
+                  el.style.bottom = 'auto';
+                }
               };
               
               const onMouseUp = () => {
                 document.removeEventListener('mousemove', onMouseMove);
                 document.removeEventListener('mouseup', onMouseUp);
-                if (!moved) {
+                // Ouvrir seulement si le mouvement total est inférieur au seuil
+                if (totalMoved < MOVE_THRESHOLD) {
                   const riddle = getDailyRiddle(activeRiddleLevel);
                   setShowRiddle({ level: activeRiddleLevel, riddle, alreadyDone: isDoneToday });
                 }
@@ -2656,26 +2712,33 @@ const QuestApp = () => {
               const el = e.currentTarget;
               const touch = e.touches[0];
               const rect = el.getBoundingClientRect();
-              const startX = touch.clientX - rect.left;
-              const startY = touch.clientY - rect.top;
-              let moved = false;
-              const startTime = Date.now();
+              const startX = touch.clientX;
+              const startY = touch.clientY;
+              const offsetX = touch.clientX - rect.left;
+              const offsetY = touch.clientY - rect.top;
+              let totalMoved = 0;
               
               const onTouchMove = (e) => {
-                moved = true;
                 const touch = e.touches[0];
-                const newX = Math.max(10, Math.min(window.innerWidth - 60, touch.clientX - startX));
-                const newY = Math.max(80, Math.min(window.innerHeight - 140, touch.clientY - startY));
-                el.style.left = newX + 'px';
-                el.style.top = newY + 'px';
-                el.style.right = 'auto';
-                el.style.bottom = 'auto';
+                const dx = touch.clientX - startX;
+                const dy = touch.clientY - startY;
+                totalMoved = Math.sqrt(dx * dx + dy * dy);
+                
+                if (totalMoved > MOVE_THRESHOLD) {
+                  const newX = Math.max(10, Math.min(window.innerWidth - 60, touch.clientX - offsetX));
+                  const newY = Math.max(80, Math.min(window.innerHeight - 140, touch.clientY - offsetY));
+                  el.style.left = newX + 'px';
+                  el.style.top = newY + 'px';
+                  el.style.right = 'auto';
+                  el.style.bottom = 'auto';
+                }
               };
               
               const onTouchEnd = () => {
                 document.removeEventListener('touchmove', onTouchMove);
                 document.removeEventListener('touchend', onTouchEnd);
-                if (!moved && Date.now() - startTime < 300) {
+                // Ouvrir seulement si le mouvement total est inférieur au seuil
+                if (totalMoved < MOVE_THRESHOLD) {
                   const riddle = getDailyRiddle(activeRiddleLevel);
                   setShowRiddle({ level: activeRiddleLevel, riddle, alreadyDone: isDoneToday });
                 }
@@ -2701,6 +2764,52 @@ const QuestApp = () => {
           </div>
         );
       })()}
+
+      {/* Bouton flottant Coffre-fort - seulement si pas de Centre de contrôle */}
+      {ownedItems.includes(94) && activeUpgrades[94] !== false && !(ownedItems.includes(95) && activeUpgrades[95] !== false) && (
+        <VaultButton onClick={() => setShowVault(true)} />
+      )}
+
+      {/* Modal Coffre-fort */}
+      {showVault && (
+        <Vault userId={supabaseUser?.id} onClose={() => setShowVault(false)} />
+      )}
+
+      {/* Centre de contrôle - regroupe tous les boutons flottants */}
+      {ownedItems.includes(95) && activeUpgrades[95] !== false && (() => {
+        // Calculer les infos pour chaque feature
+        let activeRiddleLevel = null;
+        if (ownedItems.includes(89) && activeUpgrades[89] !== false) activeRiddleLevel = 3;
+        else if (ownedItems.includes(88) && activeUpgrades[88] !== false) activeRiddleLevel = 2;
+        else if (ownedItems.includes(87) && activeUpgrades[87] !== false) activeRiddleLevel = 1;
+        
+        const riddleXp = activeRiddleLevel ? { 1: 25, 2: 50, 3: 100 }[activeRiddleLevel] : 0;
+        const riddleDone = activeRiddleLevel && riddlesDoneToday.includes(activeRiddleLevel);
+        
+        // Vérifier si la citation a été vue aujourd'hui (stocké en localStorage)
+        const today = new Date().toISOString().split('T')[0];
+        const quoteSeen = localStorage.getItem('lastQuoteDate') === today;
+        
+        return (
+          <ControlCenter
+            hasRiddle={!!activeRiddleLevel}
+            riddleDone={riddleDone}
+            riddleXp={riddleXp}
+            onRiddleClick={() => {
+              const riddle = getDailyRiddle(activeRiddleLevel);
+              setShowRiddle({ level: activeRiddleLevel, riddle, alreadyDone: riddleDone });
+            }}
+            hasVault={ownedItems.includes(94) && activeUpgrades[94] !== false}
+            onVaultClick={() => setShowVault(true)}
+            hasJournaling={hasJournaling}
+            journalDone={journaling?.todayEntry}
+            onJournalingClick={() => setShowJournalingModal(true)}
+            hasDailyQuote={hasDailyQuote}
+            quoteSeen={quoteSeen}
+            onQuoteClick={() => setShowDailyQuote(true)}
+            hasHabitTracker={hasHabitTracker}
+            onHabitTrackerClick={() => setShowHabitTracker(true)}
+          />
         );
       })()}
 
@@ -2764,8 +2873,8 @@ const QuestApp = () => {
         />
       )}
 
-      {/* Bouton flottant Citation du Jour */}
-      {hasDailyQuote && (
+      {/* Bouton flottant Citation du Jour - seulement si pas de Centre de contrôle */}
+      {hasDailyQuote && !(ownedItems.includes(95) && activeUpgrades[95] !== false) && (
         <DailyQuoteButton onClick={() => setShowDailyQuote(true)} />
       )}
 
@@ -2774,9 +2883,140 @@ const QuestApp = () => {
         <DailyQuoteCard onClose={() => setShowDailyQuote(false)} userId={supabaseUser?.id} />
       )}
 
-      {/* Journaling - Papillon flottant */}
-      {hasJournaling && (
+      {/* Journaling - Papillon flottant - seulement si pas de Centre de contrôle */}
+      {hasJournaling && !(ownedItems.includes(95) && activeUpgrades[95] !== false) && (
         <JournalingButterfly journaling={journaling} />
+      )}
+
+      {/* Modal Journaling depuis Centre de contrôle */}
+      {hasJournaling && showJournalingModal && (
+        <JournalingButterfly 
+          journaling={journaling} 
+          forceOpen={true}
+          onClose={() => setShowJournalingModal(false)}
+        />
+      )}
+
+      {/* Habit Tracker - Bouton flottant draggable - seulement si pas de Centre de contrôle */}
+      {hasHabitTracker && !(ownedItems.includes(95) && activeUpgrades[95] !== false) && (() => {
+        const MOVE_THRESHOLD = 10;
+        
+        return (
+          <div
+            id="habit-tracker-floating-icon"
+            draggable="false"
+            className="fixed z-40"
+            style={{
+              bottom: '130px',
+              left: '20px',
+              touchAction: 'none',
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const el = e.currentTarget;
+              const rect = el.getBoundingClientRect();
+              const startX = e.clientX;
+              const startY = e.clientY;
+              const offsetX = e.clientX - rect.left;
+              const offsetY = e.clientY - rect.top;
+              let totalMoved = 0;
+              
+              const onMouseMove = (e) => {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                totalMoved = Math.sqrt(dx * dx + dy * dy);
+                
+                if (totalMoved > MOVE_THRESHOLD) {
+                  const newX = Math.max(10, Math.min(window.innerWidth - 60, e.clientX - offsetX));
+                  const newY = Math.max(80, Math.min(window.innerHeight - 140, e.clientY - offsetY));
+                  el.style.left = newX + 'px';
+                  el.style.top = newY + 'px';
+                  el.style.right = 'auto';
+                  el.style.bottom = 'auto';
+                }
+              };
+              
+              const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+                if (totalMoved < MOVE_THRESHOLD) {
+                  setShowHabitTracker(true);
+                }
+              };
+              
+              document.addEventListener('mousemove', onMouseMove);
+              document.addEventListener('mouseup', onMouseUp);
+            }}
+            onTouchStart={(e) => {
+              const el = e.currentTarget;
+              const touch = e.touches[0];
+              const rect = el.getBoundingClientRect();
+              const startX = touch.clientX;
+              const startY = touch.clientY;
+              const offsetX = touch.clientX - rect.left;
+              const offsetY = touch.clientY - rect.top;
+              let totalMoved = 0;
+              
+              const onTouchMove = (e) => {
+                const touch = e.touches[0];
+                const dx = touch.clientX - startX;
+                const dy = touch.clientY - startY;
+                totalMoved = Math.sqrt(dx * dx + dy * dy);
+                
+                if (totalMoved > MOVE_THRESHOLD) {
+                  const newX = Math.max(10, Math.min(window.innerWidth - 60, touch.clientX - offsetX));
+                  const newY = Math.max(80, Math.min(window.innerHeight - 140, touch.clientY - offsetY));
+                  el.style.left = newX + 'px';
+                  el.style.top = newY + 'px';
+                  el.style.right = 'auto';
+                  el.style.bottom = 'auto';
+                }
+              };
+              
+              const onTouchEnd = () => {
+                document.removeEventListener('touchmove', onTouchMove);
+                document.removeEventListener('touchend', onTouchEnd);
+                if (totalMoved < MOVE_THRESHOLD) {
+                  setShowHabitTracker(true);
+                }
+              };
+              
+              document.addEventListener('touchmove', onTouchMove);
+              document.addEventListener('touchend', onTouchEnd);
+            }}
+          >
+            <div className="w-14 h-14 flex items-center justify-center cursor-grab active:cursor-grabbing">
+              <span className="text-4xl hover:scale-110 transition-transform">🎯</span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Modal Habit Tracker */}
+      {showHabitTracker && hasHabitTracker && (
+        <HabitTracker
+          supabase={supabase}
+          userId={supabaseUser?.id}
+          onXPGain={(xp) => {
+            const newUser = { ...user, xp: user.xp + xp };
+            // Vérifier level up
+            if (newUser.xp >= newUser.xpToNext) {
+              newUser.level += 1;
+              newUser.xp = newUser.xp - newUser.xpToNext;
+              newUser.xpToNext = Math.floor(newUser.xpToNext * 1.2);
+            }
+            setUser(newUser);
+            if (supabaseUser) saveProfile(newUser);
+          }}
+          potatoes={user.potatoes}
+          setPotatoes={(updater) => {
+            const newPotatoes = typeof updater === 'function' ? updater(user.potatoes) : updater;
+            const newUser = { ...user, potatoes: newPotatoes };
+            setUser(newUser);
+            if (supabaseUser) saveProfile(newUser);
+          }}
+          onClose={() => setShowHabitTracker(false)}
+        />
       )}
 
       {/* Modal de notification (tâche/événement complété par un ami) */}
@@ -2814,6 +3054,11 @@ const QuestApp = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Instructions Widget */}
+      {showWidgetInstructions && (
+        <WidgetInstructions onClose={() => setShowWidgetInstructions(false)} />
       )}
     </div>
   );

@@ -193,11 +193,6 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
               <p className="text-sm text-slate-500">Pour : {missionMode.title}</p>
             )}
             <div className="flex items-center gap-3">
-              {saveStatus && (
-                <span className={`text-xs ${saveStatus === 'saving' ? 'text-amber-500' : 'text-green-500'}`}>
-                  {saveStatus === 'saving' ? '⏳ Sauvegarde...' : '✓ Enregistré'}
-                </span>
-              )}
               <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">✕</button>
             </div>
           </div>

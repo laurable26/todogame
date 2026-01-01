@@ -31,10 +31,8 @@ export const useGameData = (supabaseUser) => {
   });
 
   const [chests, setChests] = useState({
-    bronze: 0,
-    silver: 0,
-    gold: 0,
-    legendary: 0,
+    keys: 0,
+    superChestCounter: 0, // Compteur caché pour le super coffre (reset après 10-15)
   });
 
   const [tasks, setTasks] = useState([]);
@@ -85,48 +83,70 @@ export const useGameData = (supabaseUser) => {
   ]);
 
   const [shopItems] = useState([
-    // Avatars - triés par prix (24 avatars)
-    { id: 21, name: 'Chat', price: 100, type: 'avatar', image: '🐱' },
-    { id: 22, name: 'Chien', price: 100, type: 'avatar', image: '🐶' },
-    { id: 23, name: 'Lapin', price: 150, type: 'avatar', image: '🐰' },
-    { id: 24, name: 'Panda', price: 150, type: 'avatar', image: '🐼' },
-    { id: 25, name: 'Renard', price: 200, type: 'avatar', image: '🦊' },
-    { id: 26, name: 'Lion', price: 200, type: 'avatar', image: '🦁' },
-    { id: 27, name: 'Guerrier', price: 300, type: 'avatar', image: '⚔️' },
-    { id: 28, name: 'Mage', price: 300, type: 'avatar', image: '🧙' },
-    { id: 29, name: 'Fantôme', price: 400, type: 'avatar', image: '👻' },
-    { id: 30, name: 'Citrouille', price: 400, type: 'avatar', image: '🎃' },
-    { id: 31, name: 'Danseuse', price: 500, type: 'avatar', image: '💃' },
-    { id: 32, name: 'Épéiste', price: 500, type: 'avatar', image: '🤺' },
-    { id: 33, name: 'Pirate', price: 600, type: 'avatar', image: '🏴‍☠️' },
-    { id: 34, name: 'Cowboy', price: 600, type: 'avatar', image: '🤠' },
-    { id: 35, name: 'Robot', price: 800, type: 'avatar', image: '🤖' },
-    { id: 36, name: 'Extraterrestre', price: 800, type: 'avatar', image: '👾' },
-    { id: 37, name: 'Astronaute', price: 1000, type: 'avatar', image: '👨‍🚀' },
-    { id: 38, name: 'Alien', price: 1000, type: 'avatar', image: '👽' },
-    { id: 39, name: 'Sirène', price: 1500, type: 'avatar', image: '🧜‍♀️' },
-    { id: 40, name: 'Licorne', price: 1500, type: 'avatar', image: '🦄' },
-    { id: 41, name: 'Fée', price: 2000, type: 'avatar', image: '🧚' },
-    { id: 42, name: 'Roi', price: 2500, type: 'avatar', image: '👑' },
-    { id: 43, name: 'Dragon', price: 5000, type: 'avatar', image: '🐉' },
-    { id: 44, name: 'Phoenix', price: 10000, type: 'avatar', image: '🔥' },
-    // Fonds - triés par prix (16 fonds)
-    { id: 50, name: 'Océan', price: 200, type: 'fond', image: '🌊', colors: 'from-blue-400 to-cyan-500' },
-    { id: 51, name: 'Prairie', price: 200, type: 'fond', image: '🌿', colors: 'from-green-400 to-lime-500' },
-    { id: 52, name: 'Forêt', price: 300, type: 'fond', image: '🌲', colors: 'from-green-600 to-emerald-700' },
-    { id: 53, name: 'Ciel', price: 300, type: 'fond', image: '☁️', colors: 'from-sky-300 to-blue-400' },
-    { id: 54, name: 'Coucher de soleil', price: 400, type: 'fond', image: '🌅', colors: 'from-orange-400 to-pink-500' },
-    { id: 55, name: 'Aurore', price: 400, type: 'fond', image: '🌄', colors: 'from-pink-400 to-orange-400' },
-    { id: 56, name: 'Nuit', price: 500, type: 'fond', image: '🌙', colors: 'from-slate-700 to-slate-900' },
-    { id: 57, name: 'Minuit', price: 500, type: 'fond', image: '🌑', colors: 'from-indigo-900 to-slate-900' },
-    { id: 58, name: 'Feu', price: 600, type: 'fond', image: '🔥', colors: 'from-red-500 to-orange-500' },
-    { id: 59, name: 'Lave', price: 600, type: 'fond', image: '🌋', colors: 'from-red-600 to-yellow-500' },
-    { id: 60, name: 'Galaxie', price: 1000, type: 'fond', image: '🌌', colors: 'from-purple-600 to-indigo-800' },
-    { id: 61, name: 'Nébuleuse', price: 1000, type: 'fond', image: '✨', colors: 'from-purple-500 to-pink-600' },
-    { id: 62, name: 'Or', price: 2000, type: 'fond', image: '🏆', colors: 'from-yellow-400 to-amber-500' },
-    { id: 63, name: 'Argent', price: 1500, type: 'fond', image: '🥈', colors: 'from-slate-300 to-slate-500' },
-    { id: 64, name: 'Arc-en-ciel', price: 3000, type: 'fond', image: '🌈', colors: 'from-red-500 via-yellow-500 to-blue-500' },
-    { id: 65, name: 'Aurore Boréale', price: 5000, type: 'fond', image: '🌠', colors: 'from-green-400 via-blue-500 to-purple-600' },
+    // Avatars - débloqués par niveau (24 avatars)
+    { id: 21, name: 'Chat', type: 'avatar', image: '🐱', requiredLevel: 1 },
+    { id: 22, name: 'Chien', type: 'avatar', image: '🐶', requiredLevel: 1 },
+    { id: 23, name: 'Lapin', type: 'avatar', image: '🐰', requiredLevel: 5 },
+    { id: 24, name: 'Panda', type: 'avatar', image: '🐼', requiredLevel: 8 },
+    { id: 25, name: 'Renard', type: 'avatar', image: '🦊', requiredLevel: 12 },
+    { id: 26, name: 'Lion', type: 'avatar', image: '🦁', requiredLevel: 15 },
+    { id: 27, name: 'Guerrier', type: 'avatar', image: '⚔️', requiredLevel: 20 },
+    { id: 28, name: 'Mage', type: 'avatar', image: '🧙', requiredLevel: 25 },
+    { id: 29, name: 'Fantôme', type: 'avatar', image: '👻', requiredLevel: 30 },
+    { id: 30, name: 'Citrouille', type: 'avatar', image: '🎃', requiredLevel: 35 },
+    { id: 31, name: 'Danseuse', type: 'avatar', image: '💃', requiredLevel: 40 },
+    { id: 32, name: 'Épéiste', type: 'avatar', image: '🤺', requiredLevel: 45 },
+    { id: 33, name: 'Pirate', type: 'avatar', image: '🏴‍☠️', requiredLevel: 50 },
+    { id: 34, name: 'Cowboy', type: 'avatar', image: '🤠', requiredLevel: 55 },
+    { id: 35, name: 'Robot', type: 'avatar', image: '🤖', requiredLevel: 60 },
+    { id: 36, name: 'Extraterrestre', type: 'avatar', image: '👾', requiredLevel: 65 },
+    { id: 37, name: 'Astronaute', type: 'avatar', image: '👨‍🚀', requiredLevel: 70 },
+    { id: 38, name: 'Alien', type: 'avatar', image: '👽', requiredLevel: 80 },
+    { id: 39, name: 'Sirène', type: 'avatar', image: '🧜‍♀️', requiredLevel: 90 },
+    { id: 40, name: 'Licorne', type: 'avatar', image: '🦄', requiredLevel: 100 },
+    { id: 41, name: 'Fée', type: 'avatar', image: '🧚', requiredLevel: 120 },
+    { id: 42, name: 'Roi', type: 'avatar', image: '👑', requiredLevel: 150 },
+    { id: 43, name: 'Dragon', type: 'avatar', image: '🐉', requiredLevel: 200 },
+    { id: 44, name: 'Phoenix', type: 'avatar', image: '🔥', requiredLevel: 250 },
+    // Fonds - débloqués par niveau (16 fonds)
+    { id: 50, name: 'Océan', type: 'fond', image: '🌊', colors: 'from-blue-400 to-cyan-500', requiredLevel: 1 },
+    { id: 51, name: 'Prairie', type: 'fond', image: '🌿', colors: 'from-green-400 to-lime-500', requiredLevel: 1 },
+    { id: 52, name: 'Forêt', type: 'fond', image: '🌲', colors: 'from-green-600 to-emerald-700', requiredLevel: 10 },
+    { id: 53, name: 'Ciel', type: 'fond', image: '☁️', colors: 'from-sky-300 to-blue-400', requiredLevel: 15 },
+    { id: 54, name: 'Coucher de soleil', type: 'fond', image: '🌅', colors: 'from-orange-400 to-pink-500', requiredLevel: 25 },
+    { id: 55, name: 'Aurore', type: 'fond', image: '🌄', colors: 'from-pink-400 to-orange-400', requiredLevel: 35 },
+    { id: 56, name: 'Nuit', type: 'fond', image: '🌙', colors: 'from-slate-700 to-slate-900', requiredLevel: 45 },
+    { id: 57, name: 'Minuit', type: 'fond', image: '🌑', colors: 'from-indigo-900 to-slate-900', requiredLevel: 55 },
+    { id: 58, name: 'Feu', type: 'fond', image: '🔥', colors: 'from-red-500 to-orange-500', requiredLevel: 65 },
+    { id: 59, name: 'Lave', type: 'fond', image: '🌋', colors: 'from-red-600 to-yellow-500', requiredLevel: 80 },
+    { id: 60, name: 'Galaxie', type: 'fond', image: '🌌', colors: 'from-purple-600 to-indigo-800', requiredLevel: 100 },
+    { id: 61, name: 'Nébuleuse', type: 'fond', image: '✨', colors: 'from-purple-500 to-pink-600', requiredLevel: 120 },
+    { id: 62, name: 'Or', type: 'fond', image: '🏆', colors: 'from-yellow-400 to-amber-500', requiredLevel: 150 },
+    { id: 63, name: 'Argent', type: 'fond', image: '🥈', colors: 'from-slate-300 to-slate-500', requiredLevel: 130 },
+    { id: 64, name: 'Arc-en-ciel', type: 'fond', image: '🌈', colors: 'from-red-500 via-yellow-500 to-blue-500', requiredLevel: 180 },
+    { id: 65, name: 'Aurore Boréale', type: 'fond', image: '🌠', colors: 'from-green-400 via-blue-500 to-purple-600', requiredLevel: 200 },
+    // Avatars EXCLUSIFS COFFRES (non affichés en boutique, obtenus uniquement via coffres)
+    { id: 101, name: 'Kraken', type: 'avatar', image: '🦑', chestExclusive: true },
+    { id: 102, name: 'Scorpion', type: 'avatar', image: '🦂', chestExclusive: true },
+    { id: 103, name: 'Araignée', type: 'avatar', image: '🕷️', chestExclusive: true },
+    { id: 104, name: 'Chauve-souris', type: 'avatar', image: '🦇', chestExclusive: true },
+    { id: 105, name: 'Hibou', type: 'avatar', image: '🦉', chestExclusive: true },
+    { id: 106, name: 'Paon', type: 'avatar', image: '🦚', chestExclusive: true },
+    { id: 107, name: 'Flamant', type: 'avatar', image: '🦩', chestExclusive: true },
+    { id: 108, name: 'Perroquet', type: 'avatar', image: '🦜', chestExclusive: true },
+    { id: 109, name: 'Dauphin', type: 'avatar', image: '🐬', chestExclusive: true },
+    { id: 110, name: 'Requin', type: 'avatar', image: '🦈', chestExclusive: true },
+    // Fonds EXCLUSIFS COFFRES
+    { id: 111, name: 'Orage', type: 'fond', image: '⛈️', colors: 'from-slate-800 via-purple-900 to-slate-900', chestExclusive: true },
+    { id: 112, name: 'Jungle', type: 'fond', image: '🌴', colors: 'from-green-700 via-emerald-600 to-lime-500', chestExclusive: true },
+    { id: 113, name: 'Désert', type: 'fond', image: '🏜️', colors: 'from-yellow-600 via-orange-500 to-amber-400', chestExclusive: true },
+    { id: 114, name: 'Glace', type: 'fond', image: '🧊', colors: 'from-cyan-300 via-blue-200 to-white', chestExclusive: true },
+    { id: 115, name: 'Néon', type: 'fond', image: '💡', colors: 'from-pink-500 via-purple-500 to-cyan-500', chestExclusive: true },
+    { id: 116, name: 'Bonbon', type: 'fond', image: '🍭', colors: 'from-pink-400 via-rose-300 to-fuchsia-400', chestExclusive: true },
+    { id: 117, name: 'Océan Profond', type: 'fond', image: '🐋', colors: 'from-blue-900 via-indigo-800 to-slate-900', chestExclusive: true },
+    { id: 118, name: 'Volcan', type: 'fond', image: '🌋', colors: 'from-red-700 via-orange-600 to-yellow-500', chestExclusive: true },
+    { id: 119, name: 'Étoiles', type: 'fond', image: '⭐', colors: 'from-indigo-900 via-purple-800 to-pink-700', chestExclusive: true },
+    { id: 120, name: 'Printemps', type: 'fond', image: '🌸', colors: 'from-pink-300 via-rose-200 to-green-300', chestExclusive: true },
     // Améliorations - triées par prix croissant
     { id: 90, name: 'Oracle du Jour', price: 200, type: 'amelioration', image: '✦', description: 'Oracle quotidien avec cartes à choisir', isDailyQuote: true },
     { id: 72, name: 'Notes Étendues', price: 300, type: 'amelioration', image: '📝', description: 'Notes plus longues sur les quêtes', isExtendedNotes: true },
@@ -141,6 +161,7 @@ export const useGameData = (supabaseUser) => {
     { id: 86, name: 'Photos Notes', price: 600, type: 'amelioration', image: '📷', description: 'Ajouter des photos dans les notes', isPhotoNotes: true },
     { id: 88, name: 'Énigmes Moyennes', price: 600, type: 'amelioration', image: '🧠', description: 'Énigme quotidienne niveau moyen (+50 XP)', riddleLevel: 2 },
     { id: 84, name: 'Filtre de Tâches', price: 800, type: 'amelioration', image: '🔍', description: 'Filtre par statut et durée', isQuestFilter: true },
+    { id: 93, name: 'Tracker d\'Habitudes', price: 800, type: 'amelioration', image: '🎯', description: 'Suis 3 habitudes quotidiennes (+5 XP)', isHabitTracker: true },
     { id: 78, name: 'Mode Sombre', price: 1000, type: 'amelioration', image: '🌙', description: 'Active le thème sombre', isDarkMode: true },
     { id: 89, name: 'Énigmes Difficiles', price: 1000, type: 'amelioration', image: '🎓', description: 'Énigme quotidienne niveau difficile (+100 XP)', riddleLevel: 3 },
     { id: 91, name: 'Journaling', price: 1000, type: 'amelioration', image: '🦋', description: 'Journal quotidien avec bilan hebdomadaire', isJournaling: true },
@@ -150,6 +171,9 @@ export const useGameData = (supabaseUser) => {
     { id: 81, name: 'Statistiques Pro', price: 2500, type: 'amelioration', image: '📊', description: 'Stats détaillées', unlocksStats: true },
     { id: 82, name: 'Fond Animé', price: 3000, type: 'amelioration', image: '🌠', description: 'Fond avec particules animées', isAnimatedBg: true },
     { id: 83, name: 'Badge VIP', price: 5000, type: 'amelioration', image: '👑', description: 'Badge VIP à côté du pseudo', isVipBadge: true },
+    { id: 94, name: 'Coffre-fort', price: 1500, type: 'amelioration', image: '🔐', description: 'Stocke 25 photos secrètes protégées par code PIN', isVault: true },
+    { id: 95, name: 'Centre de contrôle', price: 2000, type: 'amelioration', image: '🗂️', description: 'Regroupe toutes les icônes flottantes en un seul bouton', isControlCenter: true },
+    { id: 96, name: 'Widget', price: 500, type: 'amelioration', image: '📱', description: 'Ajoute un widget sur l\'écran d\'accueil de ton téléphone pour voir et gérer tes tâches du jour' },
     // Boosts temporaires - consommables (prix élevés car réutilisables)
     { id: 2, name: 'Lucky Chest', price: 150, type: 'boost', duration: 'Instantané', image: '🍀', description: 'Coffre aléatoire (chance de rare)', boostType: 'lucky_chest', instant: true },
     { id: 3, name: 'Coffre Splendide', price: 300, type: 'boost', duration: 'Instantané', image: '🎀', description: 'Reçois un coffre splendide', boostType: 'instant_silver_chest', instant: true },
@@ -359,7 +383,7 @@ export const useGameData = (supabaseUser) => {
                   const friendPseudos = friendsData.map(f => f.friend_pseudo);
                   const { data: friendProfiles } = await supabase
                     .from('profiles')
-                    .select('pseudo, avatar, avatar_bg, level, pq_season, owned_items, custom_title')
+                    .select('pseudo, avatar, avatar_bg, level, pq_season, owned_items, custom_title, potatoes')
                     .in('pseudo', friendPseudos);
 
                   if (friendProfiles) {
@@ -371,6 +395,7 @@ export const useGameData = (supabaseUser) => {
                       pqSeason: f.pq_season || 0,
                       ownedItems: f.owned_items || [],
                       customTitle: f.custom_title || '',
+                      potatoes: f.potatoes || 0,
                     })));
                   }
                 }
@@ -466,10 +491,8 @@ export const useGameData = (supabaseUser) => {
 
       if (chestsData) {
         setChests({
-          bronze: chestsData.bronze || 0,
-          silver: chestsData.silver || 0,
-          gold: chestsData.gold || 0,
-          legendary: chestsData.legendary || 0,
+          keys: chestsData.keys || 0,
+          superChestCounter: chestsData.super_chest_counter || 0,
         });
       }
 
@@ -555,11 +578,11 @@ export const useGameData = (supabaseUser) => {
         .eq('user_pseudo', profile?.pseudo);
 
       if (friendsData && friendsData.length > 0) {
-        // Récupérer les profils des amis avec leurs items
+        // Récupérer les profils des amis avec leurs items et patates
         const friendPseudos = friendsData.map(f => f.friend_pseudo);
         const { data: friendProfiles } = await supabase
           .from('profiles')
-          .select('pseudo, avatar, avatar_bg, level, pq_season, owned_items, custom_title')
+          .select('pseudo, avatar, avatar_bg, level, pq_season, owned_items, custom_title, potatoes')
           .in('pseudo', friendPseudos);
 
         if (friendProfiles) {
@@ -571,6 +594,7 @@ export const useGameData = (supabaseUser) => {
             pqSeason: f.pq_season || 0,
             ownedItems: f.owned_items || [],
             customTitle: f.custom_title || '',
+            potatoes: f.potatoes || 0,
           })));
         }
       }
@@ -736,7 +760,7 @@ export const useGameData = (supabaseUser) => {
   };
 
   // Sauvegarder une tâche (avec tous les champs, y compris time/location pour les événements)
-  const saveTask = async (task) => {
+  const saveTask = async (task, previousParticipants = []) => {
     if (!supabaseUser) return;
     
     try {
@@ -784,6 +808,43 @@ export const useGameData = (supabaseUser) => {
         console.error('Erreur Supabase saveTask:', error);
       } else if (taskData.participants && taskData.participants.length > 0) {
         console.log('✅ Tâche partagée sauvegardée avec succès');
+        
+        // Envoyer des notifications aux nouveaux participants
+        const previousPseudos = previousParticipants.map(p => p.pseudo);
+        const newParticipants = taskData.participants.filter(p => 
+          !previousPseudos.includes(p.pseudo) && p.accepted === false
+        );
+        
+        for (const participant of newParticipants) {
+          try {
+            // Récupérer l'ID du participant
+            const { data: participantProfile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('pseudo', participant.pseudo)
+              .single();
+            
+            if (participantProfile) {
+              const taskType = task.time ? 'événement' : 'tâche';
+              await supabase.from('notifications').insert({
+                user_id: participantProfile.id,
+                type: 'task_invitation',
+                title: `Invitation à un${task.time ? '' : 'e'} ${taskType}`,
+                message: `${user?.pseudo || 'Quelqu\'un'} t'invite à participer à "${task.title}"`,
+                data: {
+                  taskId: task.id,
+                  taskTitle: task.title,
+                  invitedBy: user?.pseudo,
+                  isEvent: !!task.time,
+                },
+                read: false,
+              });
+              console.log('📩 Notification envoyée à', participant.pseudo);
+            }
+          } catch (notifError) {
+            console.error('Erreur envoi notification:', notifError);
+          }
+        }
       }
     } catch (error) {
       console.error('Erreur sauvegarde tâche:', error);
@@ -848,7 +909,7 @@ export const useGameData = (supabaseUser) => {
     }
   };
 
-  // Sauvegarder les coffres
+  // Sauvegarder les clés
   const saveChests = async (newChests) => {
     if (!supabaseUser) return;
     
@@ -856,14 +917,12 @@ export const useGameData = (supabaseUser) => {
       await supabase
         .from('chests')
         .update({
-          bronze: newChests.bronze,
-          silver: newChests.silver,
-          gold: newChests.gold,
-          legendary: newChests.legendary,
+          keys: newChests.keys,
+          super_chest_counter: newChests.superChestCounter,
         })
         .eq('user_id', supabaseUser.id);
     } catch (error) {
-      console.error('Erreur sauvegarde coffres:', error);
+      console.error('Erreur sauvegarde clés:', error);
     }
   };
 

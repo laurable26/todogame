@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { PageHelp } from './PageHelp';
 
-export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippedItems, onEquipItem, user, activeBoosts = [], activeUpgrades = {}, onToggleUpgrade }) => {
-  const [activeTab, setActiveTab] = useState('avatar');
+export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippedItems, onEquipItem, user, activeBoosts = [], activeUpgrades = {}, onToggleUpgrade, defaultTab = 'avatar' }) => {
+  const [activeTab, setActiveTab] = useState(defaultTab);
 
   const tabs = [
     { id: 'avatar', label: 'Avatars', emoji: '😀' },
@@ -11,18 +11,27 @@ export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippe
     { id: 'boost', label: 'Boosts', emoji: '⚡' },
   ];
 
-  // Filtrer et trier par prix croissant
+  // Filtrer et trier (exclure les items exclusifs coffres)
   const filteredItems = shopItems
-    .filter(item => item.type === activeTab)
-    .sort((a, b) => a.price - b.price);
-
-  // Debug: afficher le nombre d'améliorations
-  console.log('ShopPage - activeTab:', activeTab, 'filteredItems:', filteredItems.length, 'shopItems total:', shopItems.length);
-  console.log('Améliorations:', shopItems.filter(i => i.type === 'amelioration').map(i => ({ id: i.id, name: i.name })));
+    .filter(item => item.type === activeTab && !item.chestExclusive)
+    .sort((a, b) => {
+      // Pour avatars et fonds, trier par niveau requis
+      if (a.requiredLevel !== undefined && b.requiredLevel !== undefined) {
+        return a.requiredLevel - b.requiredLevel;
+      }
+      // Pour le reste, trier par prix
+      return (a.price || 0) - (b.price || 0);
+    });
 
   const isOwned = (itemId) => ownedItems.includes(itemId);
   const isEquipped = (itemId) => equippedItems.includes(itemId);
-  const isUpgradeActive = (itemId) => activeUpgrades[itemId] !== false; // Actif par défaut
+  const isUpgradeActive = (itemId) => activeUpgrades[itemId] !== false;
+  
+  // Vérifier si un item est débloqué par niveau
+  const isUnlockedByLevel = (item) => {
+    if (item.requiredLevel === undefined) return true;
+    return user.level >= item.requiredLevel;
+  };
   
   // Vérifier si un boost de ce type est actif
   const isBoostActive = (boostType) => {
@@ -51,8 +60,8 @@ export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippe
       <h1 className="text-3xl font-black text-slate-900">Boutique</h1>
 
       <PageHelp pageId="shop" color="amber">
-        <strong>🛒 Dépense tes patates !</strong> Achète des <strong>avatars</strong> et <strong>fonds</strong> pour personnaliser ton profil, 
-        des <strong>boosts</strong> temporaires pour progresser plus vite, et des <strong>améliorations</strong> permanentes pour débloquer de nouvelles fonctionnalités.
+        <strong>🛒 Bienvenue dans la boutique !</strong> Les <strong>avatars</strong> et <strong>fonds</strong> se débloquent automatiquement en montant de niveau. 
+        Utilise tes patates pour acheter des <strong>boosts</strong> temporaires et des <strong>améliorations</strong> permanentes !
       </PageHelp>
 
       {/* Onglets */}
@@ -72,6 +81,15 @@ export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippe
         ))}
       </div>
 
+      {/* Description pour avatars/fonds */}
+      {(activeTab === 'avatar' || activeTab === 'fond') && (
+        <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-200">
+          <p className="text-indigo-800 text-sm">
+            <span className="font-semibold">⭐ Débloqués par niveau</span> : monte de niveau pour débloquer de nouveaux {activeTab === 'avatar' ? 'avatars' : 'fonds'} !
+            <span className="ml-2 bg-indigo-200 px-2 py-1 rounded-full text-xs font-bold">Ton niveau : {user.level}</span>
+          </p>
+        </div>
+      )}
       {/* Description pour boosts */}
       {activeTab === 'boost' && (
         <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
@@ -94,10 +112,12 @@ export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippe
         {filteredItems.map(item => {
           const owned = isOwned(item.id);
           const equipped = isEquipped(item.id);
-          const canBuy = userPoints >= item.price;
+          const canBuy = userPoints >= (item.price || 0);
           const boostActive = item.type === 'boost' && item.boostType && isBoostActive(item.boostType);
           const upgradeActive = item.type === 'amelioration' && owned && isUpgradeActive(item.id);
           const riddleDisabled = isRiddleDisabled(item);
+          const unlockedByLevel = isUnlockedByLevel(item);
+          const isLevelBased = item.requiredLevel !== undefined;
 
           return (
             <div 
@@ -105,24 +125,31 @@ export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippe
               className={`bg-white rounded-2xl p-4 border-2 shadow-sm transition-all ${
                 riddleDisabled
                   ? 'border-slate-200 bg-slate-100 opacity-50'
-                  : boostActive
-                    ? 'border-amber-400 bg-amber-50'
-                    : upgradeActive
-                      ? 'border-green-400 bg-green-50'
-                      : item.type === 'amelioration' && owned
-                        ? 'border-slate-300 bg-slate-50 opacity-75'
-                        : equipped 
-                          ? 'border-green-400 bg-green-50' 
-                          : owned 
-                            ? 'border-indigo-300' 
-                            : 'border-slate-200'
+                  : !unlockedByLevel
+                    ? 'border-slate-200 bg-slate-50 opacity-60'
+                    : boostActive
+                      ? 'border-amber-400 bg-amber-50'
+                      : upgradeActive
+                        ? 'border-green-400 bg-green-50'
+                        : item.type === 'amelioration' && owned
+                          ? 'border-slate-300 bg-slate-50 opacity-75'
+                          : equipped 
+                            ? 'border-green-400 bg-green-50' 
+                            : unlockedByLevel && isLevelBased
+                              ? 'border-indigo-300 bg-indigo-50' 
+                              : 'border-slate-200'
               }`}
             >
               <div className="text-center">
                 {/* Preview */}
                 {item.type === 'fond' ? (
-                  <div className={`w-16 h-16 mx-auto bg-gradient-to-br ${item.colors} rounded-xl mb-3 shadow-md flex items-center justify-center`}>
+                  <div className={`w-16 h-16 mx-auto bg-gradient-to-br ${item.colors} rounded-xl mb-3 shadow-md flex items-center justify-center relative ${!unlockedByLevel ? 'grayscale' : ''}`}>
                     <span className="text-2xl emoji-display">{user.avatar}</span>
+                    {!unlockedByLevel && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-xl">
+                        <span className="text-xl">🔒</span>
+                      </div>
+                    )}
                   </div>
                 ) : item.type === 'boost' ? (
                   <div className={`w-16 h-16 mx-auto bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl mb-3 shadow-md flex items-center justify-center text-3xl emoji-display ${boostActive ? 'animate-pulse' : ''}`}>
@@ -133,8 +160,13 @@ export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippe
                     {item.image}
                   </div>
                 ) : (
-                  <div className={`w-16 h-16 mx-auto bg-gradient-to-br ${user.avatarBg} rounded-xl mb-3 shadow-md flex items-center justify-center text-3xl emoji-display`}>
+                  <div className={`w-16 h-16 mx-auto bg-gradient-to-br ${user.avatarBg} rounded-xl mb-3 shadow-md flex items-center justify-center text-3xl emoji-display relative ${!unlockedByLevel ? 'grayscale' : ''}`}>
                     {item.image}
+                    {!unlockedByLevel && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-xl">
+                        <span className="text-xl">🔒</span>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -148,8 +180,17 @@ export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippe
                   <p className="text-xs text-slate-500 mb-2">{item.description}</p>
                 )}
 
-                {/* Prix */}
-                {(item.type === 'boost' || !owned) && (
+                {/* Niveau requis pour avatars/fonds */}
+                {isLevelBased && (
+                  <div className={`flex items-center justify-center gap-1 mb-2 ${unlockedByLevel ? 'text-indigo-600' : 'text-slate-400'}`}>
+                    <span>⭐</span>
+                    <span className="font-bold text-sm">Niv. {item.requiredLevel}</span>
+                    {unlockedByLevel && <span className="text-green-500 ml-1">✓</span>}
+                  </div>
+                )}
+
+                {/* Prix pour boosts et améliorations */}
+                {!isLevelBased && item.price && (item.type === 'boost' || !owned) && (
                   <div className="flex items-center justify-center gap-1 mb-2">
                     <span>🥔</span>
                     <span className="font-bold text-slate-700">{item.price.toLocaleString()}</span>
@@ -175,7 +216,6 @@ export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippe
                 ) : item.type === 'amelioration' ? (
                   // Améliorations - activables/désactivables après achat
                   riddleDisabled ? (
-                    // Énigme remplacée par niveau supérieur
                     <div className="w-full py-2 rounded-lg font-bold text-sm bg-slate-300 text-slate-500 text-center">
                       Remplacé
                     </div>
@@ -204,29 +244,23 @@ export const ShopPage = ({ shopItems, userPoints, onBuyItem, ownedItems, equippe
                     </button>
                   )
                 ) : (
-                  // Avatars et Fonds
-                  owned ? (
+                  // Avatars et Fonds - débloqués par niveau
+                  !unlockedByLevel ? (
+                    <div className="w-full py-2 rounded-lg font-bold text-sm bg-slate-200 text-slate-500 text-center">
+                      🔒 Niveau {item.requiredLevel}
+                    </div>
+                  ) : equipped ? (
                     <button
-                      onClick={() => onEquipItem(item.id)}
-                      className={`w-full py-2 rounded-lg font-bold text-sm transition-all ${
-                        equipped
-                          ? 'bg-green-500 text-white'
-                          : 'bg-indigo-500 text-white hover:bg-indigo-600'
-                      }`}
+                      className="w-full py-2 rounded-lg font-bold text-sm bg-green-500 text-white cursor-default"
                     >
-                      {equipped ? '✓ Équipé' : 'Équiper'}
+                      ✓ Équipé
                     </button>
                   ) : (
                     <button
-                      onClick={() => canBuy && onBuyItem(item)}
-                      disabled={!canBuy}
-                      className={`w-full py-2 rounded-lg font-bold text-sm transition-all ${
-                        canBuy
-                          ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white hover:scale-105'
-                          : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                      }`}
+                      onClick={() => onEquipItem(item.id)}
+                      className="w-full py-2 rounded-lg font-bold text-sm bg-indigo-500 text-white hover:bg-indigo-600 transition-all hover:scale-105"
                     >
-                      {canBuy ? 'Acheter' : 'Insuffisant'}
+                      Équiper
                     </button>
                   )
                 )}

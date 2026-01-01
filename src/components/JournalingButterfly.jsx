@@ -18,6 +18,7 @@ const ALL_WEEKLY_QUESTIONS = [
 
 export const JournalingButterfly = ({ 
   journaling, 
+  forceOpen = false,
   onClose 
 }) => {
   const {
@@ -39,12 +40,32 @@ export const JournalingButterfly = ({
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const butterflyRef = useRef(null);
 
+  // Ouvrir le modal si forceOpen est true
+  useEffect(() => {
+    if (forceOpen) {
+      setShowModal(true);
+      const needsWeeklyOnly = todayEntry?.mood && todayEntry?.rating && isWeeklyDay && isWeeklyDay() && !weeklyEntry;
+      if (needsWeeklyOnly) {
+        setStep('weekly');
+      } else {
+        setStep('daily');
+      }
+    }
+  }, [forceOpen]);
+
+  // Fermer le modal et appeler onClose
+  const handleClose = () => {
+    handleClose();
+    if (onClose) onClose();
+  };
+
   // État du formulaire
   const [selectedMood, setSelectedMood] = useState(todayEntry?.mood || null);
   const [selectedRating, setSelectedRating] = useState(todayEntry?.rating || 0);
   const [weeklyAnswers, setWeeklyAnswers] = useState({});
   const [step, setStep] = useState('daily'); // 'daily', 'weekly', 'settings'
   const [showSettings, setShowSettings] = useState(false);
+  const [saving, setSaving] = useState(false);
   
   // Générer 3 questions aléatoires (une seule fois par session)
   const [randomQuestions] = useState(() => {
@@ -63,13 +84,21 @@ export const JournalingButterfly = ({
     { value: 0, label: 'Dimanche' }
   ];
 
-  // Mise à jour quand todayEntry change
+  // Mise à jour quand todayEntry change ou quand le modal s'ouvre
   useEffect(() => {
     if (todayEntry) {
       setSelectedMood(todayEntry.mood);
       setSelectedRating(todayEntry.rating);
     }
   }, [todayEntry]);
+
+  // Mettre à jour les valeurs quand le modal s'ouvre
+  useEffect(() => {
+    if (showModal && todayEntry) {
+      setSelectedMood(todayEntry.mood || null);
+      setSelectedRating(todayEntry.rating || 0);
+    }
+  }, [showModal]);
 
   // Gestion du drag
   const handleMouseDown = (e) => {
@@ -130,13 +159,20 @@ export const JournalingButterfly = ({
   const handleSaveDaily = async () => {
     if (!selectedMood || !selectedRating) return;
     
+    setSaving(true);
     await saveEntry(selectedMood, selectedRating);
     
     // Si c'est le jour du bilan, passer aux questions
-    if (isWeeklyDay() && !weeklyEntry) {
+    if (isWeeklyDay && isWeeklyDay() && !weeklyEntry) {
+      setSaving(false);
       setStep('weekly');
     } else {
-      setShowModal(false);
+      // Afficher confirmation puis fermer
+      setTimeout(() => {
+        setSaving(false);
+        setShowModal(false);
+        if (onClose) onClose();
+      }, 500);
     }
   };
 
@@ -148,21 +184,21 @@ export const JournalingButterfly = ({
     }));
     
     await saveWeeklyAnswers(answers);
-    setShowModal(false);
+    handleClose();
   };
 
-  // Ne rien afficher si pas besoin
-  if (!shouldShowModal() && !showModal) {
+  // Ne rien afficher si pas besoin (sauf si forceOpen)
+  if (!forceOpen && !shouldShowModal && !shouldShowModal() && !showModal) {
     return null;
   }
 
   // Si déjà rempli aujourd'hui mais c'est le jour du bilan non fait
-  const needsWeeklyOnly = todayEntry?.mood && todayEntry?.rating && isWeeklyDay() && !weeklyEntry;
+  const needsWeeklyOnly = todayEntry?.mood && todayEntry?.rating && isWeeklyDay && isWeeklyDay() && !weeklyEntry;
 
   return (
     <>
-      {/* Papillon flottant */}
-      {!showModal && (
+      {/* Papillon flottant - ne pas afficher si forceOpen */}
+      {!showModal && !forceOpen && (
         <div
           ref={butterflyRef}
           className="fixed z-50 cursor-grab active:cursor-grabbing select-none"
@@ -209,7 +245,10 @@ export const JournalingButterfly = ({
       {showModal && (
         <div 
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50"
-          onClick={() => setShowModal(false)}
+          onClick={() => {
+            setShowModal(false);
+            if (onClose) onClose();
+          }}
         >
           <div 
             className="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
@@ -238,7 +277,10 @@ export const JournalingButterfly = ({
                     ⚙️
                   </button>
                   <button 
-                    onClick={() => setShowModal(false)} 
+                    onClick={() => {
+                      setShowModal(false);
+                      if (onClose) onClose();
+                    }} 
                     className="text-2xl text-slate-400 hover:text-slate-600"
                   >
                     ✕
@@ -325,14 +367,18 @@ export const JournalingButterfly = ({
                   {/* Bouton valider */}
                   <button
                     onClick={handleSaveDaily}
-                    disabled={!selectedMood || !selectedRating}
+                    disabled={!selectedMood || !selectedRating || saving}
                     className={`w-full py-3 rounded-xl font-bold transition-all ${
-                      selectedMood && selectedRating
+                      selectedMood && selectedRating && !saving
                         ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90'
                         : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                     }`}
                   >
-                    {isWeeklyDay() && !weeklyEntry ? 'Continuer vers le bilan →' : 'Enregistrer'}
+                    {saving 
+                      ? '✓ Enregistré !' 
+                      : (isWeeklyDay && isWeeklyDay() && !weeklyEntry 
+                          ? 'Continuer vers le bilan →' 
+                          : (todayEntry?.mood ? 'Modifier' : 'Enregistrer'))}
                   </button>
                 </div>
               )}

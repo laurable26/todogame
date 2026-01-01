@@ -1,5 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { PageHelp } from './PageHelp';
+import { 
+  ChifoumiChallengeModal, 
+  ChifoumiResponseModal, 
+  ChifoumiPlayModal, 
+  ChifoumiResultModal,
+  useChifoumi 
+} from './ChifoumiGame';
 
 export const FriendsPage = ({ 
   user,
@@ -14,10 +21,27 @@ export const FriendsPage = ({
   onAcceptRequest,
   onDeclineRequest,
   onEditTask,
-  ownedItems = []
+  ownedItems = [],
+  onUpdatePotatoes
 }) => {
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [challengeFriend, setChallengeFriend] = useState(null);
+  const [respondingChallenge, setRespondingChallenge] = useState(null);
+  const [playingChallenge, setPlayingChallenge] = useState(null);
+  const [resultChallenge, setResultChallenge] = useState(null);
+
+  // Hook Chifoumi
+  const chifoumi = useChifoumi(user?.odUserId || user?.odPersonalUserId);
+  const { 
+    pendingChallenges, 
+    activeChallenges,
+    sendChallenge, 
+    acceptChallenge, 
+    declineChallenge,
+    playChoice,
+    markAsSeen 
+  } = chifoumi;
 
   // Dériver les tâches avec heure (anciennement événements)
   const tasksWithTime = useMemo(() => tasks.filter(t => t.time && t.time !== ''), [tasks]);
@@ -51,7 +75,80 @@ export const FriendsPage = ({
       <PageHelp pageId="friends" color="purple">
         <strong>🤝 Joue en équipe !</strong> Ajoute des amis et partage des <strong>tâches et événements</strong> avec eux. 
         Quand vous complétez une tâche partagée, vous gagnez <strong>tous les deux le double de points</strong> !
+        <br/><strong>🎮 Défi Chifoumi</strong> : Défie tes amis et mise des patates !
       </PageHelp>
+
+      {/* Défis Chifoumi en attente */}
+      {pendingChallenges && pendingChallenges.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
+          <h2 className="text-lg font-bold text-amber-900 mb-3 flex items-center gap-2">
+            <span className="text-2xl">🎮</span>
+            Défis reçus ({pendingChallenges.length})
+          </h2>
+          <div className="space-y-2">
+            {pendingChallenges.map((challenge) => (
+              <div key={challenge.id} className="flex items-center justify-between bg-white p-3 rounded-xl border border-amber-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center text-xl">
+                    🎮
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900">{challenge.challenger_pseudo}</div>
+                    <div className="text-xs text-amber-600 font-medium">Mise : {challenge.bet_amount} 🥔</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setRespondingChallenge(challenge)}
+                  className="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-amber-600"
+                >
+                  Voir
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Parties en cours */}
+      {activeChallenges && activeChallenges.length > 0 && (
+        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-200">
+          <h2 className="text-lg font-bold text-indigo-900 mb-3 flex items-center gap-2">
+            <span className="text-2xl">🎯</span>
+            Parties en cours ({activeChallenges.length})
+          </h2>
+          <div className="space-y-2">
+            {activeChallenges.map((challenge) => {
+              const isChallenger = challenge.challenger_id === (user?.odUserId || user?.odPersonalUserId);
+              const myChoice = isChallenger ? challenge.challenger_choice : challenge.opponent_choice;
+              const opponentName = isChallenger ? challenge.opponent_pseudo : challenge.challenger_pseudo;
+              
+              return (
+                <div key={challenge.id} className="flex items-center justify-between bg-white p-3 rounded-xl border border-indigo-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl flex items-center justify-center text-xl">
+                      {myChoice ? '✓' : '❓'}
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900">vs {opponentName}</div>
+                      <div className="text-xs text-indigo-600 font-medium">
+                        {myChoice ? 'En attente de l\'adversaire...' : 'À toi de jouer !'}
+                      </div>
+                    </div>
+                  </div>
+                  {!myChoice && (
+                    <button
+                      onClick={() => setPlayingChallenge({ ...challenge, isChallenger })}
+                      className="bg-indigo-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-indigo-600 animate-pulse"
+                    >
+                      Jouer !
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Demandes d'amis en attente - affiché en haut si il y en a */}
       {friendRequests && friendRequests.length > 0 && (
@@ -187,27 +284,44 @@ export const FriendsPage = ({
                         {friend.pseudo}
                         {hasVipBadge(friend) && <span className="text-yellow-500 text-xs">👑</span>}
                       </div>
-                      <div className="text-xs text-slate-500">
-                        Niv. {friend.level}
-                        {hasCustomTitle(friend) && <span className="ml-1">• {friend.customTitle}</span>}
+                      <div className="text-xs text-slate-500 flex items-center gap-2">
+                        <span className="text-blue-500 font-medium">Niv. {friend.level} ⭐</span>
+                        {friend.potatoes !== undefined && (
+                          <span className="text-amber-600 font-medium">{friend.potatoes} 🥔</span>
+                        )}
+                        {hasCustomTitle(friend) && <span>• {friend.customTitle}</span>}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     {sharedCount > 0 && (
-                      <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium">
+                      <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium mr-2">
                         {sharedCount} partagé{sharedCount > 1 ? 's' : ''}
                       </span>
                     )}
+                    {/* Bouton supprimer - discret et petit */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setConfirmDelete(friend.pseudo);
                       }}
-                      className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                      className="p-1.5 text-slate-300 hover:text-red-500 rounded transition-all text-sm"
                       title="Supprimer cet ami"
                     >
-                      🗑️
+                      ✕
+                    </button>
+                    {/* Séparateur */}
+                    <div className="w-px h-6 bg-slate-200 mx-1"></div>
+                    {/* Bouton Défi Chifoumi - bien visible */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setChallengeFriend(friend);
+                      }}
+                      className="px-3 py-1.5 bg-amber-100 text-amber-700 hover:bg-amber-200 rounded-lg transition-all font-medium text-sm flex items-center gap-1"
+                      title="Défier au Chifoumi"
+                    >
+                      ⚔️ Défi
                     </button>
                   </div>
                 </div>
@@ -363,6 +477,79 @@ export const FriendsPage = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Défi Chifoumi */}
+      {challengeFriend && (
+        <ChifoumiChallengeModal
+          friend={challengeFriend}
+          myUserId={user?.odUserId || user?.odPersonalUserId}
+          myPotatoes={user?.potatoes || 0}
+          onClose={() => setChallengeFriend(null)}
+          onSendChallenge={(friend, bet) => {
+            // Vérifier que l'ami a assez de patates
+            if (friend.potatoes !== undefined && friend.potatoes < bet) {
+              alert(`${friend.pseudo} n'a pas assez de patates pour cette mise !`);
+              return;
+            }
+            sendChallenge(friend, bet, user?.pseudo);
+          }}
+        />
+      )}
+
+      {/* Modal Réponse à un défi */}
+      {respondingChallenge && (
+        <ChifoumiResponseModal
+          challenge={respondingChallenge}
+          myPotatoes={user?.potatoes || 0}
+          onClose={() => setRespondingChallenge(null)}
+          onAccept={async () => {
+            await acceptChallenge(respondingChallenge.id);
+            setRespondingChallenge(null);
+            // Ouvrir directement le jeu
+            const isChallenger = false;
+            setPlayingChallenge({ ...respondingChallenge, isChallenger, status: 'active' });
+          }}
+          onDecline={async () => {
+            await declineChallenge(respondingChallenge.id);
+            setRespondingChallenge(null);
+          }}
+        />
+      )}
+
+      {/* Modal Jouer son coup */}
+      {playingChallenge && (
+        <ChifoumiPlayModal
+          challenge={playingChallenge}
+          isChallenger={playingChallenge.isChallenger}
+          onClose={() => setPlayingChallenge(null)}
+          onPlay={async (choice) => {
+            await playChoice(playingChallenge.id, choice, playingChallenge.isChallenger);
+            // Vérifier si la partie est terminée
+            setTimeout(async () => {
+              // Recharger pour voir le résultat
+              chifoumi.loadChallenges();
+              setPlayingChallenge(null);
+            }, 1500);
+          }}
+        />
+      )}
+
+      {/* Modal Résultat */}
+      {resultChallenge && (
+        <ChifoumiResultModal
+          challenge={resultChallenge}
+          myUserId={user?.odUserId || user?.odPersonalUserId}
+          onClose={() => {
+            const isChallenger = resultChallenge.challenger_id === (user?.odUserId || user?.odPersonalUserId);
+            markAsSeen(resultChallenge.id, isChallenger);
+            setResultChallenge(null);
+            // Mettre à jour les patates si callback fourni
+            if (onUpdatePotatoes) {
+              onUpdatePotatoes();
+            }
+          }}
+        />
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { ChestButton } from './ChestModal';
 
-export const Header = ({ user, onAvatarClick, activeBoosts = [], theme = {}, ownedItems = [], activeUpgrades = {} }) => {
+export const Header = ({ user, onAvatarClick, activeBoosts = [], theme = {}, ownedItems = [], activeUpgrades = {}, keys = 0, onOpenChest, onPotatoClick, onXpClick }) => {
   const [levelUpAnimation, setLevelUpAnimation] = useState(false);
   const [prevLevel, setPrevLevel] = useState(user.level);
 
@@ -88,8 +89,11 @@ export const Header = ({ user, onAvatarClick, activeBoosts = [], theme = {}, own
               </div>
             )}
 
-            {/* Jauge XP - Bleue avec animation level up */}
-            <div className="flex items-center gap-1 sm:gap-2">
+            {/* Jauge XP - Bleue avec animation level up - cliquable */}
+            <button 
+              onClick={onXpClick}
+              className="flex items-center gap-1 sm:gap-2 hover:scale-105 transition-all cursor-pointer"
+            >
               <span className="text-sm sm:text-lg">⭐</span>
               <div className={`w-16 sm:w-24 h-2 sm:h-3 bg-slate-200 rounded-full overflow-hidden ${levelUpAnimation ? 'ring-2 ring-blue-400 ring-offset-1' : ''}`}>
                 <div 
@@ -98,15 +102,21 @@ export const Header = ({ user, onAvatarClick, activeBoosts = [], theme = {}, own
                 ></div>
               </div>
               <span className="hidden sm:inline text-xs text-slate-500">{user.xp}/{user.xpToNext}</span>
-            </div>
+            </button>
 
-            {/* Patates */}
-            <div className="bg-amber-50 border-2 border-amber-300 px-2 sm:px-4 py-1 sm:py-2 rounded-lg sm:rounded-xl">
+            {/* Clés pour coffres */}
+            <ChestButton keys={keys} onOpen={onOpenChest} theme={theme} />
+
+            {/* Patates - cliquable pour aller à la boutique */}
+            <button 
+              onClick={onPotatoClick}
+              className="bg-amber-50 border-2 border-amber-300 px-2 sm:px-4 py-1 sm:py-2 rounded-lg sm:rounded-xl hover:scale-105 hover:border-amber-400 transition-all cursor-pointer"
+            >
               <div className="flex items-center gap-1 sm:gap-2">
                 <span className="text-base sm:text-2xl">🥔</span>
                 <div className="font-bold text-amber-900 text-sm sm:text-xl">{user.potatoes.toLocaleString()}</div>
               </div>
-            </div>
+            </button>
           </div>
         </div>
       </div>
@@ -141,7 +151,7 @@ export const NavButton = ({ label, active, onClick, badge, theme = {} }) => {
   );
 };
 
-export const Navigation = ({ currentPage, setCurrentPage, friendRequestsCount, chestsCount, theme = {}, hasStats = false }) => {
+export const Navigation = ({ currentPage, setCurrentPage, friendRequestsCount, theme = {}, hasStats = false }) => {
   const navBg = theme.darkMode ? 'bg-slate-800/95' : 'bg-white/95';
   const borderColor = theme.darkMode ? 'border-slate-700' : 'border-slate-200';
 
@@ -151,7 +161,6 @@ export const Navigation = ({ currentPage, setCurrentPage, friendRequestsCount, c
         <div className="flex justify-around py-2 sm:py-3">
           <NavButton label="Tâches" active={currentPage === 'tasks'} onClick={() => setCurrentPage('tasks')} theme={theme} />
           <NavButton label="Amis" active={currentPage === 'friends'} onClick={() => setCurrentPage('friends')} badge={friendRequestsCount} theme={theme} />
-          <NavButton label="Coffres" active={currentPage === 'chests'} onClick={() => setCurrentPage('chests')} badge={chestsCount} theme={theme} />
           <NavButton label="Badges" active={currentPage === 'badges'} onClick={() => setCurrentPage('badges')} theme={theme} />
           {hasStats && (
             <NavButton label="Stats" active={currentPage === 'stats'} onClick={() => setCurrentPage('stats')} theme={theme} />
