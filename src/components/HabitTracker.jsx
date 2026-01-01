@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 // Composant HabitTracker - Amélioration achetable dans la boutique
 // Maximum 3 habitudes par mois, design radial, archive des mois passés
 
-const HabitTracker = ({ supabase, userId, onXPGain, potatoes, setPotatoes, onClose }) => {
+const HabitTracker = ({ supabase, userId, onXPGain, potatoes, setPotatoes, onClose, onHabitComplete }) => {
   const [habits, setHabits] = useState([]);
   const [habitLogs, setHabitLogs] = useState({});
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -133,6 +133,7 @@ const HabitTracker = ({ supabase, userId, onXPGain, potatoes, setPotatoes, onClo
         // Récompenses gamification
         if (onXPGain) onXPGain(5);
         if (setPotatoes) setPotatoes(prev => prev + 2);
+        if (onHabitComplete) onHabitComplete(); // Incrémenter le compteur pour les badges
         showNotif('+5 ⭐ · +2 🥔');
       }
 

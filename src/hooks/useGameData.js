@@ -19,13 +19,17 @@ export const useGameData = (supabaseUser) => {
     totalPotatoes: 0,
     totalSpent: 0,
     chestsOpened: 0,
-    missionsCreated: 0,
-    missionsParticipated: 0,
-    questsCreated: 0,
     urgentCompleted: 0,
-    longQuests: 0,
-    streak: 0,
+    scheduledCompleted: 0,
+    sharedTasksCompleted: 0,
+    currentStreak: 0,
     bestStreak: 0,
+    journalEntries: 0,
+    habitsCompleted: 0,
+    riddlesSolved: 0,
+    chifoumiPlayed: 0,
+    chifoumiWins: 0,
+    itemsBought: 0,
     lastActiveDate: null,
     createdAt: null,
   });
@@ -67,19 +71,27 @@ export const useGameData = (supabaseUser) => {
   // Format: { id: 1, type: 'xp_x2', expiresAt: Date, multiplier: 2 }
 
   const [badges, setBadges] = useState([
+    // Solo - Progression personnelle
     { id: 1, name: 'Premier Pas', description: 'Complète des tâches', emoji: '👣', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: 'Complète 1 tâche', silver: 'Complète 50 tâches', gold: 'Complète 500 tâches' }, thresholds: { bronze: 1, silver: 50, gold: 500 }, stat: 'tasksCompleted' },
-    { id: 2, name: 'Régularité', description: 'Enchaîne les jours', emoji: '📅', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '7 jours d\'affilée', silver: '30 jours d\'affilée', gold: '365 jours d\'affilée' }, thresholds: { bronze: 7, silver: 30, gold: 365 }, stat: 'streak' },
-    { id: 3, name: 'Équipier', description: 'Participe à des missions', emoji: '🤝', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: 'Participe à 1 mission', silver: 'Participe à 25 missions', gold: 'Participe à 100 missions' }, thresholds: { bronze: 1, silver: 25, gold: 100 }, stat: 'missionsParticipated' },
-    { id: 4, name: 'Collectionneur', description: 'Ouvre des coffres', emoji: '📦', bronze: false, silver: false, gold: false, category: 'collection', requirements: { bronze: 'Ouvre 10 coffres', silver: 'Ouvre 100 coffres', gold: 'Ouvre 500 coffres' }, thresholds: { bronze: 10, silver: 100, gold: 500 }, stat: 'chestsOpened' },
-    { id: 5, name: 'Fortune', description: 'Accumule des patates', emoji: '🥔', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: 'Gagne 10 000 patates', silver: 'Gagne 100 000 patates', gold: 'Gagne 1 000 000 patates' }, thresholds: { bronze: 10000, silver: 100000, gold: 1000000 }, stat: 'totalPotatoes' },
+    { id: 2, name: 'Régularité', description: 'Garde ton streak actif', emoji: '🔥', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '7 jours d\'affilée', silver: '30 jours d\'affilée', gold: '100 jours d\'affilée' }, thresholds: { bronze: 7, silver: 30, gold: 100 }, stat: 'currentStreak' },
     { id: 6, name: 'Ascension', description: 'Monte en niveau', emoji: '⬆️', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: 'Atteins niveau 10', silver: 'Atteins niveau 50', gold: 'Atteins niveau 100' }, thresholds: { bronze: 10, silver: 50, gold: 100 }, stat: 'level' },
-    { id: 7, name: 'Leader', description: 'Crée des missions', emoji: '🎯', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: 'Crée 5 missions', silver: 'Crée 50 missions', gold: 'Crée 200 missions' }, thresholds: { bronze: 5, silver: 50, gold: 200 }, stat: 'missionsCreated' },
-    { id: 8, name: 'Social', description: 'Ajoute des amis', emoji: '👥', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: 'Ajoute 3 amis', silver: 'Ajoute 20 amis', gold: 'Ajoute 50 amis' }, thresholds: { bronze: 3, silver: 20, gold: 50 }, stat: 'friendsCount' },
-    { id: 9, name: 'Marathonien', description: 'Tâches longues', emoji: '🏃', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '50 tâches "1 jour"', silver: '200 tâches "1 jour"', gold: '1000 tâches "1 jour"' }, thresholds: { bronze: 50, silver: 200, gold: 1000 }, stat: 'longQuests' },
-    { id: 10, name: 'Perfectionniste', description: 'Tâches urgentes à temps', emoji: '⚡', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '100 urgentes à temps', silver: '500 urgentes à temps', gold: '2000 urgentes à temps' }, thresholds: { bronze: 100, silver: 500, gold: 2000 }, stat: 'urgentCompleted' },
-    { id: 11, name: 'Ponctuel', description: 'Tâches planifiées', emoji: '⏰', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: 'Complète 10 tâches planifiées', silver: 'Complète 50 tâches planifiées', gold: 'Complète 200 tâches planifiées' }, thresholds: { bronze: 10, silver: 50, gold: 200 }, stat: 'scheduledTasksCompleted' },
-    { id: 14, name: 'Milliardaire', description: 'Richesse ultime', emoji: '💎', bronze: false, silver: false, gold: false, category: 'collection', requirements: { bronze: 'Dépense 50 000 patates', silver: 'Dépense 500 000 patates', gold: 'Dépense 5 000 000 patates' }, thresholds: { bronze: 50000, silver: 500000, gold: 5000000 }, stat: 'totalSpent' },
-    { id: 15, name: 'Architecte', description: 'Créateur prolifique', emoji: '🏗️', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: '100 tâches créées', silver: '500 tâches créées', gold: '2000 tâches créées' }, thresholds: { bronze: 100, silver: 500, gold: 2000 }, stat: 'questsCreated' },
+    { id: 10, name: 'Perfectionniste', description: 'Tâches urgentes complétées', emoji: '⚡', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '10 tâches urgentes', silver: '50 tâches urgentes', gold: '200 tâches urgentes' }, thresholds: { bronze: 10, silver: 50, gold: 200 }, stat: 'urgentCompleted' },
+    { id: 11, name: 'Ponctuel', description: 'Tâches avec heure complétées', emoji: '⏰', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '10 tâches planifiées', silver: '50 tâches planifiées', gold: '200 tâches planifiées' }, thresholds: { bronze: 10, silver: 50, gold: 200 }, stat: 'scheduledCompleted' },
+    { id: 16, name: 'Journaliste', description: 'Remplis ton journal', emoji: '🦋', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '7 entrées journal', silver: '30 entrées journal', gold: '100 entrées journal' }, thresholds: { bronze: 7, silver: 30, gold: 100 }, stat: 'journalEntries' },
+    { id: 17, name: 'Habitué', description: 'Complète tes habitudes', emoji: '🎯', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '20 habitudes', silver: '100 habitudes', gold: '500 habitudes' }, thresholds: { bronze: 20, silver: 100, gold: 500 }, stat: 'habitsCompleted' },
+    { id: 18, name: 'Énigmatique', description: 'Résous des énigmes', emoji: '🧩', bronze: false, silver: false, gold: false, category: 'solo', requirements: { bronze: '10 énigmes', silver: '50 énigmes', gold: '200 énigmes' }, thresholds: { bronze: 10, silver: 50, gold: 200 }, stat: 'riddlesSolved' },
+    
+    // Social - Partage et amis
+    { id: 3, name: 'Équipier', description: 'Tâches partagées complétées', emoji: '🤝', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: '5 tâches partagées', silver: '25 tâches partagées', gold: '100 tâches partagées' }, thresholds: { bronze: 5, silver: 25, gold: 100 }, stat: 'sharedTasksCompleted' },
+    { id: 8, name: 'Social', description: 'Ajoute des amis', emoji: '👥', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: '3 amis', silver: '10 amis', gold: '25 amis' }, thresholds: { bronze: 3, silver: 10, gold: 25 }, stat: 'friendsCount' },
+    { id: 19, name: 'Duelliste', description: 'Joue au Chifoumi', emoji: '⚔️', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: '5 parties', silver: '25 parties', gold: '100 parties' }, thresholds: { bronze: 5, silver: 25, gold: 100 }, stat: 'chifoumiPlayed' },
+    { id: 20, name: 'Champion', description: 'Gagne au Chifoumi', emoji: '🏆', bronze: false, silver: false, gold: false, category: 'quests', requirements: { bronze: '3 victoires', silver: '15 victoires', gold: '50 victoires' }, thresholds: { bronze: 3, silver: 15, gold: 50 }, stat: 'chifoumiWins' },
+    
+    // Collection - Richesse et coffres
+    { id: 4, name: 'Collectionneur', description: 'Ouvre des coffres', emoji: '📦', bronze: false, silver: false, gold: false, category: 'collection', requirements: { bronze: '5 coffres', silver: '25 coffres', gold: '100 coffres' }, thresholds: { bronze: 5, silver: 25, gold: 100 }, stat: 'chestsOpened' },
+    { id: 5, name: 'Fortune', description: 'Accumule des patates', emoji: '🥔', bronze: false, silver: false, gold: false, category: 'collection', requirements: { bronze: '1 000 patates', silver: '10 000 patates', gold: '100 000 patates' }, thresholds: { bronze: 1000, silver: 10000, gold: 100000 }, stat: 'totalPotatoes' },
+    { id: 14, name: 'Dépensier', description: 'Dépense des patates', emoji: '💎', bronze: false, silver: false, gold: false, category: 'collection', requirements: { bronze: '500 patates', silver: '5 000 patates', gold: '50 000 patates' }, thresholds: { bronze: 500, silver: 5000, gold: 50000 }, stat: 'totalSpent' },
+    { id: 21, name: 'Shoppeur', description: 'Achète des items', emoji: '🛒', bronze: false, silver: false, gold: false, category: 'collection', requirements: { bronze: '5 items', silver: '15 items', gold: '30 items' }, thresholds: { bronze: 5, silver: 15, gold: 30 }, stat: 'itemsBought' },
   ]);
 
   const [shopItems] = useState([
@@ -471,6 +483,21 @@ export const useGameData = (supabaseUser) => {
           pqTotal: profile.pq_total || 0,
           tasksCompleted: profile.tasks_completed || 0,
           customTitle: profile.custom_title || '',
+          // Stats pour les badges
+          totalPotatoes: profile.total_potatoes || 0,
+          totalSpent: profile.total_spent || 0,
+          chestsOpened: profile.chests_opened || 0,
+          urgentCompleted: profile.urgent_completed || 0,
+          scheduledCompleted: profile.scheduled_completed || 0,
+          sharedTasksCompleted: profile.shared_tasks_completed || 0,
+          currentStreak: profile.current_streak || 0,
+          bestStreak: profile.best_streak || 0,
+          journalEntries: profile.journal_entries || 0,
+          habitsCompleted: profile.habits_completed || 0,
+          riddlesSolved: profile.riddles_solved || 0,
+          chifoumiPlayed: profile.chifoumi_played || 0,
+          chifoumiWins: profile.chifoumi_wins || 0,
+          itemsBought: profile.items_bought || 0,
         });
         
         // Charger les items possédés et équipés
@@ -651,10 +678,20 @@ export const useGameData = (supabaseUser) => {
           const userStats = {
             tasksCompleted: profile.tasks_completed || 0,
             level: profile.level || 1,
-            totalPotatoes: profile.potatoes || 0,
+            totalPotatoes: profile.total_potatoes || profile.potatoes || 0,
+            totalSpent: profile.total_spent || 0,
+            chestsOpened: profile.chests_opened || 0,
+            urgentCompleted: profile.urgent_completed || 0,
+            scheduledCompleted: profile.scheduled_completed || 0,
+            sharedTasksCompleted: profile.shared_tasks_completed || 0,
+            currentStreak: profile.current_streak || 0,
+            journalEntries: profile.journal_entries || 0,
+            habitsCompleted: profile.habits_completed || 0,
+            riddlesSolved: profile.riddles_solved || 0,
+            chifoumiPlayed: profile.chifoumi_played || 0,
+            chifoumiWins: profile.chifoumi_wins || 0,
+            itemsBought: profile.items_bought || 0,
             friendsCount: 0, // Sera mis à jour plus tard
-            missionsCreated: userMissions.filter(m => m.created_by === profile.pseudo).length,
-            missionsParticipated: userMissions.length,
           };
           
           // Débloquer les badges sans animation (chargement initial)
@@ -665,8 +702,19 @@ export const useGameData = (supabaseUser) => {
                 case 'tasksCompleted': statValue = userStats.tasksCompleted; break;
                 case 'level': statValue = userStats.level; break;
                 case 'totalPotatoes': statValue = userStats.totalPotatoes; break;
-                case 'missionsCreated': statValue = userStats.missionsCreated; break;
-                case 'missionsParticipated': statValue = userStats.missionsParticipated; break;
+                case 'totalSpent': statValue = userStats.totalSpent; break;
+                case 'chestsOpened': statValue = userStats.chestsOpened; break;
+                case 'urgentCompleted': statValue = userStats.urgentCompleted; break;
+                case 'scheduledCompleted': statValue = userStats.scheduledCompleted; break;
+                case 'sharedTasksCompleted': statValue = userStats.sharedTasksCompleted; break;
+                case 'currentStreak': statValue = userStats.currentStreak; break;
+                case 'journalEntries': statValue = userStats.journalEntries; break;
+                case 'habitsCompleted': statValue = userStats.habitsCompleted; break;
+                case 'riddlesSolved': statValue = userStats.riddlesSolved; break;
+                case 'chifoumiPlayed': statValue = userStats.chifoumiPlayed; break;
+                case 'chifoumiWins': statValue = userStats.chifoumiWins; break;
+                case 'itemsBought': statValue = userStats.itemsBought; break;
+                case 'friendsCount': statValue = userStats.friendsCount; break;
                 default: statValue = 0;
               }
               
@@ -870,6 +918,21 @@ export const useGameData = (supabaseUser) => {
           pq_total: newUserData.pqTotal,
           tasks_completed: newUserData.tasksCompleted,
           custom_title: newUserData.customTitle || '',
+          // Stats pour les badges
+          total_potatoes: newUserData.totalPotatoes || 0,
+          total_spent: newUserData.totalSpent || 0,
+          chests_opened: newUserData.chestsOpened || 0,
+          urgent_completed: newUserData.urgentCompleted || 0,
+          scheduled_completed: newUserData.scheduledCompleted || 0,
+          shared_tasks_completed: newUserData.sharedTasksCompleted || 0,
+          current_streak: newUserData.currentStreak || 0,
+          best_streak: newUserData.bestStreak || 0,
+          journal_entries: newUserData.journalEntries || 0,
+          habits_completed: newUserData.habitsCompleted || 0,
+          riddles_solved: newUserData.riddlesSolved || 0,
+          chifoumi_played: newUserData.chifoumiPlayed || 0,
+          chifoumi_wins: newUserData.chifoumiWins || 0,
+          items_bought: newUserData.itemsBought || 0,
         })
         .eq('id', supabaseUser.id);
     } catch (error) {
@@ -1068,29 +1131,38 @@ export const useGameData = (supabaseUser) => {
           case 'friendsCount':
             statValue = stats.friendsCount || 0;
             break;
-          case 'missionsCreated':
-            statValue = stats.missionsCreated || 0;
-            break;
-          case 'missionsParticipated':
-            statValue = stats.missionsParticipated || 0;
-            break;
-          case 'streak':
-            statValue = stats.bestStreak || 0;
+          case 'currentStreak':
+            statValue = stats.currentStreak || 0;
             break;
           case 'urgentCompleted':
             statValue = stats.urgentCompleted || 0;
             break;
-          case 'longQuests':
-            statValue = stats.longQuests || 0;
+          case 'scheduledCompleted':
+            statValue = stats.scheduledCompleted || 0;
             break;
           case 'totalSpent':
             statValue = stats.totalSpent || 0;
             break;
-          case 'questsCreated':
-            statValue = stats.questsCreated || 0;
+          case 'sharedTasksCompleted':
+            statValue = stats.sharedTasksCompleted || 0;
             break;
-          case 'scheduledTasksCompleted':
-            statValue = stats.scheduledTasksCompleted || 0;
+          case 'journalEntries':
+            statValue = stats.journalEntries || 0;
+            break;
+          case 'habitsCompleted':
+            statValue = stats.habitsCompleted || 0;
+            break;
+          case 'riddlesSolved':
+            statValue = stats.riddlesSolved || 0;
+            break;
+          case 'chifoumiPlayed':
+            statValue = stats.chifoumiPlayed || 0;
+            break;
+          case 'chifoumiWins':
+            statValue = stats.chifoumiWins || 0;
+            break;
+          case 'itemsBought':
+            statValue = stats.itemsBought || 0;
             break;
           default:
             statValue = 0;
@@ -1154,29 +1226,38 @@ export const useGameData = (supabaseUser) => {
           case 'friendsCount':
             statValue = stats.friendsCount || 0;
             break;
-          case 'missionsCreated':
-            statValue = stats.missionsCreated || 0;
-            break;
-          case 'missionsParticipated':
-            statValue = stats.missionsParticipated || 0;
-            break;
-          case 'streak':
-            statValue = stats.bestStreak || 0;
+          case 'currentStreak':
+            statValue = stats.currentStreak || 0;
             break;
           case 'urgentCompleted':
             statValue = stats.urgentCompleted || 0;
             break;
-          case 'longQuests':
-            statValue = stats.longQuests || 0;
+          case 'scheduledCompleted':
+            statValue = stats.scheduledCompleted || 0;
             break;
           case 'totalSpent':
             statValue = stats.totalSpent || 0;
             break;
-          case 'questsCreated':
-            statValue = stats.questsCreated || 0;
+          case 'sharedTasksCompleted':
+            statValue = stats.sharedTasksCompleted || 0;
             break;
-          case 'scheduledTasksCompleted':
-            statValue = stats.scheduledTasksCompleted || 0;
+          case 'journalEntries':
+            statValue = stats.journalEntries || 0;
+            break;
+          case 'habitsCompleted':
+            statValue = stats.habitsCompleted || 0;
+            break;
+          case 'riddlesSolved':
+            statValue = stats.riddlesSolved || 0;
+            break;
+          case 'chifoumiPlayed':
+            statValue = stats.chifoumiPlayed || 0;
+            break;
+          case 'chifoumiWins':
+            statValue = stats.chifoumiWins || 0;
+            break;
+          case 'itemsBought':
+            statValue = stats.itemsBought || 0;
             break;
           default:
             statValue = 0;

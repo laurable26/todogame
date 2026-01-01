@@ -26,9 +26,11 @@ export const ChifoumiChallengeModal = ({
   onSendChallenge 
 }) => {
   const [selectedBet, setSelectedBet] = useState(25);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
   const friendPotatoes = friend.potatoes ?? Infinity; // Si pas défini, on suppose qu'il a assez
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (myPotatoes < selectedBet) {
       alert('Tu n\'as pas assez de patates !');
       return;
@@ -37,12 +39,38 @@ export const ChifoumiChallengeModal = ({
       alert(`${friend.pseudo} n'a que ${friendPotatoes} 🥔, choisis une mise plus petite !`);
       return;
     }
-    onSendChallenge(friend, selectedBet);
-    onClose();
+    
+    setSending(true);
+    await onSendChallenge(friend, selectedBet);
+    setSending(false);
+    setSent(true);
+    
+    // Fermer après 1.5s
+    setTimeout(() => {
+      onClose();
+    }, 1500);
   };
 
   // Filtrer les mises disponibles
   const availableBets = BET_OPTIONS.filter(bet => myPotatoes >= bet && friendPotatoes >= bet);
+
+  // Affichage confirmation
+  if (sent) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center">
+          <div className="text-6xl mb-4 animate-bounce">⚔️</div>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Défi envoyé !</h2>
+          <p className="text-slate-500">
+            {friend.pseudo} a reçu ton défi de {selectedBet} 🥔
+          </p>
+          <p className="text-sm text-slate-400 mt-2">
+            Tu seras notifié quand il acceptera
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
@@ -113,20 +141,21 @@ export const ChifoumiChallengeModal = ({
           <div className="flex gap-2">
             <button
               onClick={onClose}
-              className="flex-1 py-3 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200"
+              disabled={sending}
+              className="flex-1 py-3 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50"
             >
               Annuler
             </button>
             <button
               onClick={handleSend}
-              disabled={availableBets.length === 0}
+              disabled={availableBets.length === 0 || sending}
               className={`flex-1 py-3 rounded-xl font-bold ${
-                availableBets.length > 0
+                availableBets.length > 0 && !sending
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90'
                   : 'bg-slate-200 text-slate-400 cursor-not-allowed'
               }`}
             >
-              Défier ! ⚔️
+              {sending ? '⏳ Envoi...' : 'Défier ! ⚔️'}
             </button>
           </div>
         </div>
@@ -365,7 +394,7 @@ export const ChifoumiResultModal = ({
 };
 
 // Hook pour gérer les défis Chifoumi
-export const useChifoumi = (userId) => {
+export const useChifoumi = (userId, onGamePlayed, onGameWon) => {
   const [pendingChallenges, setPendingChallenges] = useState([]);
   const [activeChallenges, setActiveChallenges] = useState([]);
   const [completedChallenges, setCompletedChallenges] = useState([]);
@@ -447,7 +476,7 @@ export const useChifoumi = (userId) => {
 
     if (!error) {
       // Envoyer une notification à l'adversaire
-      await supabase.from('notifications').insert({
+      const { error: notifError } = await supabase.from('notifications').insert({
         user_id: opponentId,
         type: 'chifoumi_challenge',
         title: 'Défi Chifoumi ! 🎮',
@@ -458,6 +487,10 @@ export const useChifoumi = (userId) => {
         },
         read: false,
       });
+      
+      if (notifError) {
+        console.error('Erreur envoi notification chifoumi:', notifError);
+      }
       
       loadChallenges();
     }
@@ -538,6 +571,17 @@ export const useChifoumi = (userId) => {
           },
           read: false,
         });
+      } else {
+        // Partie terminée - appeler les callbacks pour les badges
+        if (onGamePlayed) onGamePlayed();
+        
+        // Vérifier si on a gagné
+        const winner = getWinner(
+          isChallenger ? choice : otherChoice,
+          isChallenger ? otherChoice : choice
+        );
+        const didWin = (winner === 'player1' && isChallenger) || (winner === 'player2' && !isChallenger);
+        if (didWin && onGameWon) onGameWon();
       }
       
       loadChallenges();

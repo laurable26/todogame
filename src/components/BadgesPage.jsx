@@ -41,7 +41,7 @@ export const BadgesPage = ({ badges }) => {
         {[
           { id: 'all', label: 'Tous', emoji: '🏅' },
           { id: 'solo', label: 'Solo', emoji: '👤' },
-          { id: 'quests', label: 'Missions', emoji: '👥' },
+          { id: 'quests', label: 'Social', emoji: '👥' },
           { id: 'collection', label: 'Collection', emoji: '📦' },
         ].map(f => (
           <button

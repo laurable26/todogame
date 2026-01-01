@@ -22,7 +22,9 @@ export const FriendsPage = ({
   onDeclineRequest,
   onEditTask,
   ownedItems = [],
-  onUpdatePotatoes
+  onUpdatePotatoes,
+  onChifoumiPlayed,
+  onChifoumiWon
 }) => {
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -31,8 +33,12 @@ export const FriendsPage = ({
   const [playingChallenge, setPlayingChallenge] = useState(null);
   const [resultChallenge, setResultChallenge] = useState(null);
 
-  // Hook Chifoumi
-  const chifoumi = useChifoumi(user?.odUserId || user?.odPersonalUserId);
+  // Hook Chifoumi avec callbacks pour les badges
+  const chifoumi = useChifoumi(
+    user?.odUserId || user?.odPersonalUserId,
+    onChifoumiPlayed,
+    onChifoumiWon
+  );
   const { 
     pendingChallenges, 
     activeChallenges,
@@ -67,83 +73,79 @@ export const FriendsPage = ({
   const hasCustomTitle = (player) => player.ownedItems?.includes(79) && player.customTitle;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-black text-slate-900">Amis</h1>
+        <h1 className="text-2xl sm:text-3xl font-black text-slate-900">Amis</h1>
+        {/* Indicateur rapide des défis en cours */}
+        {((pendingChallenges?.length || 0) + (activeChallenges?.length || 0)) > 0 && (
+          <div className="flex items-center gap-2 text-sm">
+            {pendingChallenges?.length > 0 && (
+              <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">
+                🎮 {pendingChallenges.length}
+              </span>
+            )}
+            {activeChallenges?.length > 0 && (
+              <span className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full font-medium">
+                ⚔️ {activeChallenges.length}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <PageHelp pageId="friends" color="purple">
-        <strong>🤝 Joue en équipe !</strong> Ajoute des amis et partage des <strong>tâches et événements</strong> avec eux. 
-        Quand vous complétez une tâche partagée, vous gagnez <strong>tous les deux le double de points</strong> !
-        <br/><strong>🎮 Défi Chifoumi</strong> : Défie tes amis et mise des patates !
+        <strong>🤝 Joue en équipe !</strong> Partage des tâches avec tes amis pour gagner le <strong>double de points</strong> !
+        <strong> 🎮 Chifoumi</strong> : Défie tes amis et mise des patates !
       </PageHelp>
 
-      {/* Défis Chifoumi en attente */}
-      {pendingChallenges && pendingChallenges.length > 0 && (
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
-          <h2 className="text-lg font-bold text-amber-900 mb-3 flex items-center gap-2">
-            <span className="text-2xl">🎮</span>
-            Défis reçus ({pendingChallenges.length})
-          </h2>
-          <div className="space-y-2">
-            {pendingChallenges.map((challenge) => (
-              <div key={challenge.id} className="flex items-center justify-between bg-white p-3 rounded-xl border border-amber-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center text-xl">
-                    🎮
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-900">{challenge.challenger_pseudo}</div>
-                    <div className="text-xs text-amber-600 font-medium">Mise : {challenge.bet_amount} 🥔</div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setRespondingChallenge(challenge)}
-                  className="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-amber-600"
-                >
-                  Voir
-                </button>
-              </div>
-            ))}
+      {/* Défis Chifoumi - Version compacte horizontale */}
+      {((pendingChallenges?.length || 0) + (activeChallenges?.length || 0)) > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 to-indigo-50 rounded-xl p-3 border border-amber-200">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-lg">⚔️</span>
+            <span className="font-bold text-slate-800 text-sm">Défis Chifoumi</span>
           </div>
-        </div>
-      )}
-
-      {/* Parties en cours */}
-      {activeChallenges && activeChallenges.length > 0 && (
-        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-200">
-          <h2 className="text-lg font-bold text-indigo-900 mb-3 flex items-center gap-2">
-            <span className="text-2xl">🎯</span>
-            Parties en cours ({activeChallenges.length})
-          </h2>
-          <div className="space-y-2">
-            {activeChallenges.map((challenge) => {
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {/* Défis en attente */}
+            {pendingChallenges?.map((challenge) => (
+              <button
+                key={challenge.id}
+                onClick={() => setRespondingChallenge(challenge)}
+                className="flex-shrink-0 flex items-center gap-2 bg-white px-3 py-2 rounded-lg border-2 border-amber-300 hover:border-amber-400 transition-all"
+              >
+                <span className="text-amber-500">🎮</span>
+                <div className="text-left">
+                  <div className="font-semibold text-xs text-slate-800">{challenge.challenger_pseudo}</div>
+                  <div className="text-[10px] text-amber-600">{challenge.bet_amount} 🥔</div>
+                </div>
+              </button>
+            ))}
+            {/* Parties en cours */}
+            {activeChallenges?.map((challenge) => {
               const isChallenger = challenge.challenger_id === (user?.odUserId || user?.odPersonalUserId);
               const myChoice = isChallenger ? challenge.challenger_choice : challenge.opponent_choice;
               const opponentName = isChallenger ? challenge.opponent_pseudo : challenge.challenger_pseudo;
               
               return (
-                <div key={challenge.id} className="flex items-center justify-between bg-white p-3 rounded-xl border border-indigo-100">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl flex items-center justify-center text-xl">
-                      {myChoice ? '✓' : '❓'}
-                    </div>
-                    <div>
-                      <div className="font-bold text-slate-900">vs {opponentName}</div>
-                      <div className="text-xs text-indigo-600 font-medium">
-                        {myChoice ? 'En attente de l\'adversaire...' : 'À toi de jouer !'}
-                      </div>
+                <button
+                  key={challenge.id}
+                  onClick={() => !myChoice && setPlayingChallenge({ ...challenge, isChallenger })}
+                  className={`flex-shrink-0 flex items-center gap-2 bg-white px-3 py-2 rounded-lg border-2 transition-all ${
+                    myChoice 
+                      ? 'border-slate-200 opacity-60' 
+                      : 'border-indigo-400 animate-pulse hover:border-indigo-500'
+                  }`}
+                >
+                  <span className={myChoice ? 'text-slate-400' : 'text-indigo-500'}>
+                    {myChoice ? '✓' : '❓'}
+                  </span>
+                  <div className="text-left">
+                    <div className="font-semibold text-xs text-slate-800">{opponentName}</div>
+                    <div className="text-[10px] text-slate-500">
+                      {myChoice ? 'En attente...' : 'À toi !'}
                     </div>
                   </div>
-                  {!myChoice && (
-                    <button
-                      onClick={() => setPlayingChallenge({ ...challenge, isChallenger })}
-                      className="bg-indigo-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-indigo-600 animate-pulse"
-                    >
-                      Jouer !
-                    </button>
-                  )}
-                </div>
+                </button>
               );
             })}
           </div>

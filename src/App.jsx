@@ -454,6 +454,20 @@ const QuestApp = () => {
       });
     
     setRiddlesDoneToday(prev => [...prev, level]);
+    
+    // Incrémenter le compteur de riddlesSolved si résolue
+    if (solved) {
+      const newRiddlesSolved = (user.riddlesSolved || 0) + 1;
+      const updatedUser = { ...user, riddlesSolved: newRiddlesSolved };
+      updateUser(updatedUser);
+      
+      // Vérifier les badges
+      checkAndUpdateBadges({
+        ...updatedUser,
+        riddlesSolved: newRiddlesSolved,
+        friendsCount: friends.length,
+      });
+    }
   };
 
   // Sauvegarder currentPage dans localStorage
@@ -809,14 +823,25 @@ const QuestApp = () => {
     };
     
     // Mettre à jour les patates et stats
+    const newChestsOpened = (user.chestsOpened || 0) + 1;
+    const newTotalPotatoes = (user.totalPotatoes || 0) + potatoes;
     const newUser = { 
       ...user, 
       potatoes: user.potatoes + potatoes,
-      chestsOpened: (user.chestsOpened || 0) + 1
+      chestsOpened: newChestsOpened,
+      totalPotatoes: newTotalPotatoes,
     };
     
     updateChests(newChests);
     updateUser(newUser);
+    
+    // Vérifier les badges
+    checkAndUpdateBadges({
+      ...newUser,
+      chestsOpened: newChestsOpened,
+      totalPotatoes: newTotalPotatoes,
+      friendsCount: friends.length,
+    });
     
     // Afficher le modal avec les récompenses
     setOpeningChest({ 
@@ -945,10 +970,29 @@ const QuestApp = () => {
     // Items non-consommables (avatar, fond, amélioration)
     if (ownedItems.includes(item.id)) return;
     
-    updateUser({ ...user, potatoes: user.potatoes - item.price });
+    // Mettre à jour les stats pour les badges
+    const newItemsBought = (user.itemsBought || 0) + 1;
+    const newTotalSpent = (user.totalSpent || 0) + item.price;
+    
+    const updatedUser = { 
+      ...user, 
+      potatoes: user.potatoes - item.price,
+      itemsBought: newItemsBought,
+      totalSpent: newTotalSpent,
+    };
+    updateUser(updatedUser);
+    
     const newOwnedItems = [...ownedItems, item.id];
     setOwnedItems(newOwnedItems);
     saveOwnedItems(newOwnedItems); // Sauvegarder dans Supabase
+    
+    // Vérifier les badges
+    checkAndUpdateBadges({
+      ...updatedUser,
+      itemsBought: newItemsBought,
+      totalSpent: newTotalSpent,
+      friendsCount: friends.length,
+    });
     
     // Appliquer automatiquement les améliorations
     if (item.type === 'amelioration') {
@@ -1242,15 +1286,26 @@ const QuestApp = () => {
       }
     }
 
-    // Vérifier les badges
-    const newlyUnlocked = checkAndUpdateBadges({
-      tasksCompleted: newUser.tasksCompleted,
-      level: newUser.level,
+    // Calculer les nouvelles stats
+    const isUrgent = task.status === 'urgent';
+    const isScheduled = task.time && task.time !== '';
+    const isShared = task.participants && task.participants.length > 0;
+    
+    const newStats = {
+      ...newUser,
       totalPotatoes: (user.totalPotatoes || 0) + pointsGained,
+      urgentCompleted: isUrgent ? (user.urgentCompleted || 0) + 1 : (user.urgentCompleted || 0),
+      scheduledCompleted: isScheduled ? (user.scheduledCompleted || 0) + 1 : (user.scheduledCompleted || 0),
+      sharedTasksCompleted: isShared ? (user.sharedTasksCompleted || 0) + 1 : (user.sharedTasksCompleted || 0),
       friendsCount: friends.length,
-      urgentCompleted: task.status === 'urgent' ? (user.urgentCompleted || 0) + 1 : (user.urgentCompleted || 0),
-      longQuests: task.duration === '1 jour' ? (user.longQuests || 0) + 1 : (user.longQuests || 0),
-    });
+    };
+    
+    // Mettre à jour l'utilisateur avec les nouvelles stats
+    const finalUser = { ...newUser, ...newStats };
+    updateUser(finalUser);
+
+    // Vérifier les badges
+    const newlyUnlocked = checkAndUpdateBadges(newStats);
     
     // Afficher l'animation pour le premier badge débloqué
     if (newlyUnlocked.length > 0) {
@@ -1471,7 +1526,12 @@ const QuestApp = () => {
         }}
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
-        onToggleUpgrade={toggleUpgrade}
+        onToggleUpgrade={(itemId) => {
+          if (itemId === 96 && activeUpgrades[96] === false) {
+            setShowWidgetInstructions(true);
+          }
+          toggleUpgrade(itemId);
+        }}
         shopItems={shopItems}
         onCheckPseudo={checkPseudoAvailable}
         notificationStatus={notificationStatus}
@@ -1492,6 +1552,18 @@ const QuestApp = () => {
   } else if (completingMission) {
     pageContent = <MissionCompletedModal mission={completingMission.mission} pqDistribution={completingMission.pqDistribution} onClose={() => { setCompletingMission(null); setSelectedMission(null); }} />;
   } else if (editingTask) {
+    // Si la tâche a une date passée et n'est pas terminée, mettre à jour la date à aujourd'hui
+    const taskToEdit = { ...editingTask };
+    if (!taskToEdit.completed && taskToEdit.date) {
+      const taskDate = new Date(taskToEdit.date);
+      taskDate.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (taskDate < today) {
+        taskToEdit.date = today;
+      }
+    }
+    
     pageContent = (
       <CreateTaskModal
         onClose={() => setEditingTask(null)}
@@ -1500,7 +1572,7 @@ const QuestApp = () => {
           if (!silent) setEditingTask(null); 
         }}
         onDelete={() => { deleteTask(editingTask.id); setEditingTask(null); }}
-        initialTask={editingTask}
+        initialTask={taskToEdit}
         getStatusColor={getStatusColor}
         ownedItems={ownedItems}
         activeUpgrades={activeUpgrades}
@@ -2238,6 +2310,28 @@ const QuestApp = () => {
         }}
         onEditTask={(task) => setEditingTask(task)}
         ownedItems={ownedItems}
+        onChifoumiPlayed={() => {
+          const newChifoumiPlayed = (user.chifoumiPlayed || 0) + 1;
+          const updatedUser = { ...user, chifoumiPlayed: newChifoumiPlayed };
+          setUser(updatedUser);
+          if (supabaseUser) saveProfile(updatedUser);
+          checkAndUpdateBadges({
+            ...updatedUser,
+            chifoumiPlayed: newChifoumiPlayed,
+            friendsCount: friends.length,
+          });
+        }}
+        onChifoumiWon={() => {
+          const newChifoumiWins = (user.chifoumiWins || 0) + 1;
+          const updatedUser = { ...user, chifoumiWins: newChifoumiWins };
+          setUser(updatedUser);
+          if (supabaseUser) saveProfile(updatedUser);
+          checkAndUpdateBadges({
+            ...updatedUser,
+            chifoumiWins: newChifoumiWins,
+            friendsCount: friends.length,
+          });
+        }}
       />
     );
   } else if (currentPage === 'badges') {
@@ -2266,7 +2360,13 @@ const QuestApp = () => {
         user={user}
         activeBoosts={activeBoosts}
         activeUpgrades={activeUpgrades}
-        onToggleUpgrade={toggleUpgrade}
+        onToggleUpgrade={(itemId) => {
+          // Si c'est le widget (id 96) et qu'on l'active, afficher les instructions
+          if (itemId === 96 && activeUpgrades[96] === false) {
+            setShowWidgetInstructions(true);
+          }
+          toggleUpgrade(itemId);
+        }}
         defaultTab={shopDefaultTab}
       />
     );
@@ -2885,7 +2985,20 @@ const QuestApp = () => {
 
       {/* Journaling - Papillon flottant - seulement si pas de Centre de contrôle */}
       {hasJournaling && !(ownedItems.includes(95) && activeUpgrades[95] !== false) && (
-        <JournalingButterfly journaling={journaling} />
+        <JournalingButterfly 
+          journaling={journaling}
+          onEntrySaved={() => {
+            const newJournalEntries = (user.journalEntries || 0) + 1;
+            const updatedUser = { ...user, journalEntries: newJournalEntries };
+            setUser(updatedUser);
+            if (supabaseUser) saveProfile(updatedUser);
+            checkAndUpdateBadges({
+              ...updatedUser,
+              journalEntries: newJournalEntries,
+              friendsCount: friends.length,
+            });
+          }}
+        />
       )}
 
       {/* Modal Journaling depuis Centre de contrôle */}
@@ -2894,6 +3007,17 @@ const QuestApp = () => {
           journaling={journaling} 
           forceOpen={true}
           onClose={() => setShowJournalingModal(false)}
+          onEntrySaved={() => {
+            const newJournalEntries = (user.journalEntries || 0) + 1;
+            const updatedUser = { ...user, journalEntries: newJournalEntries };
+            setUser(updatedUser);
+            if (supabaseUser) saveProfile(updatedUser);
+            checkAndUpdateBadges({
+              ...updatedUser,
+              journalEntries: newJournalEntries,
+              friendsCount: friends.length,
+            });
+          }}
         />
       )}
 
@@ -3016,6 +3140,19 @@ const QuestApp = () => {
             if (supabaseUser) saveProfile(newUser);
           }}
           onClose={() => setShowHabitTracker(false)}
+          onHabitComplete={() => {
+            const newHabitsCompleted = (user.habitsCompleted || 0) + 1;
+            const updatedUser = { ...user, habitsCompleted: newHabitsCompleted };
+            setUser(updatedUser);
+            if (supabaseUser) saveProfile(updatedUser);
+            
+            // Vérifier les badges
+            checkAndUpdateBadges({
+              ...updatedUser,
+              habitsCompleted: newHabitsCompleted,
+              friendsCount: friends.length,
+            });
+          }}
         />
       )}
 

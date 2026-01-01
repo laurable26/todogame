@@ -19,7 +19,8 @@ const ALL_WEEKLY_QUESTIONS = [
 export const JournalingButterfly = ({ 
   journaling, 
   forceOpen = false,
-  onClose 
+  onClose,
+  onEntrySaved
 }) => {
   const {
     todayEntry,
@@ -160,7 +161,13 @@ export const JournalingButterfly = ({
     if (!selectedMood || !selectedRating) return;
     
     setSaving(true);
+    const isNewEntry = !todayEntry; // Vérifier si c'est une nouvelle entrée
     await saveEntry(selectedMood, selectedRating);
+    
+    // Notifier qu'une entrée a été sauvegardée (pour les badges)
+    if (isNewEntry && onEntrySaved) {
+      onEntrySaved();
+    }
     
     // Si c'est le jour du bilan, passer aux questions
     if (isWeeklyDay && isWeeklyDay() && !weeklyEntry) {

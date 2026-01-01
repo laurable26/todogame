@@ -104,8 +104,23 @@ export const Header = ({ user, onAvatarClick, activeBoosts = [], theme = {}, own
               <span className="hidden sm:inline text-xs text-slate-500">{user.xp}/{user.xpToNext}</span>
             </button>
 
-            {/* Clés pour coffres */}
-            <ChestButton keys={keys} onOpen={onOpenChest} theme={theme} />
+            {/* Clés pour coffres - version compacte en mobile */}
+            <div className="hidden sm:block">
+              <ChestButton keys={keys} onOpen={onOpenChest} theme={theme} />
+            </div>
+            
+            {/* Version mobile - juste emoji + nombre */}
+            <button
+              onClick={keys >= 6 ? onOpenChest : undefined}
+              className={`sm:hidden flex items-center gap-1 px-2 py-1 rounded-lg ${
+                keys >= 6 
+                  ? 'bg-orange-100 border-2 border-orange-400 animate-pulse' 
+                  : `${theme.darkMode ? 'bg-stone-800' : 'bg-stone-100'}`
+              }`}
+            >
+              <span className="text-lg">{keys >= 6 ? '🔓' : '🗝️'}</span>
+              <span className={`font-bold text-sm ${keys >= 6 ? 'text-orange-600' : (theme.darkMode ? 'text-stone-300' : 'text-stone-600')}`}>{keys}</span>
+            </button>
 
             {/* Patates - cliquable pour aller à la boutique */}
             <button 
