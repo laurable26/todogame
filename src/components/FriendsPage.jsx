@@ -123,7 +123,7 @@ export const FriendsPage = ({
             ))}
             {/* Parties en cours */}
             {activeChallenges?.map((challenge) => {
-              const isChallenger = challenge.challenger_id === (user?.odUserId || user?.odPersonalUserId);
+              const isChallenger = challenge.challenger_id === supabaseUser?.id;
               const myChoice = isChallenger ? challenge.challenger_choice : challenge.opponent_choice;
               const opponentName = isChallenger ? challenge.opponent_pseudo : challenge.challenger_pseudo;
               
