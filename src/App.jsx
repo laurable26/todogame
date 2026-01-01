@@ -2150,6 +2150,7 @@ const QuestApp = () => {
     pageContent = (
       <FriendsPage 
         user={user}
+        supabaseUser={supabaseUser}
         friends={friends}
         tasks={tasks}
         searchQuery={searchQuery}
