@@ -673,11 +673,22 @@ export const ChifoumiNotificationModal = ({
 
   // Jouer son coup - le challenger a déjà joué, donc on calcule le résultat immédiatement
   const handlePlay = async () => {
-    if (!selectedChoice || !challenge) return;
+    if (!selectedChoice || !challenge) {
+      console.error('Pas de choix ou pas de challenge', { selectedChoice, challenge });
+      return;
+    }
     if (!canPlay) {
       alert('Tu n\'as pas assez de patates !');
       return;
     }
+    
+    // Utiliser betAmount de la notification (plus fiable)
+    const actualBetAmount = challenge.bet_amount || betAmount;
+    console.log('=== CHIFOUMI PLAY ===');
+    console.log('Challenge:', challenge);
+    console.log('Bet amount:', actualBetAmount);
+    console.log('Mon choix:', selectedChoice);
+    console.log('Choix challenger:', challenge.challenger_choice);
     
     // Calculer le résultat IMMÉDIATEMENT (avant les appels DB)
     const challengerChoice = challenge.challenger_choice;
@@ -688,8 +699,11 @@ export const ChifoumiNotificationModal = ({
     else if (winner === 'player2') winnerId = challenge.opponent_id;
     else winnerId = 'draw';
     
+    console.log('Winner:', winner, '-> winnerId:', winnerId);
+    
     const iWon = winnerId === supabaseUserId;
     const isDraw = winnerId === 'draw';
+    const challengerWon = winnerId === challenge.challenger_id;
     
     // Afficher le résultat TOUT DE SUITE
     setResult({ 
@@ -697,12 +711,12 @@ export const ChifoumiNotificationModal = ({
       isDraw, 
       myChoice: selectedChoice,
       opponentChoice: challengerChoice,
-      amount: challenge.bet_amount
+      amount: actualBetAmount
     });
     setStep('result');
     
-    // Faire les mises à jour en base en arrière-plan (sans await)
-    // Mettre à jour le challenge
+    // Faire les mises à jour en base en arrière-plan
+    // 1. Mettre à jour le challenge
     supabase
       .from('chifoumi_challenges')
       .update({ 
@@ -710,61 +724,60 @@ export const ChifoumiNotificationModal = ({
         status: 'completed',
         winner: winnerId
       })
-      .eq('id', challenge.id);
+      .eq('id', challenge.id)
+      .then(({ error }) => {
+        if (error) console.error('Erreur update challenge:', error);
+        else console.log('Challenge mis à jour');
+      });
     
-    // Transférer les patates
+    // 2. Transférer les patates via fonction SQL (bypass RLS)
     if (winnerId !== 'draw') {
       const loserId = winnerId === challenge.challenger_id ? challenge.opponent_id : challenge.challenger_id;
       
-      // Ajouter au gagnant
-      supabase
-        .from('profiles')
-        .select('potatoes')
-        .eq('id', winnerId)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            supabase
-              .from('profiles')
-              .update({ potatoes: (data.potatoes || 0) + challenge.bet_amount })
-              .eq('id', winnerId);
-          }
-        });
+      console.log('Transfert patates:', actualBetAmount);
+      console.log('Gagnant ID:', winnerId);
+      console.log('Perdant ID:', loserId);
       
-      // Retirer au perdant
+      // Utiliser la fonction SQL SECURITY DEFINER
       supabase
-        .from('profiles')
-        .select('potatoes')
-        .eq('id', loserId)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            supabase
-              .from('profiles')
-              .update({ potatoes: Math.max(0, (data.potatoes || 0) - challenge.bet_amount) })
-              .eq('id', loserId);
+        .rpc('transfer_potatoes', {
+          winner_id: winnerId,
+          loser_id: loserId,
+          amount: actualBetAmount
+        })
+        .then(({ data, error }) => {
+          if (error) {
+            console.error('❌ Erreur transfert patates:', error);
+          } else {
+            console.log('✅ Transfert patates réussi:', data);
           }
         });
+    } else {
+      console.log('Égalité - pas de transfert');
     }
     
-    // Envoyer une notification au challenger avec le résultat
-    const challengerWon = winnerId === challenge.challenger_id;
-    
-    supabase.from('notifications').insert({
-      user_id: challenge.challenger_id,
-      type: 'chifoumi_result',
-      title: isDraw ? 'Égalité ! 🤝' : challengerWon ? 'Tu as gagné ! 🎉' : 'Tu as perdu... 😢',
-      message: `${challenge.opponent_pseudo} a joué contre toi`,
-      data: {
-        challengerChoice: challengerChoice,
-        opponentChoice: selectedChoice,
-        opponentPseudo: challenge.opponent_pseudo,
-        betAmount: challenge.bet_amount,
-        won: challengerWon,
-        isDraw: isDraw
-      },
-      read: false,
-    });
+    // 3. Envoyer une notification au challenger avec le résultat
+    supabase
+      .from('notifications')
+      .insert({
+        user_id: challenge.challenger_id,
+        type: 'chifoumi_result',
+        title: isDraw ? 'Égalité ! 🤝' : challengerWon ? 'Tu as gagné ! 🎉' : 'Tu as perdu... 😢',
+        message: `${challenge.opponent_pseudo} a joué contre toi`,
+        data: {
+          challengerChoice: challengerChoice,
+          opponentChoice: selectedChoice,
+          opponentPseudo: challenge.opponent_pseudo,
+          betAmount: actualBetAmount,
+          won: challengerWon,
+          isDraw: isDraw
+        },
+        read: false,
+      })
+      .then(({ error }) => {
+        if (error) console.error('Erreur notification:', error);
+        else console.log('✅ Notification envoyée au challenger');
+      });
   };
 
   return (
