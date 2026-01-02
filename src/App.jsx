@@ -3115,6 +3115,70 @@ const QuestApp = () => {
                 supabaseUserId={supabaseUser?.id}
                 isYourTurn={true}
               />
+            ) : pendingNotification.type === 'chifoumi_result' ? (
+              /* Résultat du Chifoumi pour le challenger */
+              <>
+                <div className={`p-6 text-center ${
+                  pendingNotification.data?.isDraw 
+                    ? 'bg-gradient-to-r from-slate-400 to-slate-500' 
+                    : pendingNotification.data?.won 
+                      ? 'bg-gradient-to-r from-emerald-400 to-teal-500'
+                      : 'bg-gradient-to-r from-red-400 to-pink-500'
+                }`}>
+                  <div className="text-6xl mb-3">
+                    {pendingNotification.data?.isDraw ? '🤝' : pendingNotification.data?.won ? '🎉' : '😢'}
+                  </div>
+                  <h2 className="text-xl font-bold text-white">{pendingNotification.title}</h2>
+                </div>
+                <div className="p-6">
+                  <p className="text-slate-600 text-center mb-4">
+                    vs {pendingNotification.data?.opponentPseudo}
+                  </p>
+                  
+                  <div className="flex justify-center items-center gap-4 mb-4">
+                    <div className="text-center">
+                      <div className="text-4xl">
+                        {pendingNotification.data?.challengerChoice === 'rock' ? '✊' : 
+                         pendingNotification.data?.challengerChoice === 'paper' ? '✋' : '✌️'}
+                      </div>
+                      <div className="text-xs text-slate-500">Toi</div>
+                    </div>
+                    <div className="text-2xl text-slate-400">VS</div>
+                    <div className="text-center">
+                      <div className="text-4xl">
+                        {pendingNotification.data?.opponentChoice === 'rock' ? '✊' : 
+                         pendingNotification.data?.opponentChoice === 'paper' ? '✋' : '✌️'}
+                      </div>
+                      <div className="text-xs text-slate-500">{pendingNotification.data?.opponentPseudo}</div>
+                    </div>
+                  </div>
+                  
+                  {!pendingNotification.data?.isDraw && (
+                    <div className={`rounded-xl p-4 mb-4 text-center ${
+                      pendingNotification.data?.won ? 'bg-emerald-50' : 'bg-red-50'
+                    }`}>
+                      <p className={`text-2xl font-black ${
+                        pendingNotification.data?.won ? 'text-emerald-600' : 'text-red-600'
+                      }`}>
+                        {pendingNotification.data?.won ? '+' : '-'}{pendingNotification.data?.betAmount} 🥔
+                      </p>
+                    </div>
+                  )}
+                  
+                  <button
+                    onClick={dismissNotification}
+                    className={`w-full py-3 rounded-xl font-bold text-white ${
+                      pendingNotification.data?.isDraw 
+                        ? 'bg-slate-500' 
+                        : pendingNotification.data?.won 
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                          : 'bg-gradient-to-r from-red-500 to-pink-500'
+                    }`}
+                  >
+                    {pendingNotification.data?.isDraw ? 'OK' : pendingNotification.data?.won ? 'Super ! 🎉' : 'OK 😢'}
+                  </button>
+                </div>
+              </>
             ) : pendingNotification.type === 'task_invitation' ? (
               <>
                 <div className="p-6 text-center bg-gradient-to-r from-purple-500 to-pink-500">

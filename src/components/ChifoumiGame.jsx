@@ -135,8 +135,8 @@ export const ChifoumiChallengeModal = ({
           </div>
 
           <div className="bg-amber-50 rounded-xl p-3 text-center">
-            <p className="text-sm text-slate-600">Le gagnant remporte</p>
-            <p className="text-xl font-black text-amber-600">{selectedBet * 2} 🥔</p>
+            <p className="text-sm text-slate-600">Gain si tu gagnes</p>
+            <p className="text-xl font-black text-emerald-600">+{selectedBet} 🥔</p>
           </div>
 
           <div className="flex gap-2">
@@ -192,7 +192,7 @@ export const ChifoumiResponseModal = ({
           <div className="bg-amber-50 rounded-xl p-4 text-center">
             <p className="text-sm text-slate-600">Mise en jeu</p>
             <p className="text-3xl font-black text-amber-600">{challenge.bet_amount} 🥔</p>
-            <p className="text-sm text-slate-500 mt-2">Le gagnant remporte {challenge.bet_amount * 2} 🥔</p>
+            <p className="text-sm text-emerald-600 mt-2">Gain si tu gagnes : +{challenge.bet_amount} 🥔</p>
           </div>
 
           {!canAccept && (
@@ -686,7 +686,7 @@ export const ChifoumiNotificationModal = ({
       .from('chifoumi_challenges')
       .update({ 
         opponent_choice: selectedChoice,
-        status: 'active' // Marquer comme actif
+        status: 'active'
       })
       .eq('id', challenge.id);
     
@@ -704,19 +704,80 @@ export const ChifoumiNotificationModal = ({
       .from('chifoumi_challenges')
       .update({ 
         status: 'completed',
-        winner: winnerId
+        winner: winnerId,
+        opponent_choice: selectedChoice
       })
       .eq('id', challenge.id);
     
-    // Afficher le résultat
-    const iWon = winnerId === supabaseUserId;
+    // Transférer les patates
+    if (winnerId !== 'draw') {
+      const loserId = winnerId === challenge.challenger_id ? challenge.opponent_id : challenge.challenger_id;
+      
+      // Ajouter au gagnant
+      await supabase.rpc('increment_potatoes', { 
+        user_id: winnerId, 
+        amount: challenge.bet_amount 
+      }).catch(() => {
+        // Fallback si la fonction RPC n'existe pas
+        supabase
+          .from('profiles')
+          .select('potatoes')
+          .eq('id', winnerId)
+          .single()
+          .then(({ data }) => {
+            if (data) {
+              supabase
+                .from('profiles')
+                .update({ potatoes: (data.potatoes || 0) + challenge.bet_amount })
+                .eq('id', winnerId);
+            }
+          });
+      });
+      
+      // Retirer au perdant
+      await supabase
+        .from('profiles')
+        .select('potatoes')
+        .eq('id', loserId)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            supabase
+              .from('profiles')
+              .update({ potatoes: Math.max(0, (data.potatoes || 0) - challenge.bet_amount) })
+              .eq('id', loserId);
+          }
+        });
+    }
+    
+    // Envoyer une notification au challenger avec le résultat
+    const challengerWon = winnerId === challenge.challenger_id;
     const isDraw = winnerId === 'draw';
+    
+    await supabase.from('notifications').insert({
+      user_id: challenge.challenger_id,
+      type: 'chifoumi_result',
+      title: isDraw ? 'Égalité ! 🤝' : challengerWon ? 'Tu as gagné ! 🎉' : 'Tu as perdu... 😢',
+      message: `${challenge.opponent_pseudo} a joué contre toi`,
+      data: {
+        challengerChoice: challengerChoice,
+        opponentChoice: selectedChoice,
+        opponentPseudo: challenge.opponent_pseudo,
+        betAmount: challenge.bet_amount,
+        won: challengerWon,
+        isDraw: isDraw
+      },
+      read: false,
+    });
+    
+    // Afficher le résultat pour l'adversaire (moi)
+    const iWon = winnerId === supabaseUserId;
     setResult({ 
       iWon, 
       isDraw, 
       myChoice: selectedChoice,
       opponentChoice: challengerChoice,
-      amount: betAmount
+      amount: challenge.bet_amount
     });
     setStep('result');
     setLoading(false);
