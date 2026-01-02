@@ -679,18 +679,7 @@ export const ChifoumiNotificationModal = ({
       return;
     }
     
-    setLoading(true);
-    
-    // L'adversaire joue son coup
-    await supabase
-      .from('chifoumi_challenges')
-      .update({ 
-        opponent_choice: selectedChoice,
-        status: 'active'
-      })
-      .eq('id', challenge.id);
-    
-    // Le challenger a déjà joué, donc on peut calculer le résultat
+    // Calculer le résultat IMMÉDIATEMENT (avant les appels DB)
     const challengerChoice = challenge.challenger_choice;
     const winner = getWinner(challengerChoice, selectedChoice);
     
@@ -699,13 +688,27 @@ export const ChifoumiNotificationModal = ({
     else if (winner === 'player2') winnerId = challenge.opponent_id;
     else winnerId = 'draw';
     
-    // Mettre à jour avec le résultat
-    await supabase
+    const iWon = winnerId === supabaseUserId;
+    const isDraw = winnerId === 'draw';
+    
+    // Afficher le résultat TOUT DE SUITE
+    setResult({ 
+      iWon, 
+      isDraw, 
+      myChoice: selectedChoice,
+      opponentChoice: challengerChoice,
+      amount: challenge.bet_amount
+    });
+    setStep('result');
+    
+    // Faire les mises à jour en base en arrière-plan (sans await)
+    // Mettre à jour le challenge
+    supabase
       .from('chifoumi_challenges')
       .update({ 
+        opponent_choice: selectedChoice,
         status: 'completed',
-        winner: winnerId,
-        opponent_choice: selectedChoice
+        winner: winnerId
       })
       .eq('id', challenge.id);
     
@@ -714,28 +717,22 @@ export const ChifoumiNotificationModal = ({
       const loserId = winnerId === challenge.challenger_id ? challenge.opponent_id : challenge.challenger_id;
       
       // Ajouter au gagnant
-      await supabase.rpc('increment_potatoes', { 
-        user_id: winnerId, 
-        amount: challenge.bet_amount 
-      }).catch(() => {
-        // Fallback si la fonction RPC n'existe pas
-        supabase
-          .from('profiles')
-          .select('potatoes')
-          .eq('id', winnerId)
-          .single()
-          .then(({ data }) => {
-            if (data) {
-              supabase
-                .from('profiles')
-                .update({ potatoes: (data.potatoes || 0) + challenge.bet_amount })
-                .eq('id', winnerId);
-            }
-          });
-      });
+      supabase
+        .from('profiles')
+        .select('potatoes')
+        .eq('id', winnerId)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            supabase
+              .from('profiles')
+              .update({ potatoes: (data.potatoes || 0) + challenge.bet_amount })
+              .eq('id', winnerId);
+          }
+        });
       
       // Retirer au perdant
-      await supabase
+      supabase
         .from('profiles')
         .select('potatoes')
         .eq('id', loserId)
@@ -752,9 +749,8 @@ export const ChifoumiNotificationModal = ({
     
     // Envoyer une notification au challenger avec le résultat
     const challengerWon = winnerId === challenge.challenger_id;
-    const isDraw = winnerId === 'draw';
     
-    await supabase.from('notifications').insert({
+    supabase.from('notifications').insert({
       user_id: challenge.challenger_id,
       type: 'chifoumi_result',
       title: isDraw ? 'Égalité ! 🤝' : challengerWon ? 'Tu as gagné ! 🎉' : 'Tu as perdu... 😢',
@@ -769,18 +765,6 @@ export const ChifoumiNotificationModal = ({
       },
       read: false,
     });
-    
-    // Afficher le résultat pour l'adversaire (moi)
-    const iWon = winnerId === supabaseUserId;
-    setResult({ 
-      iWon, 
-      isDraw, 
-      myChoice: selectedChoice,
-      opponentChoice: challengerChoice,
-      amount: challenge.bet_amount
-    });
-    setStep('result');
-    setLoading(false);
   };
 
   return (
