@@ -19,6 +19,7 @@ import { SeasonalChallengeBanner } from './components/SeasonalChallengeBanner';
 import { Vault, VaultButton } from './components/Vault';
 import { ControlCenter } from './components/ControlCenter';
 import { WidgetPage, WidgetInstructions } from './components/WidgetPage';
+import { ChifoumiNotificationModal } from './components/ChifoumiGame';
 import { 
   CreateTaskModal, 
   ChestOpenedModal, 
@@ -3098,72 +3099,22 @@ const QuestApp = () => {
       {pendingNotification && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-bounce-in">
-            {/* Notification Défi Chifoumi */}
+            {/* Notification Défi Chifoumi - Modal complet avec jeu */}
             {pendingNotification.type === 'chifoumi_challenge' ? (
-              <>
-                <div className="p-6 text-center bg-gradient-to-r from-amber-400 to-orange-500">
-                  <div className="text-6xl mb-3">⚔️</div>
-                  <h2 className="text-xl font-bold text-white">{pendingNotification.title}</h2>
-                </div>
-                <div className="p-6">
-                  <p className="text-slate-700 text-center mb-4">{pendingNotification.message}</p>
-                  
-                  <div className="bg-amber-50 rounded-xl p-4 mb-4 text-center">
-                    <p className="text-sm text-slate-600">Mise en jeu</p>
-                    <p className="text-3xl font-black text-amber-600">{pendingNotification.data?.betAmount || 0} 🥔</p>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        dismissNotification();
-                      }}
-                      className="flex-1 py-3 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    >
-                      Plus tard
-                    </button>
-                    <button
-                      onClick={() => {
-                        dismissNotification();
-                        setCurrentPage('friends');
-                      }}
-                      className="flex-1 py-3 rounded-xl font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90"
-                    >
-                      Voir le défi ⚔️
-                    </button>
-                  </div>
-                </div>
-              </>
+              <ChifoumiNotificationModal
+                notification={pendingNotification}
+                myPotatoes={user.potatoes}
+                onDismiss={dismissNotification}
+                supabaseUserId={supabaseUser?.id}
+              />
             ) : pendingNotification.type === 'chifoumi_your_turn' ? (
-              <>
-                <div className="p-6 text-center bg-gradient-to-r from-indigo-500 to-purple-500">
-                  <div className="text-6xl mb-3">🎮</div>
-                  <h2 className="text-xl font-bold text-white">{pendingNotification.title}</h2>
-                </div>
-                <div className="p-6">
-                  <p className="text-slate-700 text-center mb-4">{pendingNotification.message}</p>
-                  
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        dismissNotification();
-                      }}
-                      className="flex-1 py-3 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    >
-                      Plus tard
-                    </button>
-                    <button
-                      onClick={() => {
-                        dismissNotification();
-                        setCurrentPage('friends');
-                      }}
-                      className="flex-1 py-3 rounded-xl font-bold bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:opacity-90"
-                    >
-                      Jouer ! 🎮
-                    </button>
-                  </div>
-                </div>
-              </>
+              <ChifoumiNotificationModal
+                notification={pendingNotification}
+                myPotatoes={user.potatoes}
+                onDismiss={dismissNotification}
+                supabaseUserId={supabaseUser?.id}
+                isYourTurn={true}
+              />
             ) : pendingNotification.type === 'task_invitation' ? (
               <>
                 <div className="p-6 text-center bg-gradient-to-r from-purple-500 to-pink-500">

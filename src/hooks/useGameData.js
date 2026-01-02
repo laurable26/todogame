@@ -185,7 +185,7 @@ export const useGameData = (supabaseUser) => {
     { id: 83, name: 'Badge VIP', price: 5000, type: 'amelioration', image: '👑', description: 'Badge VIP à côté du pseudo', isVipBadge: true },
     { id: 94, name: 'Coffre-fort', price: 1500, type: 'amelioration', image: '🔐', description: 'Stocke 25 photos secrètes protégées par code PIN', isVault: true },
     { id: 95, name: 'Centre de contrôle', price: 2000, type: 'amelioration', image: '🗂️', description: 'Regroupe toutes les icônes flottantes en un seul bouton', isControlCenter: true },
-    { id: 96, name: 'Widget', price: 500, type: 'amelioration', image: '📱', description: 'Ajoute un widget sur l\'écran d\'accueil de ton téléphone pour voir et gérer tes tâches du jour' },
+    // Widget supprimé - nécessite une app native Android
     // Boosts temporaires - consommables (prix élevés car réutilisables)
     { id: 2, name: 'Lucky Chest', price: 150, type: 'boost', duration: 'Instantané', image: '🍀', description: 'Coffre aléatoire (chance de rare)', boostType: 'lucky_chest', instant: true },
     { id: 3, name: 'Coffre Splendide', price: 300, type: 'boost', duration: 'Instantané', image: '🎀', description: 'Reçois un coffre splendide', boostType: 'instant_silver_chest', instant: true },

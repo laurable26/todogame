@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
 const CHOICES = [
-  { id: 'rock', emoji: '🪨', label: 'Pierre', beats: 'scissors' },
-  { id: 'paper', emoji: '📄', label: 'Feuille', beats: 'rock' },
-  { id: 'scissors', emoji: '✂️', label: 'Ciseaux', beats: 'paper' },
+  { id: 'rock', emoji: '✊', label: 'Pierre', beats: 'scissors' },
+  { id: 'paper', emoji: '✋', label: 'Feuille', beats: 'rock' },
+  { id: 'scissors', emoji: '✌️', label: 'Ciseaux', beats: 'paper' },
 ];
 
 const BET_OPTIONS = [10, 25, 50, 100];
@@ -17,7 +17,7 @@ const getWinner = (choice1, choice2) => {
   return 'player2';
 };
 
-// Modal de défi Chifoumi
+// Modal de défi Chifoumi - Le challenger choisit son coup en même temps
 export const ChifoumiChallengeModal = ({ 
   friend, 
   myUserId, 
@@ -26,9 +26,10 @@ export const ChifoumiChallengeModal = ({
   onSendChallenge 
 }) => {
   const [selectedBet, setSelectedBet] = useState(25);
+  const [selectedChoice, setSelectedChoice] = useState(null); // pierre/feuille/ciseaux
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
-  const friendPotatoes = friend.potatoes ?? Infinity; // Si pas défini, on suppose qu'il a assez
+  const friendPotatoes = friend.potatoes ?? Infinity;
 
   const handleSend = async () => {
     if (myPotatoes < selectedBet) {
@@ -39,22 +40,23 @@ export const ChifoumiChallengeModal = ({
       alert(`${friend.pseudo} n'a que ${friendPotatoes} 🥔, choisis une mise plus petite !`);
       return;
     }
+    if (!selectedChoice) {
+      alert('Choisis ton coup !');
+      return;
+    }
     
     setSending(true);
-    await onSendChallenge(friend, selectedBet);
+    await onSendChallenge(friend, selectedBet, selectedChoice);
     setSending(false);
     setSent(true);
     
-    // Fermer après 1.5s
     setTimeout(() => {
       onClose();
     }, 1500);
   };
 
-  // Filtrer les mises disponibles
   const availableBets = BET_OPTIONS.filter(bet => myPotatoes >= bet && friendPotatoes >= bet);
 
-  // Affichage confirmation
   if (sent) {
     return (
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50">
@@ -65,7 +67,7 @@ export const ChifoumiChallengeModal = ({
             {friend.pseudo} a reçu ton défi de {selectedBet} 🥔
           </p>
           <p className="text-sm text-slate-400 mt-2">
-            Tu seras notifié quand il acceptera
+            Ton coup est enregistré. Résultat dès qu'il joue !
           </p>
         </div>
       </div>
@@ -86,38 +88,43 @@ export const ChifoumiChallengeModal = ({
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Affichage des patates des deux joueurs */}
-          <div className="flex justify-around text-center">
-            <div>
-              <p className="text-xs text-slate-500">Toi</p>
-              <p className="font-bold text-amber-600">{myPotatoes} 🥔</p>
-            </div>
-            <div className="text-slate-300">VS</div>
-            <div>
-              <p className="text-xs text-slate-500">{friend.pseudo}</p>
-              <p className="font-bold text-amber-600">{friendPotatoes === Infinity ? '?' : friendPotatoes} 🥔</p>
+          {/* Choix pierre/feuille/ciseaux */}
+          <div>
+            <p className="text-sm text-slate-600 text-center mb-3">Choisis ton coup</p>
+            <div className="flex justify-center gap-3">
+              {CHOICES.map(choice => (
+                <button
+                  key={choice.id}
+                  onClick={() => setSelectedChoice(choice.id)}
+                  className={`w-16 h-16 rounded-2xl text-3xl flex items-center justify-center transition-all ${
+                    selectedChoice === choice.id
+                      ? 'bg-indigo-500 scale-110 shadow-lg ring-2 ring-indigo-300'
+                      : 'bg-slate-100 hover:bg-slate-200'
+                  }`}
+                >
+                  {choice.emoji}
+                </button>
+              ))}
             </div>
           </div>
 
+          {/* Mise */}
           <div>
-            <h3 className="font-semibold text-slate-700 mb-3">Mise en jeu</h3>
-            <div className="grid grid-cols-4 gap-2">
-              {BET_OPTIONS.map(bet => {
-                const canAfford = myPotatoes >= bet;
-                const friendCanAfford = friendPotatoes >= bet;
-                const isDisabled = !canAfford || !friendCanAfford;
-                
+            <p className="text-sm text-slate-600 text-center mb-2">Mise</p>
+            <div className="flex justify-center gap-2">
+              {BET_OPTIONS.map((bet) => {
+                const canBet = myPotatoes >= bet && friendPotatoes >= bet;
                 return (
                   <button
                     key={bet}
-                    onClick={() => !isDisabled && setSelectedBet(bet)}
-                    disabled={isDisabled}
-                    className={`py-3 rounded-xl font-bold transition-all ${
-                      selectedBet === bet && !isDisabled
+                    onClick={() => canBet && setSelectedBet(bet)}
+                    disabled={!canBet}
+                    className={`px-3 py-2 rounded-xl font-bold transition-all ${
+                      selectedBet === bet
                         ? 'bg-amber-500 text-white scale-105'
-                        : isDisabled
-                          ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        : canBet
+                          ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                          : 'bg-slate-100 text-slate-300 cursor-not-allowed'
                     }`}
                   >
                     {bet} 🥔
@@ -125,17 +132,11 @@ export const ChifoumiChallengeModal = ({
                 );
               })}
             </div>
-            {availableBets.length === 0 && (
-              <p className="text-red-500 text-sm text-center mt-2">
-                Pas assez de patates pour jouer !
-              </p>
-            )}
           </div>
 
-          <div className="bg-amber-50 rounded-xl p-4 text-center">
+          <div className="bg-amber-50 rounded-xl p-3 text-center">
             <p className="text-sm text-slate-600">Le gagnant remporte</p>
-            <p className="text-2xl font-black text-amber-600">{selectedBet * 2} 🥔</p>
-            <p className="text-xs text-slate-500 mt-1">Égalité = chacun récupère sa mise</p>
+            <p className="text-xl font-black text-amber-600">{selectedBet * 2} 🥔</p>
           </div>
 
           <div className="flex gap-2">
@@ -148,9 +149,9 @@ export const ChifoumiChallengeModal = ({
             </button>
             <button
               onClick={handleSend}
-              disabled={availableBets.length === 0 || sending}
+              disabled={availableBets.length === 0 || !selectedChoice || sending}
               className={`flex-1 py-3 rounded-xl font-bold ${
-                availableBets.length > 0 && !sending
+                availableBets.length > 0 && selectedChoice && !sending
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90'
                   : 'bg-slate-200 text-slate-400 cursor-not-allowed'
               }`}
@@ -460,7 +461,7 @@ export const useChifoumi = (userId, onGamePlayed, onGameWon) => {
   }, [userId]);
 
   // Envoyer un défi
-  const sendChallenge = async (friend, betAmount, myPseudo) => {
+  const sendChallenge = async (friend, betAmount, myPseudo, challengerChoice) => {
     const opponentId = friend.odUserId || friend.odPersonalUserId;
     
     const { error } = await supabase
@@ -471,6 +472,7 @@ export const useChifoumi = (userId, onGamePlayed, onGameWon) => {
         opponent_id: opponentId,
         opponent_pseudo: friend.pseudo,
         bet_amount: betAmount,
+        challenger_choice: challengerChoice, // Le challenger joue en même temps qu'il envoie le défi
         status: 'pending'
       });
 
@@ -479,7 +481,7 @@ export const useChifoumi = (userId, onGamePlayed, onGameWon) => {
       const { error: notifError } = await supabase.from('notifications').insert({
         user_id: opponentId,
         type: 'chifoumi_challenge',
-        title: 'Défi Chifoumi ! 🎮',
+        title: 'Défi Chifoumi ! ⚔️',
         message: `${myPseudo} te défie pour ${betAmount} 🥔`,
         data: {
           challengerPseudo: myPseudo,
@@ -611,6 +613,234 @@ export const useChifoumi = (userId, onGamePlayed, onGameWon) => {
     markAsSeen,
     loadChallenges
   };
+};
+
+// Modal de notification Chifoumi (intégré dans App.jsx)
+// Permet d'accepter/refuser ET de jouer directement depuis la notification
+export const ChifoumiNotificationModal = ({
+  notification,
+  myPotatoes,
+  onDismiss,
+  supabaseUserId,
+  isYourTurn = false
+}) => {
+  const [step, setStep] = useState('play'); // 'play', 'result' - plus besoin d'étape 'challenge'
+  const [selectedChoice, setSelectedChoice] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [challenge, setChallenge] = useState(null);
+  const [result, setResult] = useState(null);
+
+  const betAmount = notification.data?.betAmount || 0;
+  const challengerPseudo = notification.data?.challengerPseudo || 'Quelqu\'un';
+  const canPlay = myPotatoes >= betAmount;
+
+  // Charger le défi depuis la base
+  useEffect(() => {
+    const loadChallenge = async () => {
+      if (!supabaseUserId) return;
+      
+      const { data } = await supabase
+        .from('chifoumi_challenges')
+        .select('*')
+        .eq('opponent_id', supabaseUserId)
+        .in('status', ['pending', 'active'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (data && data.length > 0) {
+        setChallenge(data[0]);
+      }
+    };
+    
+    loadChallenge();
+  }, [supabaseUserId]);
+
+  // Refuser le défi
+  const handleDecline = async () => {
+    if (!challenge) {
+      onDismiss();
+      return;
+    }
+    
+    setLoading(true);
+    await supabase
+      .from('chifoumi_challenges')
+      .update({ status: 'declined' })
+      .eq('id', challenge.id);
+    
+    onDismiss();
+  };
+
+  // Jouer son coup - le challenger a déjà joué, donc on calcule le résultat immédiatement
+  const handlePlay = async () => {
+    if (!selectedChoice || !challenge) return;
+    if (!canPlay) {
+      alert('Tu n\'as pas assez de patates !');
+      return;
+    }
+    
+    setLoading(true);
+    
+    // L'adversaire joue son coup
+    await supabase
+      .from('chifoumi_challenges')
+      .update({ 
+        opponent_choice: selectedChoice,
+        status: 'active' // Marquer comme actif
+      })
+      .eq('id', challenge.id);
+    
+    // Le challenger a déjà joué, donc on peut calculer le résultat
+    const challengerChoice = challenge.challenger_choice;
+    const winner = getWinner(challengerChoice, selectedChoice);
+    
+    let winnerId = null;
+    if (winner === 'player1') winnerId = challenge.challenger_id;
+    else if (winner === 'player2') winnerId = challenge.opponent_id;
+    else winnerId = 'draw';
+    
+    // Mettre à jour avec le résultat
+    await supabase
+      .from('chifoumi_challenges')
+      .update({ 
+        status: 'completed',
+        winner: winnerId
+      })
+      .eq('id', challenge.id);
+    
+    // Afficher le résultat
+    const iWon = winnerId === supabaseUserId;
+    const isDraw = winnerId === 'draw';
+    setResult({ 
+      iWon, 
+      isDraw, 
+      myChoice: selectedChoice,
+      opponentChoice: challengerChoice,
+      amount: betAmount
+    });
+    setStep('result');
+    setLoading(false);
+  };
+
+  return (
+    <>
+      {/* Jouer son coup */}
+      {step === 'play' && (
+        <>
+          <div className="p-6 text-center bg-gradient-to-r from-amber-400 to-orange-500">
+            <div className="text-6xl mb-3">⚔️</div>
+            <h2 className="text-xl font-bold text-white">Défi de {challengerPseudo}</h2>
+          </div>
+          <div className="p-6">
+            <div className="bg-amber-50 rounded-xl p-3 mb-4 text-center">
+              <p className="text-sm text-slate-600">Mise en jeu</p>
+              <p className="text-2xl font-black text-amber-600">{betAmount} 🥔</p>
+            </div>
+            
+            {!canPlay ? (
+              <div className="bg-red-50 rounded-xl p-3 mb-4 text-center">
+                <p className="text-red-600 text-sm">Tu n'as pas assez de patates !</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-slate-600 text-center mb-3 text-sm">Choisis ton coup pour jouer</p>
+                <div className="flex justify-center gap-3 mb-4">
+                  {CHOICES.map(choice => (
+                    <button
+                      key={choice.id}
+                      onClick={() => setSelectedChoice(choice.id)}
+                      className={`w-16 h-16 rounded-2xl text-3xl flex items-center justify-center transition-all ${
+                        selectedChoice === choice.id
+                          ? 'bg-indigo-500 scale-110 shadow-lg ring-2 ring-indigo-300'
+                          : 'bg-slate-100 hover:bg-slate-200'
+                      }`}
+                    >
+                      {choice.emoji}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            
+            <div className="flex gap-2">
+              <button
+                onClick={handleDecline}
+                disabled={loading}
+                className="flex-1 py-3 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50"
+              >
+                Refuser
+              </button>
+              <button
+                onClick={handlePlay}
+                disabled={!selectedChoice || loading || !canPlay}
+                className={`flex-1 py-3 rounded-xl font-bold ${
+                  selectedChoice && canPlay
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                {loading ? '⏳' : 'Jouer ! ⚔️'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Résultat */}
+      {step === 'result' && result && (
+        <>
+          <div className={`p-6 text-center ${
+            result.isDraw 
+              ? 'bg-gradient-to-r from-slate-400 to-slate-500' 
+              : result.iWon 
+                ? 'bg-gradient-to-r from-emerald-400 to-teal-500'
+                : 'bg-gradient-to-r from-red-400 to-pink-500'
+          }`}>
+            <div className="text-6xl mb-3">
+              {result.isDraw ? '🤝' : result.iWon ? '🎉' : '😢'}
+            </div>
+            <h2 className="text-xl font-bold text-white">
+              {result.isDraw ? 'Égalité !' : result.iWon ? 'Tu as gagné !' : 'Tu as perdu...'}
+            </h2>
+          </div>
+          <div className="p-6">
+            <div className="flex justify-center items-center gap-4 mb-4">
+              <div className="text-center">
+                <div className="text-4xl">{CHOICES.find(c => c.id === result.myChoice)?.emoji}</div>
+                <div className="text-xs text-slate-500">Toi</div>
+              </div>
+              <div className="text-2xl text-slate-400">VS</div>
+              <div className="text-center">
+                <div className="text-4xl">{CHOICES.find(c => c.id === result.opponentChoice)?.emoji}</div>
+                <div className="text-xs text-slate-500">{challengerPseudo}</div>
+              </div>
+            </div>
+            
+            {!result.isDraw && (
+              <div className={`rounded-xl p-4 mb-4 text-center ${result.iWon ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                <p className={`text-2xl font-black ${result.iWon ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {result.iWon ? '+' : '-'}{result.amount} 🥔
+                </p>
+              </div>
+            )}
+            
+            <button
+              onClick={onDismiss}
+              className={`w-full py-3 rounded-xl font-bold text-white ${
+                result.isDraw 
+                  ? 'bg-slate-500' 
+                  : result.iWon 
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                    : 'bg-gradient-to-r from-red-500 to-pink-500'
+              }`}
+            >
+              {result.isDraw ? 'OK' : result.iWon ? 'Super ! 🎉' : 'OK 😢'}
+            </button>
+          </div>
+        </>
+      )}
+    </>
+  );
 };
 
 export default ChifoumiChallengeModal;

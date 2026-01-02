@@ -475,13 +475,13 @@ export const FriendsPage = ({
           myUserId={supabaseUser?.id}
           myPotatoes={user?.potatoes || 0}
           onClose={() => setChallengeFriend(null)}
-          onSendChallenge={async (friend, bet) => {
+          onSendChallenge={async (friend, bet, choice) => {
             // Vérifier que l'ami a assez de patates
             if (friend.potatoes !== undefined && friend.potatoes < bet) {
               alert(`${friend.pseudo} n'a pas assez de patates pour cette mise !`);
               return;
             }
-            return sendChallenge(friend, bet, user?.pseudo);
+            return sendChallenge(friend, bet, user?.pseudo, choice);
           }}
         />
       )}
