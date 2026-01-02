@@ -3094,39 +3094,132 @@ const QuestApp = () => {
         />
       )}
 
-      {/* Modal de notification (tâche/événement complété par un ami) */}
+      {/* Modal de notification */}
       {pendingNotification && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-bounce-in">
-            <div className={`p-6 text-center ${pendingNotification.type === 'task_completed' ? 'bg-gradient-to-r from-indigo-500 to-purple-500' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`}>
-              <div className="text-6xl mb-3">
-                {pendingNotification.type === 'task_completed' ? '✅' : '📅'}
-              </div>
-              <h2 className="text-xl font-bold text-white">{pendingNotification.title}</h2>
-            </div>
-            <div className="p-6">
-              <p className="text-slate-700 text-center mb-4">{pendingNotification.message}</p>
-              
-              <div className="bg-slate-50 rounded-xl p-4 mb-4">
-                <div className="flex justify-center gap-6">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-yellow-500">+{pendingNotification.data?.xpGained || 0}</div>
-                    <div className="text-xs text-slate-500">XP gagnés</div>
+            {/* Notification Défi Chifoumi */}
+            {pendingNotification.type === 'chifoumi_challenge' ? (
+              <>
+                <div className="p-6 text-center bg-gradient-to-r from-amber-400 to-orange-500">
+                  <div className="text-6xl mb-3">⚔️</div>
+                  <h2 className="text-xl font-bold text-white">{pendingNotification.title}</h2>
+                </div>
+                <div className="p-6">
+                  <p className="text-slate-700 text-center mb-4">{pendingNotification.message}</p>
+                  
+                  <div className="bg-amber-50 rounded-xl p-4 mb-4 text-center">
+                    <p className="text-sm text-slate-600">Mise en jeu</p>
+                    <p className="text-3xl font-black text-amber-600">{pendingNotification.data?.betAmount || 0} 🥔</p>
                   </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-amber-600">+{pendingNotification.data?.pointsGained || 0}</div>
-                    <div className="text-xs text-slate-500">🥔 gagnées</div>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        dismissNotification();
+                      }}
+                      className="flex-1 py-3 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    >
+                      Plus tard
+                    </button>
+                    <button
+                      onClick={() => {
+                        dismissNotification();
+                        setCurrentPage('friends');
+                      }}
+                      className="flex-1 py-3 rounded-xl font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90"
+                    >
+                      Voir le défi ⚔️
+                    </button>
                   </div>
                 </div>
-              </div>
-              
-              <button
-                onClick={dismissNotification}
-                className={`w-full py-3 rounded-xl font-bold text-white ${pendingNotification.type === 'task_completed' ? 'bg-gradient-to-r from-indigo-500 to-purple-500' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`}
-              >
-                Super ! 🎉
-              </button>
-            </div>
+              </>
+            ) : pendingNotification.type === 'chifoumi_your_turn' ? (
+              <>
+                <div className="p-6 text-center bg-gradient-to-r from-indigo-500 to-purple-500">
+                  <div className="text-6xl mb-3">🎮</div>
+                  <h2 className="text-xl font-bold text-white">{pendingNotification.title}</h2>
+                </div>
+                <div className="p-6">
+                  <p className="text-slate-700 text-center mb-4">{pendingNotification.message}</p>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        dismissNotification();
+                      }}
+                      className="flex-1 py-3 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    >
+                      Plus tard
+                    </button>
+                    <button
+                      onClick={() => {
+                        dismissNotification();
+                        setCurrentPage('friends');
+                      }}
+                      className="flex-1 py-3 rounded-xl font-bold bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:opacity-90"
+                    >
+                      Jouer ! 🎮
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : pendingNotification.type === 'task_invitation' ? (
+              <>
+                <div className="p-6 text-center bg-gradient-to-r from-purple-500 to-pink-500">
+                  <div className="text-6xl mb-3">📋</div>
+                  <h2 className="text-xl font-bold text-white">{pendingNotification.title}</h2>
+                </div>
+                <div className="p-6">
+                  <p className="text-slate-700 text-center mb-4">{pendingNotification.message}</p>
+                  
+                  <button
+                    onClick={() => {
+                      dismissNotification();
+                      setCurrentPage('tasks');
+                    }}
+                    className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90"
+                  >
+                    Voir la tâche 📋
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* Notification par défaut (tâche/événement complété) */
+              <>
+                <div className={`p-6 text-center ${pendingNotification.type === 'task_completed' ? 'bg-gradient-to-r from-indigo-500 to-purple-500' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`}>
+                  <div className="text-6xl mb-3">
+                    {pendingNotification.type === 'task_completed' ? '✅' : '📅'}
+                  </div>
+                  <h2 className="text-xl font-bold text-white">{pendingNotification.title}</h2>
+                </div>
+                <div className="p-6">
+                  <p className="text-slate-700 text-center mb-4">{pendingNotification.message}</p>
+                  
+                  {(pendingNotification.data?.xpGained || pendingNotification.data?.pointsGained) && (
+                    <div className="bg-slate-50 rounded-xl p-4 mb-4">
+                      <div className="flex justify-center gap-6">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-yellow-500">+{pendingNotification.data?.xpGained || 0}</div>
+                          <div className="text-xs text-slate-500">XP gagnés</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-amber-600">+{pendingNotification.data?.pointsGained || 0}</div>
+                          <div className="text-xs text-slate-500">🥔 gagnées</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <button
+                    onClick={dismissNotification}
+                    className={`w-full py-3 rounded-xl font-bold text-white ${pendingNotification.type === 'task_completed' ? 'bg-gradient-to-r from-indigo-500 to-purple-500' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`}
+                  >
+                    Super ! 🎉
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
