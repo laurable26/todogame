@@ -28,11 +28,65 @@ export const TasksPage = ({
 }) => {
   const [weekDaysCount, setWeekDaysCount] = useState(7);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0); // Pour naviguer entre les mois
+  const [selectedDay, setSelectedDay] = useState(null); // Pour le modal de jour
   const [sortMode, setSortMode] = useState('date'); // date, priority, duration, alpha
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all'); // all, urgent, important, normal
   const [filterDuration, setFilterDuration] = useState('all'); // all, -1h, 1h-2h, 1/2 jour, 1 jour
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  
+  // Couleurs par défaut pour les tags (10 couleurs)
+  const DEFAULT_TAG_COLORS = [
+    { name: 'Bleu', hex: '#3B82F6' },
+    { name: 'Vert', hex: '#10B981' },
+    { name: 'Rouge', hex: '#EF4444' },
+    { name: 'Violet', hex: '#8B5CF6' },
+    { name: 'Orange', hex: '#F97316' },
+    { name: 'Rose', hex: '#EC4899' },
+    { name: 'Cyan', hex: '#06B6D4' },
+    { name: 'Jaune', hex: '#EAB308' },
+    { name: 'Indigo', hex: '#6366F1' },
+    { name: 'Emerald', hex: '#059669' },
+  ];
+  
+  // Fonction pour obtenir la couleur d'un tag
+  const getTagColor = (tags) => {
+    if (!tags || tags.length === 0) return '#3B82F6'; // Bleu par défaut
+    
+    const firstTag = tags[0];
+    const tagColors = user?.tag_colors || {};
+    
+    // Si l'upgrade est possédé et qu'il y a une couleur custom
+    const hasTagColorsUpgrade = ownedItems.includes(97) && activeUpgrades[97] !== false;
+    if (hasTagColorsUpgrade && tagColors[firstTag]) {
+      return tagColors[firstTag];
+    }
+    
+    // Sinon utiliser une couleur par défaut basée sur le hash du tag
+    const index = firstTag.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % DEFAULT_TAG_COLORS.length;
+    return DEFAULT_TAG_COLORS[index].hex;
+  };
+  
+  // Convertir hex en classes Tailwind pour bg et border
+  const getColorClasses = (hexColor) => {
+    // Mapping des couleurs hex vers les classes Tailwind
+    const colorMap = {
+      '#3B82F6': { bg: 'bg-blue-100', border: 'border-blue-500', text: 'text-blue-800' },
+      '#10B981': { bg: 'bg-emerald-100', border: 'border-emerald-500', text: 'text-emerald-800' },
+      '#EF4444': { bg: 'bg-red-100', border: 'border-red-500', text: 'text-red-800' },
+      '#8B5CF6': { bg: 'bg-violet-100', border: 'border-violet-500', text: 'text-violet-800' },
+      '#F97316': { bg: 'bg-orange-100', border: 'border-orange-500', text: 'text-orange-800' },
+      '#EC4899': { bg: 'bg-pink-100', border: 'border-pink-500', text: 'text-pink-800' },
+      '#06B6D4': { bg: 'bg-cyan-100', border: 'border-cyan-500', text: 'text-cyan-800' },
+      '#EAB308': { bg: 'bg-yellow-100', border: 'border-yellow-500', text: 'text-yellow-800' },
+      '#6366F1': { bg: 'bg-indigo-100', border: 'border-indigo-500', text: 'text-indigo-800' },
+      '#059669': { bg: 'bg-emerald-100', border: 'border-emerald-600', text: 'text-emerald-800' },
+    };
+    
+    return colorMap[hexColor] || colorMap['#3B82F6']; // Bleu par défaut
+  };
+
   
   // Améliorations disponibles (possédé ET actif)
   const hasAdvancedSort = ownedItems.includes(77) && activeUpgrades[77] !== false;
@@ -523,7 +577,7 @@ export const TasksPage = ({
         <h1 className="text-2xl sm:text-3xl font-black text-slate-900">Tâches</h1>
         <button 
           onClick={onCreateTask}
-          className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full font-bold text-white hover:scale-110 transition-transform shadow-lg flex items-center justify-center text-3xl sm:text-4xl"
+          className="create-task-button w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full font-bold text-white hover:scale-110 transition-transform shadow-lg flex items-center justify-center text-3xl sm:text-4xl"
         >
           +
         </button>
@@ -626,7 +680,7 @@ export const TasksPage = ({
 
       {/* Onglets avec Archive */}
       <div className="flex items-center gap-2">
-        <div className="flex gap-1 sm:gap-2 bg-white p-1 sm:p-2 rounded-xl border border-slate-200 shadow-sm flex-1">
+        <div className="view-selector flex gap-1 sm:gap-2 bg-white p-1 sm:p-2 rounded-xl border border-slate-200 shadow-sm flex-1">
           <button
             onClick={() => setTasksView('today')}
             className={`flex-1 min-w-fit py-2 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold transition-all text-sm sm:text-base ${
@@ -646,6 +700,16 @@ export const TasksPage = ({
             }`}
           >
             Semaine
+          </button>
+          <button
+            onClick={() => setTasksView('month')}
+            className={`flex-1 min-w-fit py-2 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold transition-all text-sm sm:text-base ${
+              tasksView === 'month'
+                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            Mois
           </button>
           <button
             onClick={() => setTasksView('bucketlist')}
@@ -835,28 +899,6 @@ export const TasksPage = ({
             </button>
           </div>
 
-          <div className="flex justify-center gap-2 mb-4">
-            <button
-              onClick={() => setWeekDaysCount(5)}
-              className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition-all ${
-                weekDaysCount === 5
-                  ? 'bg-indigo-500 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              5 jours
-            </button>
-            <button
-              onClick={() => setWeekDaysCount(7)}
-              className={`px-3 py-1.5 rounded-lg font-semibold text-xs transition-all ${
-                weekDaysCount === 7
-                  ? 'bg-indigo-500 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              7 jours
-            </button>
-          </div>
           
           <div className="space-y-3">
             {weekTasks.map(({ date, tasks: dayTasks, events: dayEvents }, index) => {
@@ -906,6 +948,287 @@ export const TasksPage = ({
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* VUE MOIS */}
+      {tasksView === 'month' && (() => {
+        const currentDate = new Date();
+        currentDate.setMonth(currentDate.getMonth() + monthOffset);
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        
+        // Nom du mois
+        const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 
+                           'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+        const monthLabel = `${monthNames[month]} ${year}`;
+        
+        // Premier et dernier jour du mois
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        
+        // Jour de la semaine du 1er (0=Dimanche, 1=Lundi, ..., 6=Samedi)
+        // On ajuste pour que Lundi=0
+        let startDayOfWeek = firstDay.getDay() - 1;
+        if (startDayOfWeek === -1) startDayOfWeek = 6; // Dimanche devient 6
+        
+        // Nombre de jours dans le mois
+        const daysInMonth = lastDay.getDate();
+        
+        // Créer le tableau des jours (avec jours vides au début)
+        const calendarDays = [];
+        
+        // Ajouter les jours vides du mois précédent
+        for (let i = 0; i < startDayOfWeek; i++) {
+          calendarDays.push(null);
+        }
+        
+        // Ajouter tous les jours du mois
+        for (let day = 1; day <= daysInMonth; day++) {
+          calendarDays.push(day);
+        }
+        
+        // Obtenir les tâches pour chaque jour
+        const getTasksForDay = (day) => {
+          if (!day) return [];
+          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const dayTasks = tasks.filter(t => {
+            if (!t.date) return false;
+            
+            // Convertir la date en string format YYYY-MM-DD
+            let taskDateStr;
+            if (t.date instanceof Date) {
+              // Si c'est un objet Date, le convertir
+              taskDateStr = t.date.toISOString().split('T')[0];
+            } else if (typeof t.date === 'string') {
+              // Si c'est déjà une string, extraire juste la date
+              taskDateStr = t.date.split('T')[0];
+            } else {
+              return false;
+            }
+            
+            // Comparer les dates ET vérifier que la tâche n'est pas complétée
+            return taskDateStr === dateStr && !t.completed;
+          });
+          
+          return dayTasks;
+        };
+        
+        // Vérifier si c'est aujourd'hui
+        const isToday = (day) => {
+          if (!day) return false;
+          const todayDate = new Date();
+          return day === todayDate.getDate() && 
+                 month === todayDate.getMonth() && 
+                 year === todayDate.getFullYear();
+        };
+        
+        return (
+          <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200 shadow-sm">
+            {/* Navigation mois */}
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => setMonthOffset(prev => prev - 1)}
+                className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all"
+              >
+                ←
+              </button>
+              <div className="flex flex-col items-center">
+                <span className="font-bold text-slate-900 text-sm sm:text-base">{monthLabel}</span>
+                {monthOffset !== 0 && (
+                  <button 
+                    onClick={() => setMonthOffset(0)}
+                    className="text-xs text-indigo-600 hover:underline mt-1"
+                  >
+                    Revenir à aujourd'hui
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setMonthOffset(prev => prev + 1)}
+                className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all"
+              >
+                →
+              </button>
+            </div>
+            
+            {/* Grille calendrier */}
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
+              {/* En-têtes des jours */}
+              {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(day => (
+                <div key={day} className="text-center text-xs sm:text-sm font-bold text-slate-600 py-2">
+                  {day}
+                </div>
+              ))}
+              
+              {/* Cases du calendrier */}
+              {calendarDays.map((day, index) => {
+                const dayTasks = day ? getTasksForDay(day) : [];
+                const isCurrentDay = isToday(day);
+                
+                return (
+                  <div
+                    key={index}
+                    onClick={() => {
+                      if (day) {
+                        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        setSelectedDay({ date: dateStr, day, tasks: dayTasks });
+                      }
+                    }}
+                    className={`
+                      min-h-[80px] sm:min-h-[100px] p-1 sm:p-2 rounded-lg border transition-all
+                      ${day ? 'cursor-pointer hover:bg-slate-50 hover:border-indigo-300' : 'bg-slate-50/50'}
+                      ${isCurrentDay ? 'bg-indigo-50 border-indigo-400 ring-2 ring-indigo-200' : 'border-slate-200'}
+                    `}
+                  >
+                    {day && (
+                      <>
+                        <div className={`text-xs sm:text-sm font-semibold mb-1 ${isCurrentDay ? 'text-indigo-600' : 'text-slate-700'}`}>
+                          {day}
+                        </div>
+                        <div className="space-y-0.5">
+                          {dayTasks.slice(0, 3).map(task => {
+                            const tagColor = getTagColor(task.tags);
+                            const colorClasses = getColorClasses(tagColor);
+                            
+                            return (
+                              <div
+                                key={task.id}
+                                className={`text-[10px] sm:text-xs px-1.5 py-1 rounded font-medium truncate border-l-2 ${colorClasses.bg} ${colorClasses.border} ${colorClasses.text}`}
+                                title={task.title}
+                              >
+                                {task.time && <span className="font-bold">{task.time} </span>}
+                                {task.title}
+                              </div>
+                            );
+                          })}
+                          {dayTasks.length > 3 && (
+                            <div className="text-[10px] text-slate-600 font-medium px-1">
+                              +{dayTasks.length - 3} autre{dayTasks.length - 3 > 1 ? 's' : ''}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+      
+      {/* Modal jour sélectionné */}
+      {selectedDay && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setSelectedDay(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-6 bg-gradient-to-r from-indigo-500 to-purple-500 text-white">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-2xl font-bold">
+                  {new Date(selectedDay.date + 'T00:00:00').toLocaleDateString('fr-FR', { 
+                    weekday: 'long', 
+                    day: 'numeric', 
+                    month: 'long' 
+                  })}
+                </h2>
+                <button
+                  onClick={() => setSelectedDay(null)}
+                  className="text-white/80 hover:text-white text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              <p className="text-white/90">
+                {selectedDay.tasks.length} tâche{selectedDay.tasks.length > 1 ? 's' : ''}
+              </p>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[calc(80vh-140px)]">
+              {selectedDay.tasks.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedDay.tasks.map(task => (
+                    <div
+                      key={task.id}
+                      className={`p-4 rounded-xl border-2 ${getStatusColor(task.status)} cursor-pointer hover:shadow-md transition-all`}
+                      onClick={() => {
+                        setSelectedDay(null);
+                        onEditTask(task);
+                      }}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            {task.time && (
+                              <span className="text-xs font-bold text-slate-700 bg-white/50 px-2 py-0.5 rounded">
+                                {task.time}
+                              </span>
+                            )}
+                            <span className="text-xs text-slate-600">
+                              {task.duration || '-1h'}
+                            </span>
+                          </div>
+                          <h3 className="font-semibold text-slate-900">{task.title}</h3>
+                          {task.description && (
+                            <p className="text-sm text-slate-600 mt-1">{task.description}</p>
+                          )}
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCompleteTask(task.id);
+                            setSelectedDay(prev => ({
+                              ...prev,
+                              tasks: prev.tasks.filter(t => t.id !== task.id)
+                            }));
+                          }}
+                          className="ml-2 text-2xl text-slate-400 hover:text-green-500 transition-colors"
+                        >
+                          ✓
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-slate-500 mb-4">Aucune tâche ce jour</p>
+                  <button
+                    onClick={() => {
+                      setSelectedDay(null);
+                      // Convertir la string date en objet Date
+                      const dateObj = new Date(selectedDay.date + 'T12:00:00');
+                      onCreateTask({ date: dateObj });
+                    }}
+                    className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-all"
+                  >
+                    + Créer une tâche
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            {selectedDay.tasks.length > 0 && (
+              <div className="p-4 border-t border-slate-200">
+                <button
+                  onClick={() => {
+                    setSelectedDay(null);
+                    // Convertir la string date en objet Date
+                    const dateObj = new Date(selectedDay.date + 'T12:00:00');
+                    onCreateTask({ date: dateObj });
+                  }}
+                  className="w-full py-3 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-all font-semibold"
+                >
+                  + Ajouter une tâche
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

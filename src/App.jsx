@@ -5,6 +5,7 @@ import { useNotifications } from './hooks/useNotifications';
 import { useJournaling } from './hooks/useJournaling';
 import { useCalendarSync } from './hooks/useCalendarSync';
 import { useSeasonalChallenges } from './hooks/useSeasonalChallenges';
+import { useTutorial } from './hooks/useTutorial';
 import { AuthScreen, OnboardingScreen, LoadingScreen } from './components/AuthScreens';
 import { Header, Navigation } from './components/Header';
 import { TasksPage } from './components/TasksPage';
@@ -20,6 +21,7 @@ import { Vault, VaultButton } from './components/Vault';
 import { ControlCenter } from './components/ControlCenter';
 import { WidgetPage, WidgetInstructions } from './components/WidgetPage';
 import { ChifoumiNotificationModal } from './components/ChifoumiGame';
+import { TutorialOverlay } from './components/TutorialOverlay';
 import { 
   CreateTaskModal, 
   ChestOpenedModal, 
@@ -163,6 +165,15 @@ const QuestApp = () => {
   // Hook pour les défis saisonniers
   const seasonalChallenges = useSeasonalChallenges(supabaseUser?.id, user.avatar, user.avatarBg);
 
+  // Hook pour le tutoriel d'introduction
+  const {
+    showTutorial,
+    tutorialCompleted,
+    completeTutorial,
+    skipTutorial,
+    restartTutorial
+  } = useTutorial(supabaseUser?.id);
+
   // Vérifier si l'amélioration Citation du Jour est active
   const hasDailyQuote = ownedItems.includes(90) && activeUpgrades[90] !== false;
   
@@ -229,6 +240,22 @@ const QuestApp = () => {
     setPendingNotification(null);
   };
 
+  // Rafraîchir les patates depuis la base de données
+  const refreshPotatoes = async () => {
+    if (!supabaseUser?.id) return;
+    
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('potatoes')
+      .eq('id', supabaseUser.id)
+      .single();
+    
+    if (!error && data) {
+      updateUser({ ...user, potatoes: data.potatoes });
+    }
+  };
+
+
   // Charger l'historique des énigmes du jour depuis Supabase
   useEffect(() => {
     const loadRiddlesHistory = async () => {
@@ -252,6 +279,60 @@ const QuestApp = () => {
     
     loadRiddlesHistory();
   }, [supabaseUser]);
+
+  // Mettre à jour automatiquement les tâches non terminées des jours précédents
+  useEffect(() => {
+    const updateOverdueTasks = async () => {
+      if (!supabaseUser || tasks.length === 0) return;
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0]; // Format YYYY-MM-DD
+      
+      // Trouver les tâches non terminées avec date < aujourd'hui
+      const overdueTasks = tasks.filter(task => {
+        if (task.completed) return false;
+        if (!task.date) return false;
+        
+        let taskDate;
+        if (task.date instanceof Date) {
+          taskDate = new Date(task.date);
+        } else {
+          taskDate = new Date(task.date);
+        }
+        taskDate.setHours(0, 0, 0, 0);
+        
+        return taskDate.getTime() < today.getTime();
+      });
+      
+      if (overdueTasks.length === 0) return;
+      
+      console.log(`📅 Mise à jour de ${overdueTasks.length} tâche(s) périmée(s) vers aujourd'hui`);
+      
+      // Mettre à jour toutes les tâches périmées en une seule fois
+      const updates = overdueTasks.map(task => 
+        supabase
+          .from('tasks')
+          .update({ date: todayStr })
+          .eq('id', task.id)
+      );
+      
+      await Promise.all(updates);
+      
+      // Recharger les tâches après mise à jour
+      const { data: updatedTasks } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('user_id', supabaseUser.id)
+        .order('created_at', { ascending: false });
+      
+      if (updatedTasks) {
+        setTasks(updatedTasks);
+      }
+    };
+    
+    updateOverdueTasks();
+  }, [supabaseUser, tasks.length]); // Se déclenche au chargement et si le nombre de tâches change
 
   // Détecter les invitations de partage en attente
   useEffect(() => {
@@ -686,76 +767,61 @@ const QuestApp = () => {
   const openChest = () => {
     if (chests.keys < 6) return;
 
-    // Incrémenter le compteur de super coffre
-    let newSuperCounter = chests.superChestCounter + 1;
-    
-    // Déterminer si c'est un super coffre (garanti entre 10 et 15)
-    let isSuperChest = false;
-    if (newSuperCounter >= 15) {
-      isSuperChest = true;
-    } else if (newSuperCounter >= 10) {
-      // Entre 10 et 15, chance aléatoire croissante
-      const chanceOfSuper = (newSuperCounter - 9) * 0.2; // 20% à 10, 40% à 11, etc.
-      isSuperChest = Math.random() < chanceOfSuper;
-    }
-    
-    // Reset le compteur si super coffre
-    if (isSuperChest) {
-      newSuperCounter = 0;
-    }
+    // 10 Avatars exclusifs aux coffres (ultra rares)
+    const CHEST_EXCLUSIVE_AVATARS = [
+      { id: 1001, name: 'Dragon', image: '🐉', type: 'avatar', avatarBg: 'from-red-500 to-orange-600', chestExclusive: true },
+      { id: 1002, name: 'Étoile filante', image: '🌟', type: 'avatar', avatarBg: 'from-yellow-400 to-amber-500', chestExclusive: true },
+      { id: 1003, name: 'Comète', image: '💫', type: 'avatar', avatarBg: 'from-purple-400 to-pink-500', chestExclusive: true },
+      { id: 1004, name: 'Foudre', image: '⚡', type: 'avatar', avatarBg: 'from-yellow-300 to-yellow-600', chestExclusive: true },
+      { id: 1005, name: 'Cristal magique', image: '🔮', type: 'avatar', avatarBg: 'from-purple-500 to-indigo-600', chestExclusive: true },
+      { id: 1006, name: 'Roi', image: '👑', type: 'avatar', avatarBg: 'from-yellow-500 to-amber-600', chestExclusive: true },
+      { id: 1007, name: 'Champion', image: '🏆', type: 'avatar', avatarBg: 'from-yellow-400 to-orange-500', chestExclusive: true },
+      { id: 1008, name: 'Masque', image: '🎭', type: 'avatar', avatarBg: 'from-pink-400 to-purple-500', chestExclusive: true },
+      { id: 1009, name: 'Artiste', image: '🎪', type: 'avatar', avatarBg: 'from-red-400 to-pink-500', chestExclusive: true },
+      { id: 1010, name: 'Arc-en-ciel', image: '🌈', type: 'avatar', avatarBg: 'from-pink-300 to-purple-400', chestExclusive: true },
+    ];
 
-    // Récompenses selon le type de coffre
     let potatoes;
     let wonItem = null;
+    let isRareAvatar = false;
 
-    if (isSuperChest) {
-      // SUPER COFFRE : 100-300 patates + amélioration OU boost
-      potatoes = 100 + Math.floor(Math.random() * 201);
+    // Système de probabilités
+    const roll = Math.random() * 100;
+
+    if (roll < 3) {
+      // 3% - Avatar ultra rare (seulement ceux pas encore obtenus)
+      const unownedAvatars = CHEST_EXCLUSIVE_AVATARS.filter(avatar => !ownedItems.includes(avatar.id));
       
-      // Liste des améliorations et boosts possibles (ceux pas encore possédés pour les améliorations)
-      const possibleUpgrades = shopItems.filter(item => 
-        item.type === 'amelioration' && !ownedItems.includes(item.id)
-      );
-      
-      const possibleBoosts = shopItems.filter(item => 
-        item.type === 'boost'
-      );
-      
-      // 60% amélioration, 40% boost
-      if (possibleUpgrades.length > 0 && Math.random() < 0.6) {
-        wonItem = possibleUpgrades[Math.floor(Math.random() * possibleUpgrades.length)];
-      } else if (possibleBoosts.length > 0) {
-        wonItem = possibleBoosts[Math.floor(Math.random() * possibleBoosts.length)];
-      } else if (possibleUpgrades.length > 0) {
-        // Fallback si pas de boost
-        wonItem = possibleUpgrades[Math.floor(Math.random() * possibleUpgrades.length)];
+      if (unownedAvatars.length > 0) {
+        wonItem = unownedAvatars[Math.floor(Math.random() * unownedAvatars.length)];
+        isRareAvatar = true;
+        // Patates bonus avec avatar
+        potatoes = 150 + Math.floor(Math.random() * 6) * 10; // 150-200
+      } else {
+        // Tous les avatars déjà obtenus → grosse somme
+        potatoes = 150 + Math.floor(Math.random() * 6) * 10; // 150-200
       }
+    } else if (roll < 20) {
+      // 17% - Grosse somme (150-200, multiples de 10)
+      potatoes = 150 + Math.floor(Math.random() * 6) * 10;
+    } else if (roll < 50) {
+      // 30% - Somme rare (100-140, multiples de 10)
+      potatoes = 100 + Math.floor(Math.random() * 5) * 10;
     } else {
-      // COFFRE NORMAL : 20-80 patates + 10% chance avatar/fond exclusif
-      potatoes = 20 + Math.floor(Math.random() * 61);
-      
-      // 10% de chance d'obtenir un avatar ou fond exclusif
-      if (Math.random() < 0.1) {
-        const exclusiveItems = shopItems.filter(item => 
-          item.chestExclusive && !ownedItems.includes(item.id)
-        );
-        
-        if (exclusiveItems.length > 0) {
-          wonItem = exclusiveItems[Math.floor(Math.random() * exclusiveItems.length)];
-        }
-      }
+      // 50% - Somme commune (50-90, multiples de 10)
+      potatoes = 50 + Math.floor(Math.random() * 5) * 10;
     }
 
-    // Ajouter l'item gagné aux possessions
+    // Ajouter l'avatar gagné aux possessions
     if (wonItem) {
       setOwnedItems(prev => [...prev, wonItem.id]);
       saveOwnedItems([...ownedItems, wonItem.id]);
     }
 
-    // Mettre à jour les clés et le compteur
+    // Mettre à jour les clés
     const newChests = { 
       keys: chests.keys - 6, 
-      superChestCounter: newSuperCounter 
+      superChestCounter: 0 // Plus utilisé mais gardé pour compatibilité
     };
     
     // Mettre à jour les patates et stats
@@ -781,7 +847,8 @@ const QuestApp = () => {
     
     // Afficher le modal avec les récompenses
     setOpeningChest({ 
-      isSuperChest,
+      isSuperChest: false, // Plus utilisé mais gardé pour compatibilité
+      isRareAvatar, // Nouveau: indique si c'est un avatar ultra rare
       rewards: { 
         potatoes, 
         item: wonItem 
@@ -1475,6 +1542,20 @@ const QuestApp = () => {
         onDisableNotifications={disableNotifications}
         isNotificationSupported={isNotificationSupported}
         calendarSync={calendarSync}
+        tasks={tasks}
+        onUpdateTagColors={async (newColors) => {
+          // Mettre à jour tag_colors dans la base de données
+          const { error } = await supabase
+            .from('profiles')
+            .update({ tag_colors: newColors })
+            .eq('id', supabaseUser.id);
+          
+          if (!error) {
+            // Mettre à jour le state local
+            updateUser({ ...user, tag_colors: newColors });
+          }
+        }}
+        restartTutorial={restartTutorial}
       />
     );
   } else if (openingChest) {
@@ -3106,6 +3187,7 @@ const QuestApp = () => {
                 myPotatoes={user.potatoes}
                 onDismiss={dismissNotification}
                 supabaseUserId={supabaseUser?.id}
+                onRefreshPotatoes={refreshPotatoes}
               />
             ) : pendingNotification.type === 'chifoumi_your_turn' ? (
               <ChifoumiNotificationModal
@@ -3114,6 +3196,7 @@ const QuestApp = () => {
                 onDismiss={dismissNotification}
                 supabaseUserId={supabaseUser?.id}
                 isYourTurn={true}
+                onRefreshPotatoes={refreshPotatoes}
               />
             ) : pendingNotification.type === 'chifoumi_result' ? (
               /* Résultat du Chifoumi pour le challenger */
@@ -3166,7 +3249,10 @@ const QuestApp = () => {
                   )}
                   
                   <button
-                    onClick={dismissNotification}
+                    onClick={async () => {
+                      await refreshPotatoes();
+                      dismissNotification();
+                    }}
                     className={`w-full py-3 rounded-xl font-bold text-white ${
                       pendingNotification.data?.isDraw 
                         ? 'bg-slate-500' 
@@ -3242,6 +3328,15 @@ const QuestApp = () => {
       {/* Modal Instructions Widget */}
       {showWidgetInstructions && (
         <WidgetInstructions onClose={() => setShowWidgetInstructions(false)} />
+      )}
+
+      {/* Tutoriel d'introduction */}
+      {showTutorial && (
+        <TutorialOverlay
+          onComplete={completeTutorial}
+          onSkip={skipTutorial}
+          onNavigate={setCurrentPage}
+        />
       )}
     </div>
   );

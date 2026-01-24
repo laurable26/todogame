@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { ChestButton } from './ChestModal';
 
-export const Header = ({ user, onAvatarClick, activeBoosts = [], theme = {}, ownedItems = [], activeUpgrades = {}, keys = 0, onOpenChest, onPotatoClick, onXpClick }) => {
+export const Header = ({ user, onAvatarClick, activeBoosts = [], theme = {}, ownedItems = [], activeUpgrades = {}, keys = 0, onOpenChest, onPotatoClick, onXpClick, potatoAnimation = null }) => {
   const [levelUpAnimation, setLevelUpAnimation] = useState(false);
   const [prevLevel, setPrevLevel] = useState(user.level);
+  const [prevPotatoes, setPrevPotatoes] = useState(user.potatoes);
+  const [potatoDiff, setPotatoDiff] = useState(null);
 
   useEffect(() => {
     if (user.level > prevLevel) {
@@ -12,6 +14,18 @@ export const Header = ({ user, onAvatarClick, activeBoosts = [], theme = {}, own
     }
     setPrevLevel(user.level);
   }, [user.level, prevLevel]);
+
+  // Détecter les changements de patates
+  useEffect(() => {
+    if (user.potatoes !== prevPotatoes) {
+      const diff = user.potatoes - prevPotatoes;
+      if (diff !== 0 && prevPotatoes !== 0) {
+        setPotatoDiff(diff);
+        setTimeout(() => setPotatoDiff(null), 2000);
+      }
+      setPrevPotatoes(user.potatoes);
+    }
+  }, [user.potatoes, prevPotatoes]);
 
   // Filtrer les boosts actifs (non expirés)
   const now = new Date();
@@ -105,14 +119,14 @@ export const Header = ({ user, onAvatarClick, activeBoosts = [], theme = {}, own
             </button>
 
             {/* Clés pour coffres - version compacte en mobile */}
-            <div className="hidden sm:block">
+            <div className="hidden sm:block keys-counter chest-button">
               <ChestButton keys={keys} onOpen={onOpenChest} theme={theme} />
             </div>
             
             {/* Version mobile - juste emoji + nombre */}
             <button
               onClick={keys >= 6 ? onOpenChest : undefined}
-              className={`sm:hidden flex items-center gap-1 px-2 py-1 rounded-lg ${
+              className={`keys-counter chest-button sm:hidden flex items-center gap-1 px-2 py-1 rounded-lg ${
                 keys >= 6 
                   ? 'bg-orange-100 border-2 border-orange-400 animate-pulse' 
                   : `${theme.darkMode ? 'bg-stone-800' : 'bg-stone-100'}`
@@ -125,21 +139,86 @@ export const Header = ({ user, onAvatarClick, activeBoosts = [], theme = {}, own
             {/* Patates - cliquable pour aller à la boutique */}
             <button 
               onClick={onPotatoClick}
-              className="bg-amber-50 border-2 border-amber-300 px-2 sm:px-4 py-1 sm:py-2 rounded-lg sm:rounded-xl hover:scale-105 hover:border-amber-400 transition-all cursor-pointer"
+              className={`relative bg-amber-50 border-2 px-2 sm:px-4 py-1 sm:py-2 rounded-lg sm:rounded-xl hover:scale-105 transition-all cursor-pointer ${
+                potatoDiff !== null 
+                  ? potatoDiff > 0 
+                    ? 'border-green-400 bg-green-50 animate-[shake_0.5s_ease-in-out,flash-green_0.5s_ease-in-out]'
+                    : 'border-red-400 bg-red-50 animate-[shake_0.5s_ease-in-out,flash-red_0.5s_ease-in-out]'
+                  : 'border-amber-300 hover:border-amber-400'
+              }`}
             >
               <div className="flex items-center gap-1 sm:gap-2">
                 <span className="text-base sm:text-2xl">🥔</span>
-                <div className="font-bold text-amber-900 text-sm sm:text-xl">{user.potatoes.toLocaleString()}</div>
+                <div className={`font-bold text-sm sm:text-xl ${
+                  potatoDiff !== null
+                    ? potatoDiff > 0
+                      ? 'text-green-600'
+                      : 'text-red-600'
+                    : 'text-amber-900'
+                }`}>
+                  {user.potatoes.toLocaleString()}
+                </div>
               </div>
+              
+              {/* Indicateur de gain/perte qui apparaît */}
+              {potatoDiff !== null && (
+                <div className={`absolute -top-8 left-1/2 transform -translate-x-1/2 font-bold text-lg whitespace-nowrap animate-[float-up_2s_ease-out] ${
+                  potatoDiff > 0 ? 'text-green-500' : 'text-red-500'
+                }`}>
+                  {potatoDiff > 0 ? '+' : ''}{potatoDiff} 🥔
+                </div>
+              )}
             </button>
           </div>
         </div>
       </div>
+      
+      {/* Animations CSS */}
+      <style>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+          20%, 40%, 60%, 80% { transform: translateX(4px); }
+        }
+        
+        @keyframes flash-green {
+          0%, 100% { 
+            background-color: rgb(240 253 244);
+            border-color: rgb(134 239 172);
+          }
+          50% { 
+            background-color: rgb(187 247 208);
+            border-color: rgb(74 222 128);
+          }
+        }
+        
+        @keyframes flash-red {
+          0%, 100% { 
+            background-color: rgb(254 242 242);
+            border-color: rgb(252 165 165);
+          }
+          50% { 
+            background-color: rgb(254 202 202);
+            border-color: rgb(248 113 113);
+          }
+        }
+        
+        @keyframes float-up {
+          0% {
+            opacity: 1;
+            transform: translate(-50%, 0);
+          }
+          100% {
+            opacity: 0;
+            transform: translate(-50%, -30px);
+          }
+        }
+      `}</style>
     </header>
   );
 };
 
-export const NavButton = ({ label, active, onClick, badge, theme = {} }) => {
+export const NavButton = ({ label, active, onClick, badge, theme = {}, dataPage }) => {
   const activeClass = theme.darkMode 
     ? 'bg-gradient-to-r from-indigo-500/30 to-purple-500/30 text-indigo-400' 
     : 'bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-indigo-600';
@@ -149,7 +228,8 @@ export const NavButton = ({ label, active, onClick, badge, theme = {} }) => {
 
   return (
     <button 
-      onClick={onClick} 
+      onClick={onClick}
+      data-page={dataPage}
       className={`flex flex-col items-center gap-0.5 sm:gap-1 px-2 sm:px-4 py-1 sm:py-2 rounded-lg sm:rounded-xl transition-all ${
         active ? `${activeClass} scale-105` : inactiveClass
       }`}
@@ -174,13 +254,13 @@ export const Navigation = ({ currentPage, setCurrentPage, friendRequestsCount, t
     <nav className={`fixed bottom-0 left-0 right-0 ${navBg} backdrop-blur-xl border-t ${borderColor} z-30 shadow-lg`}>
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-around py-2 sm:py-3">
-          <NavButton label="Tâches" active={currentPage === 'tasks'} onClick={() => setCurrentPage('tasks')} theme={theme} />
-          <NavButton label="Amis" active={currentPage === 'friends'} onClick={() => setCurrentPage('friends')} badge={friendRequestsCount} theme={theme} />
-          <NavButton label="Badges" active={currentPage === 'badges'} onClick={() => setCurrentPage('badges')} theme={theme} />
+          <NavButton label="Tâches" active={currentPage === 'tasks'} onClick={() => setCurrentPage('tasks')} theme={theme} dataPage="tasks" />
+          <NavButton label="Amis" active={currentPage === 'friends'} onClick={() => setCurrentPage('friends')} badge={friendRequestsCount} theme={theme} dataPage="friends" />
+          <NavButton label="Badges" active={currentPage === 'badges'} onClick={() => setCurrentPage('badges')} theme={theme} dataPage="badges" />
           {hasStats && (
-            <NavButton label="Stats" active={currentPage === 'stats'} onClick={() => setCurrentPage('stats')} theme={theme} />
+            <NavButton label="Stats" active={currentPage === 'stats'} onClick={() => setCurrentPage('stats')} theme={theme} dataPage="stats" />
           )}
-          <NavButton label="Boutique" active={currentPage === 'shop'} onClick={() => setCurrentPage('shop')} theme={theme} />
+          <NavButton label="Boutique" active={currentPage === 'shop'} onClick={() => setCurrentPage('shop')} theme={theme} dataPage="shop" />
         </div>
       </div>
     </nav>

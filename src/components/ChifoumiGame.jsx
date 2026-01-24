@@ -622,7 +622,8 @@ export const ChifoumiNotificationModal = ({
   myPotatoes,
   onDismiss,
   supabaseUserId,
-  isYourTurn = false
+  isYourTurn = false,
+  onRefreshPotatoes
 }) => {
   const [step, setStep] = useState('play'); // 'play', 'result' - plus besoin d'étape 'challenge'
   const [selectedChoice, setSelectedChoice] = useState(null);
@@ -714,6 +715,14 @@ export const ChifoumiNotificationModal = ({
       amount: actualBetAmount
     });
     setStep('result');
+    
+    // Rafraîchir les patates immédiatement pour effet visuel
+    if (onRefreshPotatoes) {
+      // Attendre 500ms pour que le transfert SQL soit terminé
+      setTimeout(() => {
+        onRefreshPotatoes();
+      }, 500);
+    }
     
     // Faire les mises à jour en base en arrière-plan
     // 1. Mettre à jour le challenge

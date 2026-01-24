@@ -7,8 +7,8 @@ export const CreateTaskModal = ({ onClose, onCreate, onDelete, initialTask, getS
   const isEvent = initialTask?.time || initialTask?.isEvent;
   
   const [title, setTitle] = useState(initialTask?.title || '');
-  const [date, setDate] = useState(initialTask?.date ? new Date(initialTask.date).toISOString().split('T')[0] : '');
-  const [duration, setDuration] = useState(initialTask?.duration || '1h-2h');
+  const [date, setDate] = useState(initialTask?.date ? new Date(initialTask.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+  const [duration, setDuration] = useState(initialTask?.duration || '-1h');
   
   // Champs "Plus" (repliables) - toujours replié par défaut
   const [showMore, setShowMore] = useState(false);
@@ -1146,7 +1146,7 @@ export const MissionCompletedModal = ({ mission, pqDistribution, onClose }) => {
 };
 
 // Modal paramètres
-export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateEmail, onUpdatePassword, onDeleteAccount, ownedItems = [], activeUpgrades = {}, onToggleUpgrade, shopItems = [], onCheckPseudo, notificationStatus, onEnableNotifications, onDisableNotifications, isNotificationSupported, calendarSync }) => {
+export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateEmail, onUpdatePassword, onDeleteAccount, ownedItems = [], activeUpgrades = {}, onToggleUpgrade, shopItems = [], onCheckPseudo, notificationStatus, onEnableNotifications, onDisableNotifications, isNotificationSupported, calendarSync, restartTutorial }) => {
   const [pseudo, setPseudo] = useState(user.pseudo);
   const [email, setEmail] = useState(user.email || '');
   const [customTitle, setCustomTitle] = useState(user.customTitle || '');
@@ -1536,6 +1536,24 @@ export const SettingsModal = ({ user, onClose, onUpdateUser, onLogout, onUpdateE
                   </span>
                 </p>
               </div>
+            </div>
+
+            {/* Séparateur */}
+            <hr className="border-slate-200" />
+
+            {/* Aide */}
+            <div className="space-y-4">
+              <h3 className="font-bold text-slate-900">Aide</h3>
+              
+              <button
+                onClick={() => {
+                  onClose();
+                  restartTutorial();
+                }}
+                className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-3 rounded-xl font-semibold border border-indigo-200 transition-all"
+              >
+                Relancer le tutoriel
+              </button>
             </div>
 
             {/* Séparateur */}
@@ -2461,7 +2479,8 @@ export const RiddleModal = ({ riddle, level, onClose, onSuccess, onFail, already
   };
 
   const handleClose = () => {
-    if (hasStarted && !result) {
+    // Ne marquer comme échoué QUE si on a fait au moins 1 tentative
+    if (attempts > 0 && !result) {
       if (window.confirm('Tu as déjà commencé ! Si tu quittes maintenant, tu perdras cette énigme pour aujourd\'hui.')) {
         onFail();
         onClose();

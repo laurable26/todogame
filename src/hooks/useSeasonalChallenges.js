@@ -42,9 +42,9 @@ const SEASONAL_CHALLENGES = {
   // Avril - Pâques
   4: {
     name: "Renouveau",
-    emoji: "🐰",
-    avatar: "🐰",
-    avatarBg: "from-purple-300 to-pink-400",
+    emoji: "🌼",
+    avatar: "🌼",
+    avatarBg: "from-yellow-300 to-pink-400",
     tasks: [
       "Faire une activité en lien avec l'œuf, le lapin ou le chocolat",
       "Cuisiner un plat de saison",
